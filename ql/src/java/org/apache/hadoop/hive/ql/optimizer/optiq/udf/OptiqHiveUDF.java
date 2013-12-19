@@ -1,0 +1,22 @@
+package org.apache.hadoop.hive.ql.optimizer.optiq.udf;
+
+import org.eigenbase.reltype.RelDataType;
+import org.eigenbase.sql.SqlFunction;
+import org.eigenbase.sql.SqlFunctionCategory;
+import org.eigenbase.sql.SqlIdentifier;
+import org.eigenbase.sql.SqlKind;
+import org.eigenbase.sql.type.SqlOperandTypeChecker;
+import org.eigenbase.sql.type.SqlOperandTypeInference;
+import org.eigenbase.sql.type.SqlReturnTypeInference;
+import org.eigenbase.sql.type.SqlTypeStrategies;
+
+public class OptiqHiveUDF extends SqlFunction {
+
+  public OptiqHiveUDF(SqlIdentifier sqlIdentifier, SqlReturnTypeInference returnTypeInference,
+      SqlOperandTypeInference operandTypeInference, SqlOperandTypeChecker operandTypeChecker,
+      RelDataType[] paramTypes, SqlFunctionCategory funcType) {
+    super("OptiqHi", SqlKind.OTHER_FUNCTION, SqlTypeStrategies.rtiFirstArgType, null,
+        SqlTypeStrategies.otcSameX2, SqlFunctionCategory.UserDefinedFunction);
+  }
+
+}

@@ -79,14 +79,19 @@ public class StatsUtils {
    * @return statistics object
    * @throws HiveException
    */
+    public static Statistics collectStatistics(HiveConf conf,
+            PrunedPartitionList partList, Table table,
+            TableScanOperator tableScanOperator) {
+        // column level statistics are required only for the columns that are
+        // needed
+        List<ColumnInfo> schema = tableScanOperator.getSchema().getSignature();
+        List<String> neededColumns = tableScanOperator.getNeededColumns();
+        return collectStatistics(conf, partList, table, schema, neededColumns);
+    }
+
   public static Statistics collectStatistics(HiveConf conf, PrunedPartitionList partList,
-      Table table, TableScanOperator tableScanOperator) {
-
-    Statistics stats = new Statistics();
-
-    // column level statistics are required only for the columns that are needed
-    List<ColumnInfo> schema = tableScanOperator.getSchema().getSignature();
-    List<String> neededColumns = tableScanOperator.getNeededColumns();
+          Table table, List<ColumnInfo> schema, List<String> neededColumns) {
+      Statistics stats = new Statistics();  
     String dbName = table.getDbName();
     String tabName = table.getTableName();
     boolean fetchColStats =

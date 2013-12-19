@@ -1,0 +1,373 @@
+package org.apache.hadoop.hive.ql.optimizer.optiq;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
+import org.eigenbase.rel.RelNode;
+import org.eigenbase.relopt.RelOptUtil;
+import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexCall;
+import org.eigenbase.rex.RexInputRef;
+import org.eigenbase.rex.RexKind;
+import org.eigenbase.rex.RexLiteral;
+import org.eigenbase.rex.RexNode;
+import org.eigenbase.rex.RexUtil;
+
+
+public class OptiqUtils {
+
+  public static boolean isLiteral(RexNode n) {
+    if (n instanceof RexLiteral || RexUtil.isNullLiteral(n, true)) {
+      return true;
+    } else if (n.isA(RexKind.Cast)) {
+      return isLiteral(((RexCall) n).operands.get(0));
+    } else {
+      return false;
+    }
+  }
+
+  private static boolean binaryComparisonWithLiteral(RexNode lp) {
+    boolean compWithLiteral = false;
+
+    if (((RexCall) lp).getOperands().size() != 2) {
+      throw new RuntimeException("Invalid Join Condition");
+    }
+
+    for (RexNode operand : ((RexCall) lp).getOperands()) {
+      if (isLiteral(operand)) {
+        compWithLiteral = true;
+        break;
+      }
+    }
+
+    return compWithLiteral;
+  }
+
+  private static boolean isJoinLeafPredicate(HiveJoinRel j, RexNode lp) {
+    boolean jlp = true;
+
+    if (lp.isA(RexKind.Equals)) {
+      RexNode leftRel = j.getChildExps().get(0);
+      RexNode rightRel = j.getChildExps().get(1);
+
+      if (binaryComparisonWithLiteral(lp)) {
+        jlp = false;
+      } else {
+
+      }
+    } else {
+      jlp = false;
+    }
+
+    return jlp;
+  }
+
+  private List<Pair<Integer, Integer>> getRelationToProjIndexLst(RelNode rel) {
+    List<Pair<Integer, Integer>> retLst = new LinkedList<Pair<Integer, Integer>>();
+    List<RelNode> inputs = rel.getInputs();
+
+    int nxtInput = 0;
+    for (RelNode in : inputs) {
+      retLst.add(new Pair<Integer, Integer>(nxtInput, nxtInput + in.getRowType().getFieldCount()
+          - 1));
+      nxtInput += in.getRowType().getFieldCount();
+    }
+
+    return retLst;
+  }
+
+  private Map<Integer, Pair<Integer, Integer>>getRelationToProjIndexMap(RelNode rel) {
+    Map<Integer, Pair<Integer, Integer>> retLst = new HashMap<Integer, Pair<Integer, Integer>>();
+    List<RelNode> inputs = rel.getInputs();
+
+    int inputSoFar = 0;
+    int inputCounter = 0;
+    for (RelNode in : inputs) {
+      retLst.put(new Pair<Integer, Integer>(inputSoFar, in.getRowType().getFieldCount()-1));
+      inputSoFar += ;
+      inputCounter
+    }
+
+
+    return retLst;
+  }
+
+  private List<Pair<Integer, Integer>> getRelationToProjIndexMap(RelNode rel) {
+
+
+    return retLst;
+  }
+
+  List<Pair<Integer, Set<Integer>>> getEquivalentProjectionFromChild(RelNode relOfProj,
+      Set<Integer> indxOfprojectionsToBeTranslated) {
+    List<Pair<Integer, Set<Integer>>> lstOfRelProjIndx = new LinkedList<Pair<Integer, Set<Integer>>>();
+    Integer equProjFromChildIndx = -1;
+
+    int numElementsSoFar = 0;
+    Map<Integer, List<Integer>> mapOfInputToLstOfProjIndx = new HashMap<Integer, List<Integer>>();
+    List<RelNode> inputs = relOfProj.getInputs();
+    List<Pair<Integer, Integer>> rangeLst = getRelationToProjIndexMap(relOfProj);
+
+    for (Integer idx : indxOfprojectionsToBeTranslated) {
+      Integer inputNo = -1;
+      Integer inputCounter = 0;
+      for (Pair<Integer, Integer> range : rangeLst) {
+        if (idx >= range.getFirst() && idx <= range.getSecond()) {
+
+        }
+      }
+    }
+    /*
+     * if (indxOfprojToBeTranslated > (numElementsSoFar + in.getRowType()
+     * .getFieldCount())) {
+     * numElementsSoFar += in.getRowType().getFieldCount();
+     * }
+     * else {
+     * equProjFromChildIndx = indxOfprojToBeTranslated - numElementsSoFar;
+     * break;
+     * }
+     * }
+     */
+
+    return equProjFromChildIndx;
+  }
+
+
+  Map<Integer, Set<Integer>> getEquivalentProjectionFromChild(RelNode relOfProj,
+      Set<Integer> indxOfprojectionsToBeTranslated) {
+    Map<Integer, Set<Integer>> mapOfRelProjIndx = new HashMap<Integer, Set<Integer>>();
+    Integer equProjFromChildIndx = -1;
+
+    int numElementsSoFar = 0;
+    Map<Integer, List<Integer>> mapOfInputToLstOfProjIndx = new HashMap<Integer, List<Integer>>();
+    List<RelNode> inputs = relOfProj.getInputs();
+    List<Pair<Integer, Set<Integer>>> rangeLst = getRelationToProjIndexMap(relOfProj);
+
+    for (Integer idx : indxOfprojectionsToBeTranslated) {
+      Integer inputNo = -1;
+      Integer inputCounter = 0;
+      for (Pair<Integer, Integer> range : rangeLst) {
+        if (idx >= range.getFirst() && idx <= range.getSecond()) {
+
+        }
+      }
+    }
+
+    return mapOfRelProjIndx;
+  }
+
+  private static List<Set<Integer>> getjoinKeysRecursively(HiveJoinRel mj) {
+    List<Set<Integer>> joinKeys = new LinkedList<Set<Integer>>();
+    if (mj.partOfMultiJoin()) {
+      if (mj.getLeft() instanceof HiveJoinRel) {
+
+      }
+
+      if (mj.getLeft() instanceof HiveJoinRel) {
+
+      }
+    }
+
+    return joinKeys;
+  }
+
+  private static Set<Integer> translateDown(HiveJoinRel parentJoin, HiveJoinRel childJoin,
+      Set<Integer> parentProjsToBeTranslated, boolean joinLeftOfParent) {
+    Set<Integer> translatedProj = new HashSet<Integer>();
+
+    int parentSchemaSize = parentJoin.getRowType().getFieldCount();
+    for (Integer projIndx : parentProjsToBeTranslated) {
+      if (joinLeftOfParent) {
+        if (projIndx > (parentSchemaSize - childJoin.getRowType().getFieldCount() - 1)) {
+          translatedProj.clear();
+          break;
+        } else {
+          translatedProj.add(projIndx);
+        }
+      } else {
+        int lastLeftFieldIndex = (parentSchemaSize - childJoin.getRowType().getFieldCount()) - 1;
+        if (projIndx <= lastLeftFieldIndex) {
+          translatedProj.clear();
+          break;
+        } else {
+          translatedProj.add(projIndx - lastLeftFieldIndex - 1);
+        }
+      }
+    }
+
+    return translatedProj;
+  }
+
+  private static boolean isSetOfProjJoinKeys(HiveJoinRel j, Set<Integer> setOfProj) {
+    boolean partOfJoinKey = false;
+
+    JoinPredicateInfo jpi = getJoinPredicateInfo(j);
+    if (jpi.getJoinKeysInJoinSchemaFromLeft().equals(setOfProj)
+        || !jpi.getJoinKeysInJoinSchemaFromRight().equals(setOfProj)) {
+      partOfJoinKey = true;
+    } else if (j.partOfMultiJoin())
+    {
+      if (j.getLeft() instanceof HiveJoinRel) {
+        Set<Integer> setOfTranslatedProj = translateDown(j, (HiveJoinRel) j.getLeft(), setOfProj,
+            true);
+        if (!setOfTranslatedProj.isEmpty()) {
+          partOfJoinKey = isSetOfProjJoinKeys((HiveJoinRel) j.getLeft(), setOfTranslatedProj);
+        }
+      }
+      if (!partOfJoinKey && (j.getRight() instanceof HiveJoinRel)) {
+        Set<Integer> setOfTranslatedProj = translateDown(j, (HiveJoinRel) j.getRight(), setOfProj,
+            true);
+        if (!setOfTranslatedProj.isEmpty()) {
+          partOfJoinKey = isSetOfProjJoinKeys((HiveJoinRel) j.getRight(), setOfTranslatedProj);
+        }
+      }
+    }
+
+    return partOfJoinKey;
+  }
+
+  // TODO:
+  // 1. make sure that a join which is part of rel subset would be used for rule matching (i.e
+  // j2-RelSubSet(J1, J1') would the rule file for J2-J1')
+  private static boolean canMerge(HiveJoinRel j1, HiveJoinRel j2, boolean j1LeftOfJ2) {
+    boolean mergePossible = true;
+    Set<Integer> j2KeysFromJ1 = null;
+
+    JoinPredicateInfo jpi1 = getJoinPredicateInfo(j1);
+    JoinPredicateInfo jpi2 = getJoinPredicateInfo(j2);
+
+    if (j1LeftOfJ2) {
+      j2KeysFromJ1 = jpi2.getJoinKeysFromLeftRelation();
+      if (!j2.getLeft().equals(j1)) {
+        // TODO: Allow for more complex trees and remove the restriction that j1 has to be an
+        // immediate child of J2
+        throw new RuntimeException("Join2 is not an immediate child of Join1");
+      }
+    } else {
+      j2KeysFromJ1 = jpi2.getJoinKeysFromRightRelation();
+      if (!j2.getRight().equals(j1)) {
+        // TODO: Allow for more complex trees and remove the restriction that j1 has to be an
+        // immediate child of J2
+        throw new RuntimeException("Join2 is not an immediate child of Join1");
+      }
+    }
+
+    if (!j1.partOfMultiJoin()) {
+      if (!jpi1.getJoinKeysInJoinSchemaFromLeft().equals(j2KeysFromJ1)
+          && !jpi1.getJoinKeysInJoinSchemaFromRight().equals(j2KeysFromJ1)) {
+        mergePossible = false;
+      }
+    } else {
+      mergePossible = isSetOfProjJoinKeys(j1, j2KeysFromJ1);
+    }
+
+    return mergePossible;
+  }
+
+  private static HashSet<Integer> getIndexSet(List<RexNode> lstOfJoinKeysFromChildRel) {
+    HashSet<Integer> indexSet = new HashSet<Integer>();
+
+    for (RexNode r : lstOfJoinKeysFromChildRel) {
+      if (r instanceof RexInputRef) {
+        indexSet.add(((RexInputRef) r).getIndex());
+      } else {
+        // TODO: validate this
+        throw new RuntimeException("Invalid rex noce");
+      }
+    }
+
+    return indexSet;
+  }
+
+  private static JoinPredicateInfo getJoinPredicateInfo(HiveJoinRel j) {
+    JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+
+    if (jpi == null) {
+      jpi = new JoinPredicateInfo();
+      RexNode jc = j.getCondition();
+
+      if (jc != null) {
+        List<RelDataTypeField> sysFieldList = new LinkedList<RelDataTypeField>();
+        List<RexNode> leftJoinKeys = new LinkedList<RexNode>();
+        List<RexNode> rightJoinKeys = new LinkedList<RexNode>();
+        List<Integer> filterNulls = new LinkedList<Integer>();
+
+        RexNode remainingNonJoinConjuctivePredicate = RelOptUtil.splitJoinCondition(sysFieldList,
+            j.getLeft(), j.getRight(), j.getCondition(),
+            leftJoinKeys, rightJoinKeys, filterNulls, null);
+
+        HashSet<Integer> joinKeysFromLeftRelations = getIndexSet(leftJoinKeys);
+        HashSet<Integer> joinKeysFromRightRelations = getIndexSet(rightJoinKeys);
+
+        jpi.setJoinKeysFromLeftRelations(joinKeysFromLeftRelations);
+        jpi.setJoinKeysFromRightRelations(joinKeysFromRightRelations);
+        jpi.computeJoinKeysInJoinSchema(j.getLeft().getRowType().getFieldCount());
+        if (remainingNonJoinConjuctivePredicate != null) {
+          jpi.setNonJoinKeyLeafPredicates(RelOptUtil
+              .conjunctions(remainingNonJoinConjuctivePredicate));
+        }
+      }
+    }
+
+    return jpi;
+  }
+
+  public static class JoinPredicateInfo {
+    private List<RexNode> m_nonJoinKeyLeafPredicates;
+    private HashSet<Integer> m_joinKeysFromLeftRelations;
+    private HashSet<Integer> m_joinKeysFromRightRelations;
+    private final HashSet<Integer> m_joinKeysInJoinNodeSchemaFromLeft = new HashSet<Integer>();
+    private final HashSet<Integer> m_joinKeysInJoinNodeSchemaFromRight = new HashSet<Integer>();
+
+    private void setNonJoinKeyLeafPredicates(List<RexNode> nonJoiningPredicates) {
+      m_nonJoinKeyLeafPredicates = nonJoiningPredicates;
+    }
+
+    private void computeJoinKeysInJoinSchema(int leftRelFiledCount) {
+      if (m_joinKeysFromLeftRelations != null) {
+        for (Integer k : m_joinKeysFromLeftRelations) {
+          m_joinKeysInJoinNodeSchemaFromLeft.add(k);
+        }
+      }
+
+      if (m_joinKeysFromRightRelations != null) {
+        for (Integer k : m_joinKeysFromRightRelations) {
+          m_joinKeysInJoinNodeSchemaFromRight.add(leftRelFiledCount + k);
+        }
+      }
+    }
+
+    public HashSet<Integer> getJoinKeysInJoinSchemaFromLeft() {
+      return m_joinKeysInJoinNodeSchemaFromLeft;
+    }
+
+    public HashSet<Integer> getJoinKeysInJoinSchemaFromRight() {
+      return m_joinKeysInJoinNodeSchemaFromRight;
+    }
+
+    public List<RexNode> getNonJoinKeyLeafPredicates() {
+      return m_nonJoinKeyLeafPredicates;
+    }
+
+    private void setJoinKeysFromLeftRelations(HashSet<Integer> keySet) {
+      m_joinKeysFromLeftRelations = keySet;
+    }
+
+    public Set<Integer> getJoinKeysFromLeftRelation() {
+      return m_joinKeysFromLeftRelations;
+    }
+
+    private void setJoinKeysFromRightRelations(HashSet<Integer> keySet) {
+      m_joinKeysFromRightRelations = keySet;
+    }
+
+    public Set<Integer> getJoinKeysFromRightRelation() {
+      return m_joinKeysFromRightRelations;
+    }
+  }
+}

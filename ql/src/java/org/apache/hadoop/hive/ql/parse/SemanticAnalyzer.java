@@ -89,6 +89,7 @@ import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.optimizer.Optimizer;
+import org.apache.hadoop.hive.ql.optimizer.optiq.CBO;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
 import org.apache.hadoop.hive.ql.parse.PTFInvocationSpec.OrderExpression;
@@ -237,6 +238,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
   //flag for partial scan during analyze ... compute statistics
   protected boolean partialscan = false;
+
+  private volatile boolean runCBO = true;
+  private volatile boolean disableJoinMerge = true;
 
   private static class Phase1Ctx {
     String dest;
@@ -1060,6 +1064,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       getMetaData(qbexpr.getQBExpr2(), parentInput);
     }
   }
+
+	public Table getTable(TableScanOperator ts) {
+		return topToTable.get(ts);
+	}
 
   public void getMetaData(QB qb) throws SemanticException {
     getMetaData(qb, null);
@@ -8655,7 +8663,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             extractJoinCondsFromWhereClause(joinTree, qb, dest, (ASTNode) whereClause.getChild(0) );
           }
         }
-        mergeJoinTree(qb);
+        
+        if (!disableJoinMerge)
+        	mergeJoinTree(qb);
       }
 
       // if any filters are present in the join tree, push them on top of the
@@ -8916,6 +8926,56 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       ctx.setResDir(null);
       ctx.setResFile(null);
       return;
+    }
+
+    if (runCBO) {
+      if (createVwDesc != null || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED)) {
+        runCBO = false;
+      }
+    }
+
+    if (runCBO) {
+      ASTNode newAST = null;
+      boolean skipCBOPlan = false;
+      disableJoinMerge = false; //TODO: remove disableJoinMerge in production
+
+      try {
+        newAST = CBO.optimize(sinkOp, this, this.conf);
+        if (newAST == null) {
+          skipCBOPlan = true;
+          LOG.info("CBO failed, skipping CBO");
+        }
+        else if (LOG.isDebugEnabled()) {
+          String newAstExpanded = newAST.dump();
+          LOG.debug("CBO rewritten query: \n" + newAstExpanded);
+        }
+      } catch (Exception e) {
+        skipCBOPlan = true;
+      }
+
+      if (!skipCBOPlan) {
+        try {
+          init();
+          ctx_1 = initPhase1Ctx();
+          if (!doPhase1(newAST, qb, ctx_1)) {
+            throw new RuntimeException("Couldn't do phase1 on CBO optimized query plan");
+          }
+          getMetaData(qb);
+
+          // Save the result schema derived from the sink operator produced
+          // by genPlan. This has the correct column names, which clients
+          // such as JDBC would prefer instead of the c0, c1 we'll end
+          // up with later.
+          sinkOp = genPlan(qb);
+
+          resultSchema =
+              convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
+        } catch (Exception e) {
+          init();
+          runCBO = false;
+          analyzeInternal(ast);
+        }
+      }
     }
 
     ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner,
