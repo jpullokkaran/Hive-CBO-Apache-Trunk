@@ -422,6 +422,9 @@ public class HiveConf extends Configuration {
     HIVEJOINEMITINTERVAL("hive.join.emit.interval", 1000),
     HIVEJOINCACHESIZE("hive.join.cache.size", 25000),
 
+    // CBO related
+    HIVE_CBO_ENABLED("hive.cbo.enable", false),
+    
     // hive.mapjoin.bucket.cache.size has been replaced by hive.smbjoin.cache.row,
     // need to remove by hive .13. Also, do not change default (see SMB operator)
     HIVEMAPJOINBUCKETCACHESIZE("hive.mapjoin.bucket.cache.size", 100),

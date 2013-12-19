@@ -126,6 +126,7 @@
         requires netty < 3.6.0 we force hadoops version
       -->
     <netty.version>3.4.0.Final</netty.version>
+    <optiq.version>0.4.17-SNAPSHOT</optiq.version>
     <pig.version>0.10.1</pig.version>
     <protobuf.version>2.5.0</protobuf.version>
     <stax.version>1.0.1</stax.version>
@@ -451,6 +452,11 @@
         <artifactId>datanucleus-rdbms</artifactId>
         <version>${datanucleus-rdbms.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.eigenbase</groupId>
+        <artifactId>optiq</artifactId>
+        <version>${optiq.version}</version>
+      </dependency>      
       <dependency>
         <groupId>org.iq80.snappy</groupId>
         <artifactId>snappy</artifactId>
