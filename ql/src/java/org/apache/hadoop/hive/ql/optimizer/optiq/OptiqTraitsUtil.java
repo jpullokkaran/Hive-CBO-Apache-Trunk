@@ -35,7 +35,7 @@ import com.google.common.collect.ImmutableSet;
 
 //TODO: handle expressions as partition/sort keys. It also implies that we need a way to represent expressions (One option is to add expression as virtual hidden columns of Shuffle/sort)
 public class OptiqTraitsUtil {
-
+/*
   private static boolean isJoinKeys(HiveJoinRel j, List<Integer> bucketCols) {
     boolean colsPartOfJoinKeys = true;
 
@@ -55,6 +55,7 @@ public class OptiqTraitsUtil {
 
     return colsPartOfJoinKeys;
   }
+  */
 
   private static boolean propgateBucketTrait(HiveRel n, List<Integer> bucketCols,
       List<Integer> bucketSortCols) {

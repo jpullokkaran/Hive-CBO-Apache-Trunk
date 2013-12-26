@@ -27,7 +27,6 @@ import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.reltype.RelDataTypeField;
 import org.eigenbase.rex.RexInputRef;
-import org.eigenbase.rex.RexLiteral;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.rex.RexUtil;
 
@@ -406,7 +405,7 @@ public class OptiqUtil {
         return projExps;
     }
 
-    private static List<Integer> constructProjIndxLst(HiveRel relNode) {
+    public static List<Integer> constructProjIndxLst(HiveRel relNode) {
         List<Integer> projIndxLst = new LinkedList<Integer>();
         int noOfProjs = relNode.getRowType().getFieldCount();
         

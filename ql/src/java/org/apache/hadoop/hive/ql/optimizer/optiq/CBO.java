@@ -28,81 +28,91 @@ import org.eigenbase.relopt.RelOptSchema;
 import org.eigenbase.relopt.RelTraitSet;
 
 public class CBO implements Frameworks.PlannerAction<RelNode> {
-  private static final List<OperatorType> m_unsupportedOpTypes = Arrays.asList(OperatorType.DEMUX,
-      OperatorType.FORWARD, OperatorType.LATERALVIEWFORWARD, OperatorType.LATERALVIEWJOIN,
-      OperatorType.MUX, OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF);
+    private static final List<OperatorType> m_unsupportedOpTypes = Arrays
+            .asList(OperatorType.DEMUX, OperatorType.FORWARD,
+                    OperatorType.LATERALVIEWFORWARD,
+                    OperatorType.LATERALVIEWJOIN, OperatorType.MUX,
+                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF);
 
-  @SuppressWarnings("rawtypes")
-private final Operator m_sinkOp;
-  private final SemanticAnalyzer m_semanticAnalyzer;
-  private final HiveConf m_conf;
+    @SuppressWarnings("rawtypes")
+    private final Operator m_sinkOp;
+    private final SemanticAnalyzer m_semanticAnalyzer;
+    private final HiveConf m_conf;
 
-  public CBO(@SuppressWarnings("rawtypes") Operator sinkOp, SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
-    m_sinkOp = sinkOp;
-    m_semanticAnalyzer = semanticAnalyzer;
-    m_conf = conf;
-  }
-
-  public static ASTNode optimize(@SuppressWarnings("rawtypes") Operator sinkOp, SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
-    ASTNode optiqOptimizedAST = null;
-
-    if (shouldRunOptiqOptimizer(sinkOp, conf)) {
-      String opf = System.getProperty("java.util.logging.config.file");
-      String opd = System.getProperty("optiq.debug");
-
-      RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
-          semanticAnalyzer, conf));
-
-      // return OptiqOpToHiveASTConverter.convertOpTree(optimizedOptiqPlan);
-      optiqOptimizedAST = OptiqRelToHiveASTConverter.convertOpTree(optimizedOptiqPlan);
+    public CBO(@SuppressWarnings("rawtypes") Operator sinkOp,
+            SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
+        m_sinkOp = sinkOp;
+        m_semanticAnalyzer = semanticAnalyzer;
+        m_conf = conf;
     }
 
-    return optiqOptimizedAST;
-  }
+    public static ASTNode optimize(
+            @SuppressWarnings("rawtypes") Operator sinkOp,
+            SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
+        ASTNode optiqOptimizedAST = null;
 
-  @Override
-  public RelNode apply(RelOptCluster cluster, RelOptSchema relOptSchema, Schema schema) {
-	  Long totalMemForSmallTable = m_conf.getLongVar(HiveConf.ConfVars.HIVESMALLTABLESFILESIZE);
-	  
-    RelNode opTreeInOptiq = HiveToOptiqRelConverter.convertOpDAG(cluster, relOptSchema, schema, m_sinkOp, m_semanticAnalyzer, m_conf);
-    
-    //TODO: Add rules for projection pruning, predicate push down, transitive predicate propagation
-    cluster.getPlanner().addRule(new HiveSwapJoinRule());
-    cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
-    cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
-    cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
-    cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.FILTER);
-    cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.LIMIT);
-    cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.PROJECT);
-    cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
-    cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
-    cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
-    cluster.getPlanner().addRule(new ConvertToBucketJoinRule(totalMemForSmallTable));
-    cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
-    cluster.getPlanner().addRule(new ConvertToMapJoinRule(totalMemForSmallTable));
+        if (shouldRunOptiqOptimizer(sinkOp, conf)) {
+            RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
+                    semanticAnalyzer, conf));
 
-    RelTraitSet desiredTraits = opTreeInOptiq.getTraitSet().replace(
-        HiveRel.CONVENTION);
-    final RelNode rootRel = cluster.getPlanner().changeTraits(opTreeInOptiq,
-        desiredTraits);
-    cluster.getPlanner().setRoot(rootRel);
+            // return
+            // OptiqOpToHiveASTConverter.convertOpTree(optimizedOptiqPlan);
+            optiqOptimizedAST = OptiqRelToHiveASTConverter
+                    .convertOpTree(optimizedOptiqPlan);
+        }
 
-    return cluster.getPlanner().findBestExp();
-  }
+        return optiqOptimizedAST;
+    }
 
-  private static boolean shouldRunOptiqOptimizer(Operator sinkOp, HiveConf conf) {
-    boolean runOptiq = false;
+    @Override
+    public RelNode apply(RelOptCluster cluster, RelOptSchema relOptSchema,
+            Schema schema) {
+        Long totalMemForSmallTable = m_conf
+                .getLongVar(HiveConf.ConfVars.HIVESMALLTABLESFILESIZE);
 
-      HashSet<Operator> start = new HashSet<Operator>();
-      HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(m_unsupportedOpTypes);
+        RelNode opTreeInOptiq = HiveToOptiqRelConverter.convertOpDAG(cluster,
+                relOptSchema, schema, m_sinkOp, m_semanticAnalyzer, m_conf);
 
+        // TODO: Add rules for projection pruning, predicate push down,
+        // transitive predicate propagation
+        cluster.getPlanner().addRule(new HiveSwapJoinRule());
+        cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
+        cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
+        cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
+        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.FILTER);
+        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.LIMIT);
+        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.PROJECT);
+        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
+        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
+        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
+        cluster.getPlanner().addRule(
+                new ConvertToBucketJoinRule(totalMemForSmallTable));
+        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
+        cluster.getPlanner().addRule(
+                new ConvertToMapJoinRule(totalMemForSmallTable));
 
-      start.add(sinkOp);
-      //TODO: use queryproperties instead of walking the tree
-      if (!OperatorUtils.operatorExists(start, true, opsThatsNotSupported)) {
-        runOptiq = true;
-      }
+        RelTraitSet desiredTraits = opTreeInOptiq.getTraitSet().replace(
+                HiveRel.CONVENTION);
+        final RelNode rootRel = cluster.getPlanner().changeTraits(
+                opTreeInOptiq, desiredTraits);
+        cluster.getPlanner().setRoot(rootRel);
 
-    return runOptiq;
-  }
+        return cluster.getPlanner().findBestExp();
+    }
+
+    private static boolean shouldRunOptiqOptimizer(Operator sinkOp,
+            HiveConf conf) {
+        boolean runOptiq = false;
+        HashSet<Operator> start = new HashSet<Operator>();
+        HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(
+                m_unsupportedOpTypes);
+
+        start.add(sinkOp);
+        // TODO: use queryproperties instead of walking the tree
+        if (!OperatorUtils.operatorExists(start, true, opsThatsNotSupported)) {
+            runOptiq = true;
+        }
+
+        return runOptiq;
+    }
 }

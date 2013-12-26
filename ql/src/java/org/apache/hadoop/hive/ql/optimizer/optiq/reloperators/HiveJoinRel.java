@@ -22,7 +22,6 @@ import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexNode;
-import org.eigenbase.util.ImmutableIntList;
 
 //TODO: Should we convert MultiJoin to be a child of HiveJoinRelBase
 public class HiveJoinRel extends JoinRelBase implements HiveRel {
@@ -42,8 +41,6 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         NONE, LEFT_RELATION, RIGHT_RELATION
     };
 
-    private final ImmutableIntList m_leftKeys;
-    private final ImmutableIntList m_rightKeys;
     private JoinPredicateInfo m_jpi;
     private JoinAlgorithm m_joinAlgorithm = JoinAlgorithm.NONE;
     private MapJoinStreamingRelation m_mapJoinStreamingSide = MapJoinStreamingRelation.NONE;
@@ -74,11 +71,6 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
             throw new InvalidRelException(
                     "EnumerableJoinRel only supports equi-join");
         }
-        this.m_leftKeys = ImmutableIntList.copyOf(leftKeys);
-        this.m_rightKeys = ImmutableIntList.copyOf(rightKeys);
-
-        HiveRel hiveLeftChildNode = OptiqUtil.getNonSubsetRelNode(left);
-        HiveRel hiveRightChildNode = OptiqUtil.getNonSubsetRelNode(right);
     }
 
     @Override
@@ -163,28 +155,6 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         return planner.makeCost(rowCount, 0, 0);
     }
 
-    private double addEpsilon(double d) {
-        assert d >= 0d;
-        final double d0 = d;
-        if (d < 10) {
-            // For small d, adding 1 would change the value significantly.
-            d *= 1.001d;
-            if (d != d0) {
-                return d;
-            }
-        }
-        // For medium d, add 1. Keeps integral values integral.
-        ++d;
-        if (d != d0) {
-            return d;
-        }
-        // For large d, adding 1 might not change the value. Add .1%.
-        // If d is NaN, this still will probably not change the value. That's
-        // OK.
-        d *= 1.001d;
-        return d;
-    }
-
     // @Override
     public double _getRows() {
         final double leftRowCount = left.getRows();
@@ -210,16 +180,7 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
 
     @Override
     public HiveColStat getColStat(Integer projIndx) {
-        HiveColStat colStat = null;
-        List<HiveColStat> colStatLst;
-        List<Integer> projIndxLst = new ArrayList<Integer>();
-
-        projIndxLst.add(projIndx);
-        colStatLst = OptiqStatsUtil.getJoinRelColStat(this, projIndxLst);
-        if (colStatLst != null)
-            colStat = colStatLst.get(0);
-
-        return colStat;
+        return OptiqStatsUtil.computeColStat(this, projIndx);
     }
 
     @Override

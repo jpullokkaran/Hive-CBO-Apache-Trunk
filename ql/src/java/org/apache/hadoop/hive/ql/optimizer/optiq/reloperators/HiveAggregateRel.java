@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -19,82 +20,95 @@ import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelTraitSet;
 
 public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
-  public HiveAggregateRel(
-      RelOptCluster cluster,
-      RelTraitSet traitSet,
-      RelNode child,
-      BitSet groupSet,
-      List<AggregateCall> aggCalls)
-      throws InvalidRelException {
-    super(cluster, OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
-        OptiqUtil.translateBitSetToProjIndx(groupSet), aggCalls, child), child, groupSet, aggCalls);
-    assert getConvention() instanceof HiveRel;
 
-    for (AggregateCall aggCall : aggCalls) {
-      if (aggCall.isDistinct()) {
-        throw new InvalidRelException(
-            "distinct aggregation not supported");
-      }
+    private Map<Integer, HiveColStat> m_colStatMap = new HashMap<Integer, HiveColStat>();
+    
+    public HiveAggregateRel(RelOptCluster cluster, RelTraitSet traitSet,
+            RelNode child, BitSet groupSet, List<AggregateCall> aggCalls)
+            throws InvalidRelException {
+        super(cluster,
+                OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
+                        OptiqUtil.translateBitSetToProjIndx(groupSet),
+                        aggCalls, child), child, groupSet, aggCalls);
+        assert getConvention() instanceof HiveRel;
+
+        for (AggregateCall aggCall : aggCalls) {
+            if (aggCall.isDistinct()) {
+                throw new InvalidRelException(
+                        "distinct aggregation not supported");
+            }
+        }
     }
-  }
 
-  @Override
-  public HiveAggregateRel copy(
-      RelTraitSet traitSet, List<RelNode> inputs) {
-    try {
-      return new HiveAggregateRel(
-          getCluster(),
-          traitSet,
-          sole(inputs),
-          groupSet,
-          aggCalls);
-    } catch (InvalidRelException e) {
-      // Semantic error not possible. Must be a bug. Convert to
-      // internal error.
-      throw new AssertionError(e);
+    @Override
+    public HiveAggregateRel copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        try {
+            return new HiveAggregateRel(getCluster(), traitSet, sole(inputs),
+                    groupSet, aggCalls);
+        } catch (InvalidRelException e) {
+            // Semantic error not possible. Must be a bug. Convert to
+            // internal error.
+            throw new AssertionError(e);
+        }
     }
-  }
 
-  public void implement(Implementor implementor) {
-  }
+    public void implement(Implementor implementor) {
+    }
 
-  @Override
-  public double getAvgTupleSize() {
-      return (OptiqUtil.getNonSubsetRelNode(getChild())).getAvgTupleSize();
-  }
+    @Override
+    public double getAvgTupleSize() {
+        return OptiqStatsUtil.computeAvgTupleSize(OptiqStatsUtil
+                .computeAggregateRelColStat(this,
+                        OptiqUtil.constructProjIndxLst(this)));
+    }
 
-  @Override
-  public Double getEstimatedMemUsageInVertex() {
-    return (((HiveRel) getChild()).getEstimatedMemUsageInVertex() + getAvgTupleSize());
-  }
+    @Override
+    public Double getEstimatedMemUsageInVertex() {
+        return (((HiveRel) getChild()).getEstimatedMemUsageInVertex() + getAvgTupleSize());
+    }
 
-  @Override
-  public List<HiveColStat> getColStat(List<Integer> projIndxLst) {
-      return (OptiqUtil.getNonSubsetRelNode(getChild())).getColStat(projIndxLst);
-  }
+    @Override
+    public List<HiveColStat> getColStat(List<Integer> projIndxLst) {
+        List<HiveColStat> colStatLstToReturn = new LinkedList<HiveColStat>();
 
-  @Override
-  public HiveColStat getColStat(Integer projIndx) {
-      return (OptiqUtil.getNonSubsetRelNode(getChild())).getColStat(projIndx);
-  }
+        if (projIndxLst == null)
+            projIndxLst = OptiqUtil.constructProjIndxLst(this);
 
-  @Override
-  public boolean propagateBucketingTraitUpwardsViaTransformation(List<Integer> bucketingCols, List<Integer> bucketSortCols){
-    return false;
-  }
+        if (m_colStatMap.isEmpty())
+            OptiqStatsUtil.computeAggregateRelColStat(this, projIndxLst);
+        for (Integer i : projIndxLst) {
+            colStatLstToReturn.add(m_colStatMap.get(i));
+        }
 
-  @Override
-  public boolean propagateSortingTraitUpwardsViaTransformation(List<Integer> sortingCols) {
-    return false;
-  }
+        return colStatLstToReturn;
+    }
 
-  @Override
-  public boolean shouldPropagateTraitFromChildViaTransformation(RelBucketing bucketTraitFromChild) {
-    return false;
-  }
+    @Override
+    public HiveColStat getColStat(Integer projIndx) {
+        return OptiqStatsUtil.computeColStat(this, projIndx);
+    }
 
-  @Override
-  public boolean shouldPropagateTraitFromChildViaTransformation(RelCollation sortTraitFromChild) {
-    return false;
-  }
+    @Override
+    public boolean propagateBucketingTraitUpwardsViaTransformation(
+            List<Integer> bucketingCols, List<Integer> bucketSortCols) {
+        return false;
+    }
+
+    @Override
+    public boolean propagateSortingTraitUpwardsViaTransformation(
+            List<Integer> sortingCols) {
+        return false;
+    }
+
+    @Override
+    public boolean shouldPropagateTraitFromChildViaTransformation(
+            RelBucketing bucketTraitFromChild) {
+        return false;
+    }
+
+    @Override
+    public boolean shouldPropagateTraitFromChildViaTransformation(
+            RelCollation sortTraitFromChild) {
+        return false;
+    }
 }

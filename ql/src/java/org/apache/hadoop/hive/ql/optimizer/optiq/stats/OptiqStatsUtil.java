@@ -4,18 +4,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.Pair;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
+
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveUnionRel;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.apache.hadoop.hive.ql.plan.Statistics;
 import org.eigenbase.rel.AggregateCall;
@@ -85,84 +82,161 @@ public class OptiqStatsUtil {
         return (new HiveColStat(szNDVPair.getFirst(), szNDVPair.getSecond()));
     }
 
+    // TODO: clean this up
     public static List<HiveColStat> computeAggregateRelColStat(
             HiveAggregateRel aggRel, List<Integer> projIndxLst) {
         int noOfGroupingCols = aggRel.getGroupCount();
         List<AggregateCall> aggCallLst = aggRel.getAggCallList();
-        int noOfAggCols = (aggCallLst != null) ? aggRel.getAggCallList().size() : 0;
-        
         List<RelDataTypeField> fieldLst = aggRel.getRowType().getFieldList();
 
-        HashMap<Integer, Integer> childToParentProjIndxMap = new HashMap<Integer, Integer>();
+        List<Integer> childColStatRqd = new LinkedList<Integer>();
+        HashMap<Integer, Integer> childProjIndxAlreadyUsed = new HashMap<Integer, Integer>();
         HashMap<Integer, List<Integer>> aggProjIndxToaggRelColStatIndxMap = new HashMap<Integer, List<Integer>>();
-        List<Integer> childProjIndxLst = new LinkedList<Integer>();
-        
         Integer tmpInteger;
+        Integer tmpInteger1;
         
-        //1. Assemble indexes from child for grouping cols
-        for (int i = 0; i < noOfGroupingCols; i++) {
-            tmpInteger = fieldLst.get(i).getIndex();
-            childToParentProjIndxMap.put(tmpInteger, i);
-            childProjIndxLst.add(tmpInteger);
-        }
+        // 1. Assemble indexes from child for grouping cols
+        List<Integer> tmpAggCallArgLst;
+        List<Integer> aggRelColStatIndxLst;
 
-        // 2. Collect indexes for cols that are Agg Func 
-        if (noOfAggCols > 0) {
-            List<Integer> tmpAggCallArgLst;
-            List<Integer> aggRelColStatIndxLst;
-            
-            // Cols for Agg Func comes after grouping cols
-            for (int i = noOfGroupingCols; i < (noOfGroupingCols + noOfAggCols); i++) {
-                tmpAggCallArgLst = aggCallLst.get(i - noOfGroupingCols).getArgList();
-                
-                // Walk through all of the args to Agg Func and add their corresponding child index to the list and Map
+        for (int i = 0; i < projIndxLst.size(); i++) {
+            Integer projIndx = projIndxLst.get(i);
+            if (projIndx < noOfGroupingCols) {
+                tmpInteger = fieldLst.get(i).getIndex();
+                tmpInteger1 = childProjIndxAlreadyUsed.get(tmpInteger);
+
+                if (tmpInteger1 == null) {
+                    childProjIndxAlreadyUsed.put(tmpInteger, i);
+                    aggRelColStatIndxLst = new LinkedList<Integer>();
+                    aggRelColStatIndxLst.add(childColStatRqd.size());
+                    aggProjIndxToaggRelColStatIndxMap.put(i,
+                            aggRelColStatIndxLst);
+                    childColStatRqd.add(tmpInteger);
+                } else {
+                    aggRelColStatIndxLst = new LinkedList<Integer>();
+                    aggRelColStatIndxLst.add(tmpInteger1);
+                    aggProjIndxToaggRelColStatIndxMap.put(i,
+                            aggRelColStatIndxLst);
+                }
+            } else {
+                // 2. Collect indexes for cols that are Agg Func
+
+                // Cols for Agg Func comes after grouping cols
+                tmpAggCallArgLst = aggCallLst.get(projIndx - noOfGroupingCols)
+                        .getArgList();
+
+                // Walk through all of the args to Agg Func and add their
+                // corresponding child index to the list and Map
                 if (tmpAggCallArgLst != null) {
                     aggRelColStatIndxLst = new LinkedList<Integer>();
-                    
+
                     for (Integer argChildIndx : tmpAggCallArgLst) {
-                        tmpInteger = childToParentProjIndxMap.get(argChildIndx);
+                        tmpInteger = childProjIndxAlreadyUsed.get(argChildIndx);
                         if (tmpInteger == null) {
-                            tmpInteger = childProjIndxLst.size();
+                            tmpInteger = childColStatRqd.size();
                             aggRelColStatIndxLst.add(tmpInteger);
-                            childProjIndxLst.add(argChildIndx);
-                            childToParentProjIndxMap.put(argChildIndx, tmpInteger);
+                            childColStatRqd.add(argChildIndx);
+                            childProjIndxAlreadyUsed.put(argChildIndx,
+                                    tmpInteger);
                         } else {
-                            aggRelColStatIndxLst
-                                    .add(tmpInteger);
+                            aggRelColStatIndxLst.add(tmpInteger);
                         }
                     }
-                    aggProjIndxToaggRelColStatIndxMap.put(i, aggRelColStatIndxLst);
+                    aggProjIndxToaggRelColStatIndxMap.put(i,
+                            aggRelColStatIndxLst);
                 }
             }
         }
 
         List<HiveColStat> colStatFromChild = OptiqUtil.getNonSubsetRelNode(
-                aggRel.getChild()).getColStat(childProjIndxLst);
-        List<HiveColStat> colStatToRet = new LinkedList<HiveColStat>(colStatFromChild.subList(0, noOfGroupingCols));
-        
-        if (noOfAggCols > 0) {
-            HiveColStat tmpColStat;
-            double tmpMaxAvgSize;
-            long tmpMaxNDV;
-            List<Integer> aggRelColStatIndxLst = new LinkedList<Integer>();
-            
-            for (int i = noOfGroupingCols; i < (noOfGroupingCols + noOfAggCols); i++) {
-                aggRelColStatIndxLst = aggProjIndxToaggRelColStatIndxMap.get(i);
-                tmpMaxAvgSize = 0;
-                tmpMaxNDV = 0;
-                for (Integer j : aggRelColStatIndxLst) {
-                    tmpColStat = colStatFromChild.get(j);
-                    if (tmpColStat.getAvgSz() > tmpMaxAvgSize)
-                        tmpMaxAvgSize = tmpColStat.getAvgSz();
-                    if (tmpColStat.getNDV() > tmpMaxNDV)
-                        tmpMaxNDV = tmpColStat.getNDV();
-                }
-                colStatToRet.add(new HiveColStat(tmpMaxAvgSize, tmpMaxNDV));
-            }
-        }
+                aggRel.getChild()).getColStat(childColStatRqd);
  
+        HiveColStat tmpColStat;
+        double tmpMaxAvgSize;
+        long tmpMaxNDV;
+        List<HiveColStat> colStatToRet = new LinkedList<HiveColStat>();
+
+        for (int i = 0; i < childColStatRqd.size(); i++) {
+            aggRelColStatIndxLst = aggProjIndxToaggRelColStatIndxMap
+                    .get(i);
+            tmpMaxAvgSize = 0;
+            tmpMaxNDV = 0;
+            for (Integer j : aggRelColStatIndxLst) {
+                tmpColStat = colStatFromChild.get(j);
+                if (tmpColStat.getAvgSz() > tmpMaxAvgSize)
+                    tmpMaxAvgSize = tmpColStat.getAvgSz();
+                if (tmpColStat.getNDV() > tmpMaxNDV)
+                    tmpMaxNDV = tmpColStat.getNDV();
+            }
+            colStatToRet.add(new HiveColStat(tmpMaxAvgSize, tmpMaxNDV));
+        }
+
         return colStatToRet;
     }
+
+    // TODO: clean this up
+    /*
+     * public static List<HiveColStat> computeAggregateRelColStat(
+     * HiveAggregateRel aggRel, List<Integer> projIndxLst) { int
+     * noOfGroupingCols = aggRel.getGroupCount(); List<AggregateCall> aggCallLst
+     * = aggRel.getAggCallList(); int noOfAggCols = (aggCallLst != null) ?
+     * aggRel.getAggCallList().size() : 0;
+     * 
+     * List<RelDataTypeField> fieldLst = aggRel.getRowType().getFieldList();
+     * 
+     * HashMap<Integer, Integer> childToParentProjIndxMap = new HashMap<Integer,
+     * Integer>(); HashMap<Integer, List<Integer>>
+     * aggProjIndxToaggRelColStatIndxMap = new HashMap<Integer,
+     * List<Integer>>(); List<Integer> childProjIndxLst = new
+     * LinkedList<Integer>();
+     * 
+     * Integer tmpInteger;
+     * 
+     * int i = 0; for (Integer projIndx : projIndxLst) { if (projIndx <
+     * noOfGroupingCols) { tmpInteger = fieldLst.get(i).getIndex();
+     * childToParentProjIndxMap.put(tmpInteger, i);
+     * childProjIndxLst.add(tmpInteger); } }
+     * 
+     * for (int i = 0; i < noOfGroupingCols; i++) { tmpInteger =
+     * fieldLst.get(i).getIndex(); childToParentProjIndxMap.put(tmpInteger, i);
+     * childProjIndxLst.add(tmpInteger); }
+     * 
+     * if (noOfAggCols > 0) { List<Integer> tmpAggCallArgLst; List<Integer>
+     * aggRelColStatIndxLst;
+     * 
+     * for (int i = noOfGroupingCols; i < (noOfGroupingCols + noOfAggCols); i++)
+     * { tmpAggCallArgLst = aggCallLst.get(i - noOfGroupingCols).getArgList();
+     * 
+     * if (tmpAggCallArgLst != null) { aggRelColStatIndxLst = new
+     * LinkedList<Integer>();
+     * 
+     * for (Integer argChildIndx : tmpAggCallArgLst) { tmpInteger =
+     * childToParentProjIndxMap.get(argChildIndx); if (tmpInteger == null) {
+     * tmpInteger = childProjIndxLst.size();
+     * aggRelColStatIndxLst.add(tmpInteger); childProjIndxLst.add(argChildIndx);
+     * childToParentProjIndxMap.put(argChildIndx, tmpInteger); } else {
+     * aggRelColStatIndxLst .add(tmpInteger); } }
+     * aggProjIndxToaggRelColStatIndxMap.put(i, aggRelColStatIndxLst); } } }
+     * 
+     * List<HiveColStat> colStatFromChild = OptiqUtil.getNonSubsetRelNode(
+     * aggRel.getChild()).getColStat(childProjIndxLst); List<HiveColStat>
+     * colStatToRet = new LinkedList<HiveColStat>(colStatFromChild.subList(0,
+     * noOfGroupingCols));
+     * 
+     * if (noOfAggCols > 0) { HiveColStat tmpColStat; double tmpMaxAvgSize; long
+     * tmpMaxNDV; List<Integer> aggRelColStatIndxLst = new
+     * LinkedList<Integer>();
+     * 
+     * for (int i = noOfGroupingCols; i < (noOfGroupingCols + noOfAggCols); i++)
+     * { aggRelColStatIndxLst = aggProjIndxToaggRelColStatIndxMap.get(i);
+     * tmpMaxAvgSize = 0; tmpMaxNDV = 0; for (Integer j : aggRelColStatIndxLst)
+     * { tmpColStat = colStatFromChild.get(j); if (tmpColStat.getAvgSz() >
+     * tmpMaxAvgSize) tmpMaxAvgSize = tmpColStat.getAvgSz(); if
+     * (tmpColStat.getNDV() > tmpMaxNDV) tmpMaxNDV = tmpColStat.getNDV(); }
+     * colStatToRet.add(new HiveColStat(tmpMaxAvgSize, tmpMaxNDV)); } }
+     * 
+     * return colStatToRet; }
+     */
 
     public static List<HiveColStat> getJoinRelColStat(HiveJoinRel j,
             List<Integer> projIndxLst) {
@@ -225,12 +299,28 @@ public class OptiqStatsUtil {
         List<HiveColStat> hiveColStats = new LinkedList<HiveColStat>();
 
         Statistics stats = hiveTbl.getColumnStats(colNamesLst);
+        if (stats.getColumnStats().size() != colNamesLst.size())
+            throw new RuntimeException("Incomplete Col stats");
+        
         for (ColStatistics colStat : stats.getColumnStats()) {
             hiveColStats.add(new HiveColStat((long) colStat.getAvgColLen(),
                     colStat.getCountDistint()));
         }
 
         return hiveColStats;
+    }
+
+    public static HiveColStat computeColStat(HiveRel rel, Integer projIndx) {
+        HiveColStat colStat = null;
+        List<HiveColStat> colStatLst;
+        List<Integer> projIndxLst = new ArrayList<Integer>();
+
+        projIndxLst.add(projIndx);
+        colStatLst = rel.getColStat(projIndxLst);
+        if (colStatLst != null)
+            colStat = colStatLst.get(0);
+
+        return colStat;
     }
 
     /*** Memory Computation ***/
@@ -495,47 +585,4 @@ public class OptiqStatsUtil {
      * 
      * return projAvgSizeLst; }
      */
-
-    /********** NDV Computation *********/
-    public static long computeNDV(HiveAggregateRel hiveAggregateRel,
-            List<Integer> colOrderLst) {
-        // TODO Auto-generated method stub
-        return 0;
-    }
-
-    public static long computeNDV(HiveFilterRel hiveFilterRel,
-            List<Integer> colOrderLst) {
-        // TODO Auto-generated method stub
-        return 0;
-    }
-
-    public static long computeNDV(HiveJoinRel hiveJoinRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
-
-    public static long computeNDV(HiveLimitRel hiveLimitRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
-
-    public static long computeNDV(HiveProjectRel hiveProjectRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
-
-    public static long computeNDV(HiveSortRel hiveSortRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
-
-    public static long computeNDV(HiveTableScanRel hiveTableScanRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
-
-    public static long computeNDV(HiveUnionRel hiveUnionRel,
-            List<Integer> colOrderLst) {
-        return 0;
-    }
 }

@@ -2,10 +2,10 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import java.util.List;
 
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.eigenbase.rel.EmptyRel;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.OneRowRelBase;
-import org.eigenbase.rel.ProjectRel;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SetOpRel;
 import org.eigenbase.rel.SingleRel;
@@ -25,7 +25,6 @@ public class OptiqRelTreeIntroduceDerivedTables {
     } else if (rel instanceof HepRelVertex) {
     //TODO: is this relevant?
     } else if (rel instanceof JoinRelBase) {
-      JoinRelBase joinNode = (JoinRelBase) rel;
       if (!validJoinParent(rel, parent)) {
         introduceDerivedTable(rel, parent);
       }
@@ -72,7 +71,7 @@ public class OptiqRelTreeIntroduceDerivedTables {
       throw new RuntimeException("Couldn't find child node in parent's inputs");
     }
 
-    ProjectRel select = new ProjectRel(rel.getCluster(), rel, rel.getChildExps(), rel.getRowType(), 0, rel.getCollationList());
+    HiveProjectRel select = new HiveProjectRel(rel.getCluster(), rel, rel.getChildExps(), rel.getRowType(), 0, rel.getCollationList());
     parent.replaceInput(pos, select);
 
   }

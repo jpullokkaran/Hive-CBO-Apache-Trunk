@@ -7,7 +7,6 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelCollation;
-import org.eigenbase.rel.SingleRel;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;

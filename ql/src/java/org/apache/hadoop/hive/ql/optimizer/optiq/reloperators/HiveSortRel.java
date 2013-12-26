@@ -10,7 +10,6 @@ import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SortRel;
 import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelOptPlanWriter;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexNode;
 

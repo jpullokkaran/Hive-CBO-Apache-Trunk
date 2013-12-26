@@ -1,7 +1,5 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
@@ -44,16 +42,7 @@ public class HiveUnionRel extends UnionRelBase implements HiveRel {
 
     @Override
     public HiveColStat getColStat(Integer projIndx) {
-        HiveColStat colStat = null;
-        List<HiveColStat> colStatLst;
-        List<Integer> projIndxLst = new ArrayList<Integer>();
-        
-        projIndxLst.add(projIndx);
-        colStatLst = OptiqStatsUtil.computeUnionRelColStat(inputs, projIndxLst);
-        if (colStatLst != null)
-            colStat = colStatLst.get(0);
-        
-        return colStat;
+        return OptiqStatsUtil.computeColStat(this, projIndx);
     }
 
     @Override

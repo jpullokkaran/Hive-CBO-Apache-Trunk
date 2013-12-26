@@ -5,7 +5,6 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
-import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptPlanWriter;
 import org.eigenbase.relopt.RelTraitSet;
