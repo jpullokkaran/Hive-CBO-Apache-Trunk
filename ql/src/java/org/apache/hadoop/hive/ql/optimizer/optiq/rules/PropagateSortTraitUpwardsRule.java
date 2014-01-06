@@ -24,7 +24,7 @@ public class PropagateSortTraitUpwardsRule extends RelOptRule {
 
   protected PropagateSortTraitUpwardsRule(String description,
       Class<? extends SingleRel> clazz) {
-    super(some(clazz, any(RelSubset.class)));
+    super(some(clazz, any(RelSubset.class)), description);
   }
 
   @Override

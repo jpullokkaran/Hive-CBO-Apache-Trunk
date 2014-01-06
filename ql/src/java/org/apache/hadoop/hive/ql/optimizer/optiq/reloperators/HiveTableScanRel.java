@@ -78,7 +78,7 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
         /*
          * return super.computeSelfCost(planner).multiplyBy( .1 * f);
          */
-        return null;
+    	return super.computeSelfCost(planner).multiplyBy( .1f);
     }
 
     @Override

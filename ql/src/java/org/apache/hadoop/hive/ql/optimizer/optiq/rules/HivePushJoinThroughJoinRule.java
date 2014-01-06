@@ -26,9 +26,9 @@ import org.eigenbase.util.mapping.Mappings;
 public class HivePushJoinThroughJoinRule extends RelOptRule {
   private final boolean m_right;
   public static final RelOptRule RIGHT =
-      new HivePushJoinThroughJoinRule("PushJoinThroughJoinRule:right", true, HiveJoinRel.class);
+      new HivePushJoinThroughJoinRule("Hive PushJoinThroughJoinRule:right", true, HiveJoinRel.class);
   public static final RelOptRule LEFT =
-      new HivePushJoinThroughJoinRule("PushJoinThroughJoinRule:left", false, HiveJoinRel.class);
+      new HivePushJoinThroughJoinRule("Hive PushJoinThroughJoinRule:left", false, HiveJoinRel.class);
 
   private HivePushJoinThroughJoinRule(String description, boolean right,
       Class<? extends JoinRelBase> clazz) {

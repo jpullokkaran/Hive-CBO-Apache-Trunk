@@ -68,7 +68,7 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
             List<RexNode> exps, RelDataType rowType, int flags,
             final List<RelCollation> collationList) {
         super(cluster, OptiqTraitsUtil.getSelectTraitSet(cluster, exps,
-                (HiveRel) child), child, exps, rowType, flags, collationList);
+                child), child, exps, rowType, flags, collationList);
         m_virtualCols = OptiqUtil.getVirtualCols(exps);
     }
 
@@ -77,10 +77,10 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
         return -1;
     }
 
-    @Override
-    public RelOptCost computeSelfCost(RelOptPlanner planner) {
-        return null;
-    }
+//    @Override
+//    public RelOptCost computeSelfCost(RelOptPlanner planner) {
+//        return null;
+//    }
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
