@@ -223,6 +223,9 @@ public class HiveConf extends Configuration {
     // ignore the mapjoin hint
     HIVEIGNOREMAPJOINHINT("hive.ignore.mapjoin.hint", true),
 
+    // Max number of lines of footer user can set for a table file.
+    HIVE_FILE_MAX_FOOTER("hive.file.max.footer", 100),
+
     // Hadoop Configuration Properties
     // Properties with null values are ignored and exist only for the purpose of giving us
     // a symbolic name to reference in the Hive source code. Properties with non-null
@@ -340,6 +343,9 @@ public class HiveConf extends Configuration {
     METASTORE_EXECUTE_SET_UGI("hive.metastore.execute.setugi", false),
     METASTORE_PARTITION_NAME_WHITELIST_PATTERN(
         "hive.metastore.partition.name.whitelist.pattern", ""),
+    // Whether to enable integral JDO pushdown. For partition columns storing integers
+    // in non-canonical form, (e.g. '012'), it may not work, so it's off by default.
+    METASTORE_INTEGER_JDO_PUSHDOWN("hive.metastore.integral.jdo.pushdown", false),
     METASTORE_TRY_DIRECT_SQL("hive.metastore.try.direct.sql", true),
     METASTORE_TRY_DIRECT_SQL_DDL("hive.metastore.try.direct.sql.ddl", true),
     METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES(
@@ -764,6 +770,9 @@ public class HiveConf extends Configuration {
     HIVE_DDL_OUTPUT_FORMAT("hive.ddl.output.format", null),
     HIVE_ENTITY_SEPARATOR("hive.entity.separator", "@"),
 
+    HIVE_SERVER2_MAX_START_ATTEMPTS("hive.server2.max.start.attempts", 30L,
+        new LongRangeValidator(0L, Long.MAX_VALUE)),
+
     // binary or http
     HIVE_SERVER2_TRANSPORT_MODE("hive.server2.transport.mode", "binary",
         new StringsValidator("binary", "http")),
@@ -867,7 +876,13 @@ public class HiveConf extends Configuration {
     HIVESTAGEIDREARRANGE("hive.stageid.rearrange", "none"),
     HIVEEXPLAINDEPENDENCYAPPENDTASKTYPES("hive.explain.dependency.append.tasktype", false),
 
-    HIVECOUNTERGROUP("hive.counters.group.name", "HIVE")
+    HIVECOUNTERGROUP("hive.counters.group.name", "HIVE"),
+    
+    // none, column
+    // none is the default(past) behavior. Implies only alphaNumeric and underscore are valid characters in identifiers.
+    // column: implies column names can contain any character.
+    HIVE_QUOTEDID_SUPPORT("hive.support.quoted.identifiers", "column",
+        new PatternValidator("none", "column"))
     ;
 
     public final String varname;
@@ -1376,6 +1391,32 @@ public class HiveConf extends Configuration {
     public String validate(String value) {
       if (value == null || !expected.contains(value.toLowerCase())) {
         return "Invalid value.. expects one of " + expected;
+      }
+      return null;
+    }
+  }
+
+  public static class LongRangeValidator implements Validator {
+    private final long lower, upper;
+
+    public LongRangeValidator(long lower, long upper) {
+      this.lower = lower;
+      this.upper = upper;
+    }
+
+    @Override
+    public String validate(String value) {
+      try {
+        if(value == null) {
+          return "Value cannot be null";
+        }
+        value = value.trim();
+        long lvalue = Long.parseLong(value);
+        if (lvalue < lower || lvalue > upper) {
+          return "Invalid value  " + value + ", which should be in between " + lower + " and " + upper;
+        }
+      } catch (NumberFormatException e) {
+        return e.toString();
       }
       return null;
     }

@@ -29,13 +29,16 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
@@ -47,6 +50,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -87,9 +91,14 @@ import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.util.Shell;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.tools.ant.BuildException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
+
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Ordering;
 
 /**
  * QTestUtil.
@@ -231,10 +240,6 @@ public class QTestUtil {
 
   public void initConf() throws Exception {
 
-    if (Shell.WINDOWS) {
-      convertPathsFromWindowsToHdfs();
-    }
-
     String vectorizationEnabled = System.getProperty("test.vectorization.enabled");
     if(vectorizationEnabled != null && vectorizationEnabled.equalsIgnoreCase("true")) {
       conf.setBoolVar(ConfVars.HIVE_VECTORIZATION_ENABLED, true);
@@ -257,6 +262,12 @@ public class QTestUtil {
       conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
                   (new Path(dfsUriString,
                             "/build/ql/test/data/warehouse/")).toString());
+    }
+    
+    // Windows paths should be converted after MiniMrShim.setupConfiguration()
+    // since setupConfiguration may overwrite configuration values.
+    if (Shell.WINDOWS) {
+      convertPathsFromWindowsToHdfs();
     }
   }
 
@@ -362,12 +373,21 @@ public class QTestUtil {
   }
 
   public void addFile(String queryFile) throws IOException {
+    addFile(queryFile, false);
+  }
+
+  public void addFile(String queryFile, boolean partial) throws IOException {
     addFile(new File(queryFile));
   }
 
-  public void addFile(File qf) throws IOException  {
+  public void addFile(File qf) throws IOException {
+    addFile(qf, false);
+  }
+
+  public void addFile(File qf, boolean partial) throws IOException  {
     String query = readEntireFileIntoString(qf);
     qMap.put(qf.getName(), query);
+    if (partial) return;
 
     if(checkHadoopVersionExclude(qf.getName(), query)
       || checkOSExclude(qf.getName(), query)) {
@@ -742,7 +762,7 @@ public class QTestUtil {
     cliInit(tname, true);
   }
 
-  public void cliInit(String tname, boolean recreate) throws Exception {
+  public String cliInit(String tname, boolean recreate) throws Exception {
     if (recreate) {
       cleanUp();
       createSources();
@@ -754,10 +774,17 @@ public class QTestUtil {
     assert ss != null;
     ss.in = System.in;
 
-    File qf = new File(outDir, tname);
-    File outf = null;
-    outf = new File(logDir);
-    outf = new File(outf, qf.getName().concat(".out"));
+    String stdoutName = null;
+    if (outDir != null) {
+      // TODO: why is this needed?
+      File qf = new File(outDir, tname);
+      stdoutName = qf.getName().concat(".out");
+    } else {
+      stdoutName = tname + ".out";
+    }
+
+    File outf = new File(logDir);
+    outf = new File(outf, stdoutName);
     FileOutputStream fo = new FileOutputStream(outf);
     ss.out = new PrintStream(fo, true, "UTF-8");
     ss.err = new CachingPrintStream(fo, true, "UTF-8");
@@ -773,6 +800,7 @@ public class QTestUtil {
       ss.initFiles.add("../../data/scripts/test_init_file.sql");
     }
     cliDriver.processInitFiles(ss);
+    return outf.getAbsolutePath();
   }
 
   private CliSessionState startSessionState()
@@ -813,7 +841,17 @@ public class QTestUtil {
     }
   }
 
+  private static final String CRLF = System.getProperty("line.separator");
+  public int executeClient(String tname1, String tname2) {
+    String commands = getCommands(tname1) + CRLF + getCommands(tname2);
+    return cliDriver.processLine(commands);
+  }
+
   public int executeClient(String tname) {
+    return cliDriver.processLine(getCommands(tname));
+  }
+
+  private String getCommands(String tname) {
     String commands = qMap.get(tname);
     StringBuilder newCommands = new StringBuilder(commands.length());
     int lastMatchEnd = 0;
@@ -825,7 +863,7 @@ public class QTestUtil {
     }
     newCommands.append(commands.substring(lastMatchEnd, commands.length()));
     commands = newCommands.toString();
-    return cliDriver.processLine(commands);
+    return commands;
   }
 
   public boolean shouldBeSkipped(String tname) {
@@ -1095,17 +1133,12 @@ public class QTestUtil {
     BufferedReader in;
     BufferedWriter out;
 
-    in = new BufferedReader(new FileReader(fname));
-    out = new BufferedWriter(new FileWriter(fname + ".orig"));
-    while (null != (line = in.readLine())) {
-      out.write(line);
-      out.write('\n');
-    }
-    in.close();
-    out.close();
+    File file = new File(fname);
+    File fileOrig = new File(fname + ".orig");
+    FileUtils.copyFile(file, fileOrig);
 
-    in = new BufferedReader(new FileReader(fname + ".orig"));
-    out = new BufferedWriter(new FileWriter(fname));
+    in = new BufferedReader(new InputStreamReader(new FileInputStream(fileOrig), "UTF-8"));
+    out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
 
     boolean lastWasMasked = false;
     while (null != (line = in.readLine())) {
@@ -1179,6 +1212,22 @@ public class QTestUtil {
     }
 
     return exitVal;
+  }
+
+
+  public int checkCompareCliDriverResults(String tname, List<String> outputs) throws Exception {
+    assert outputs.size() > 1;
+    maskPatterns(planMask, outputs.get(0));
+    for (int i = 1; i < outputs.size(); ++i) {
+      maskPatterns(planMask, outputs.get(i));
+      int ecode = executeDiffCommand(
+          outputs.get(i - 1), outputs.get(i), false, qSortSet.contains(tname));
+      if (ecode != 0) {
+        System.out.println("Files don't match: " + outputs.get(i - 1) + " and " + outputs.get(i));
+        return ecode;
+      }
+    }
+    return 0;
   }
 
   private static int overwriteResults(String inFileName, String outFileName) throws Exception {
@@ -1358,9 +1407,12 @@ public class QTestUtil {
     public void preTest(HiveConf conf) throws Exception {
 
       if (zooKeeperCluster == null) {
-        String tmpdir =  System.getProperty("test.tmp.dir");
+        //create temp dir
+        String tmpBaseDir =  System.getProperty("test.tmp.dir");
+        File tmpDir = Utilities.createTempDir(tmpBaseDir);
+
         zooKeeperCluster = new MiniZooKeeperCluster();
-        zkPort = zooKeeperCluster.startup(new File(tmpdir, "zookeeper"));
+        zkPort = zooKeeperCluster.startup(tmpDir);
       }
 
       if (zooKeeper != null) {
@@ -1549,5 +1601,59 @@ public class QTestUtil {
     } else {
       return path + File.separator;
     }
+  }
+
+  private static String[] cachedQvFileList = null;
+  private static ImmutableList<String> cachedDefaultQvFileList = null;
+  private static Pattern qvSuffix = Pattern.compile("_[0-9]+.qv$", Pattern.CASE_INSENSITIVE);
+
+  public static List<String> getVersionFiles(String queryDir, String tname) {
+    ensureQvFileList(queryDir);
+    List<String> result = getVersionFilesInternal(tname);
+    if (result == null) {
+      result = cachedDefaultQvFileList;
+    }
+    return result;
+  }
+
+  private static void ensureQvFileList(String queryDir) {
+    if (cachedQvFileList != null) return;
+    // Not thread-safe.
+    System.out.println("Getting versions from " + queryDir);
+    cachedQvFileList = (new File(queryDir)).list(new FilenameFilter() {
+      @Override
+      public boolean accept(File dir, String name) {
+        return name.toLowerCase().endsWith(".qv");
+      }
+    });
+    if (cachedQvFileList == null) return; // no files at all
+    Arrays.sort(cachedQvFileList, String.CASE_INSENSITIVE_ORDER);
+    List<String> defaults = getVersionFilesInternal("default");
+    cachedDefaultQvFileList = (defaults != null)
+        ? ImmutableList.copyOf(defaults) : ImmutableList.<String>of();
+  }
+
+  private static List<String> getVersionFilesInternal(String tname) {
+    if (cachedQvFileList == null) {
+      return new ArrayList<String>();
+    }
+    int pos = Arrays.binarySearch(cachedQvFileList, tname, String.CASE_INSENSITIVE_ORDER);
+    if (pos >= 0) {
+      throw new BuildException("Unexpected file list element: " + cachedQvFileList[pos]);
+    }
+    List<String> result = null;
+    for (pos = (-pos - 1); pos < cachedQvFileList.length; ++pos) {
+      String candidate = cachedQvFileList[pos];
+      if (candidate.length() <= tname.length()
+          || !tname.equalsIgnoreCase(candidate.substring(0, tname.length()))
+          || !qvSuffix.matcher(candidate.substring(tname.length())).matches()) {
+        break;
+      }
+      if (result == null) {
+        result = new ArrayList<String>();
+      }
+      result.add(candidate);
+    }
+    return result;
   }
 }

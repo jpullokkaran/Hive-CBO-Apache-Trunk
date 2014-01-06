@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.ql.optimizer;
 
 import java.io.Serializable;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -157,7 +158,7 @@ public class GenMRFileSink1 implements NodeProcessor {
       }
     }
 
-    String finalName = processFS(fsOp, stack, opProcCtx, chDir);
+    Path finalName = processFS(fsOp, stack, opProcCtx, chDir);
 
     if (chDir) {
       // Merge the files in the destination table/partitions by creating Map-only merge job
@@ -289,7 +290,7 @@ public class GenMRFileSink1 implements NodeProcessor {
    *
    */
   private void createMRWorkForMergingFiles (FileSinkOperator fsInput, GenMRProcContext ctx,
-   String finalName) throws SemanticException {
+   Path finalName) throws SemanticException {
 
     //
     // 1. create the operator tree
@@ -304,7 +305,7 @@ public class GenMRFileSink1 implements NodeProcessor {
 
     // Create a FileSink operator
     TableDesc ts = (TableDesc) fsInputDesc.getTableInfo().clone();
-    FileSinkDesc fsOutputDesc = new FileSinkDesc(finalName, ts,
+    FileSinkDesc fsOutputDesc = new FileSinkDesc(finalName.toUri().toString(), ts,
       conf.getBoolVar(ConfVars.COMPRESSRESULT));
     FileSinkOperator fsOutput = (FileSinkOperator) OperatorFactory.getAndMakeChild(
       fsOutputDesc, inputRS, tsMerge);
@@ -349,7 +350,7 @@ public class GenMRFileSink1 implements NodeProcessor {
     // 2. Constructing a conditional task consisting of a move task and a map reduce task
     //
     MoveWork dummyMv = new MoveWork(null, null, null,
-        new LoadFileDesc(fsInputDesc.getFinalDirName(), finalName, true, null, null), false);
+        new LoadFileDesc(new Path(fsInputDesc.getFinalDirName()), finalName, true, null, null), false);
     MapWork cplan;
     Serializable work;
 
@@ -508,23 +509,25 @@ public class GenMRFileSink1 implements NodeProcessor {
    *         null otherwise
    */
   private MapWork createRCFileMergeTask(FileSinkDesc fsInputDesc,
-      String finalName, boolean hasDynamicPartitions) throws SemanticException {
+      Path finalName, boolean hasDynamicPartitions) throws SemanticException {
 
     String inputDir = fsInputDesc.getFinalDirName();
     TableDesc tblDesc = fsInputDesc.getTableInfo();
 
     if (tblDesc.getInputFileFormatClass().equals(RCFileInputFormat.class)) {
-      ArrayList<String> inputDirs = new ArrayList<String>();
+      ArrayList<Path> inputDirs = new ArrayList<Path>(1);
+      ArrayList<String> inputDirstr = new ArrayList<String>(1);
       if (!hasDynamicPartitions
           && !isSkewedStoredAsDirs(fsInputDesc)) {
-        inputDirs.add(inputDir);
+        inputDirs.add(new Path(inputDir));
+        inputDirstr.add(inputDir);
       }
 
       MergeWork work = new MergeWork(inputDirs, finalName,
           hasDynamicPartitions, fsInputDesc.getDynPartCtx());
       LinkedHashMap<String, ArrayList<String>> pathToAliases =
           new LinkedHashMap<String, ArrayList<String>>();
-      pathToAliases.put(inputDir, (ArrayList<String>) inputDirs.clone());
+      pathToAliases.put(inputDir, (ArrayList<String>) inputDirstr.clone());
       work.setMapperCannotSpanPartns(true);
       work.setPathToAliases(pathToAliases);
       work.setAliasToWork(
@@ -619,16 +622,15 @@ public class GenMRFileSink1 implements NodeProcessor {
     // find the move task
     for (Task<MoveWork> mvTsk : mvTasks) {
       MoveWork mvWork = mvTsk.getWork();
-      String srcDir = null;
+      Path srcDir = null;
       if (mvWork.getLoadFileWork() != null) {
-        srcDir = mvWork.getLoadFileWork().getSourceDir();
+        srcDir = mvWork.getLoadFileWork().getSourcePath();
       } else if (mvWork.getLoadTableWork() != null) {
-        srcDir = mvWork.getLoadTableWork().getSourceDir();
+        srcDir = mvWork.getLoadTableWork().getSourcePath();
       }
 
-      String fsOpDirName = fsOp.getConf().getFinalDirName();
       if ((srcDir != null)
-          && (srcDir.equalsIgnoreCase(fsOpDirName))) {
+          && (srcDir.equals(new Path(fsOp.getConf().getFinalDirName())))) {
         return mvTsk;
       }
     }
@@ -649,7 +651,7 @@ public class GenMRFileSink1 implements NodeProcessor {
    * @return the final file name to which the FileSinkOperator should store.
    * @throws SemanticException
    */
-  private String processFS(FileSinkOperator fsOp, Stack<Node> stack,
+  private Path processFS(FileSinkOperator fsOp, Stack<Node> stack,
       NodeProcessorCtx opProcCtx, boolean chDir) throws SemanticException {
 
     GenMRProcContext ctx = (GenMRProcContext) opProcCtx;
@@ -665,16 +667,16 @@ public class GenMRFileSink1 implements NodeProcessor {
     Task<? extends Serializable> currTask = ctx.getCurrTask();
 
     // If the directory needs to be changed, send the new directory
-    String dest = null;
+    Path dest = null;
 
     if (chDir) {
-      dest = fsOp.getConf().getFinalDirName();
+      dest = new Path(fsOp.getConf().getFinalDirName());
 
       // generate the temporary file
       // it must be on the same file system as the current destination
       ParseContext parseCtx = ctx.getParseCtx();
       Context baseCtx = parseCtx.getContext();
-      String tmpDir = baseCtx.getExternalTmpFileURI((new Path(dest)).toUri());
+      String tmpDir = baseCtx.getExternalTmpFileURI(dest.toUri());
 
       FileSinkDesc fileSinkDesc = fsOp.getConf();
       // Change all the linked file sink descriptors

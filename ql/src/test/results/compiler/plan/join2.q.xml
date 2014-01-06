@@ -83,9 +83,6 @@
               <void property="replace"> 
                <boolean>true</boolean> 
               </void> 
-              <void property="sourceDir"> 
-               #### A masked pattern was here #### 
-              </void> 
               <void property="table"> 
                <object id="TableDesc0" class="org.apache.hadoop.hive.ql.plan.TableDesc"> 
                 <void property="inputFileFormatClass"> 
@@ -143,9 +140,6 @@
                  </object> 
                 </void> 
                </object> 
-              </void> 
-              <void property="tmpDir"> 
-               #### A masked pattern was here #### 
               </void> 
              </object> 
             </void> 
@@ -938,7 +932,7 @@
            #### A masked pattern was here #### 
            <object class="org.apache.hadoop.hive.ql.plan.PartitionDesc"> 
             <void property="baseFileName"> 
-             <string>-mr-10002</string> 
+             <string>-mr-10001</string> 
             </void> 
             <void property="inputFileFormatClass"> 
              <class>org.apache.hadoop.mapred.SequenceFileInputFormat</class> 

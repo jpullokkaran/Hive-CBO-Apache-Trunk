@@ -193,7 +193,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
 
     PrintStream out = null;
     try {
-      Path resFile = new Path(work.getResFile());
+      Path resFile = work.getResFile();
       OutputStream outS = resFile.getFileSystem(conf).create(resFile);
       out = new PrintStream(outS);
 
@@ -336,7 +336,7 @@ public class ExplainTask extends Task<ExplainWork> implements Serializable {
   private boolean isPrintable(Object val) {
     if (val instanceof Boolean || val instanceof String
         || val instanceof Integer || val instanceof Long || val instanceof Byte
-        || val instanceof Float || val instanceof Double) {
+        || val instanceof Float || val instanceof Double || val instanceof Path) {
       return true;
     }
 

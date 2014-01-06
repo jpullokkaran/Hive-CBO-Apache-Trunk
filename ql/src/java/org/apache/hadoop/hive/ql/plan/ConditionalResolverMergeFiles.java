@@ -252,7 +252,7 @@ public class ConditionalResolverMergeFiles implements ConditionalResolver,
     long totalSz = 0;
     boolean doMerge = false;
     // list of paths that don't need to merge but need to move to the dest location
-    List<String> toMove = new ArrayList<String>();
+    List<Path> toMove = new ArrayList<Path>();
     for (int i = 0; i < status.length; ++i) {
       long len = getMergeSize(inpFs, status[i].getPath(), avgConditionSize);
       if (len >= 0) {
@@ -263,7 +263,7 @@ public class ConditionalResolverMergeFiles implements ConditionalResolver,
         work.resolveDynamicPartitionStoredAsSubDirsMerge(conf, status[i].getPath(), tblDesc,
             aliases, pDesc);
       } else {
-        toMove.add(status[i].getPath().toString());
+        toMove.add(status[i].getPath());
       }
     }
     if (doMerge) {
@@ -283,19 +283,15 @@ public class ConditionalResolverMergeFiles implements ConditionalResolver,
         MoveWork mvWork = (MoveWork) mvTask.getWork();
         LoadFileDesc lfd = mvWork.getLoadFileWork();
 
-        String targetDir = lfd.getTargetDir();
-        List<String> targetDirs = new ArrayList<String>(toMove.size());
+        Path targetDir = lfd.getTargetDir();
+        List<Path> targetDirs = new ArrayList<Path>(toMove.size());
 
         for (int i = 0; i < toMove.size(); i++) {
-          String toMoveStr = toMove.get(i);
-          if (toMoveStr.endsWith(Path.SEPARATOR)) {
-            toMoveStr = toMoveStr.substring(0, toMoveStr.length() - 1);
-          }
-          String[] moveStrSplits = toMoveStr.split(Path.SEPARATOR);
+          String[] moveStrSplits = toMove.get(i).toUri().toString().split(Path.SEPARATOR);
           int dpIndex = moveStrSplits.length - dpLbLevel;
-          String target = targetDir;
+          Path target = targetDir;
           while (dpIndex < moveStrSplits.length) {
-            target = target + Path.SEPARATOR + moveStrSplits[dpIndex];
+            target = new Path(target, moveStrSplits[dpIndex]);
             dpIndex++;
           }
 

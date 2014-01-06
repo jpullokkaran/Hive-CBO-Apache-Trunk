@@ -386,6 +386,12 @@
 </property>
 
 <property>
+  <name>hive.file.max.footer</name>
+  <value>100</value>
+  <description>maximum number of lines for footer user can define for a table file</description>
+</property>
+
+<property>
   <name>hive.map.aggr</name>
   <value>true</value>
   <description>Whether to use map-side aggregation in Hive Group By queries</description>
@@ -877,12 +883,18 @@
   <description>Read from a binary stream and treat each hive.binary.record.max.length bytes as a record.
   The last record before the end of stream can have less than hive.binary.record.max.length bytes</description>
 </property>
-    
+
+<property>
+  <name>hive.server2.max.start.attempts</name>
+  <value>30</value>
+  <description>This number of times HiveServer2 will attempt to start before exiting, sleeping 60 seconds between retries. The default of 30 will keep trying for 30 minutes.</description>
+</property>
+
 <property>
   <name>hive.server2.transport.mode</name>
   <value>binary</value>
   <description>Server transport mode. "binary" or "http".</description>
-</property>    
+</property>
 
 <property>
   <name>hive.server2.thrift.http.port</name>
@@ -2105,4 +2117,15 @@
    </description>
 </property>
 
+<property>
+  <name>hive.metastore.integral.jdo.pushdown</name>
+  <value>false</false>
+  <description>
+   Allow JDO query pushdown for integral partition columns in metastore. Off by default. This
+   improves metastore perf for integral columns, especially if there's a large number of partitions.
+   However, it doesn't work correctly with integral values that are not normalized (e.g. have
+   leading zeroes, like 0012). If metastore direct SQL is enabled and works, this optimization
+   is also irrelevant.
+  </description>
+</property>
 </configuration>

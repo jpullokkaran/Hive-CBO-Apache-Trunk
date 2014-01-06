@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.ql.parse;
 
 import java.io.Serializable;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -270,7 +271,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     listMapJoinOpsNoReducer = new ArrayList<AbstractMapJoinOperator<? extends MapJoinDesc>>();
     groupOpToInputTables = new HashMap<GroupByOperator, Set<String>>();
     prunedPartitions = new HashMap<String, PrunedPartitionList>();
-    unparseTranslator = new UnparseTranslator();
+    unparseTranslator = new UnparseTranslator(conf);
     autogenColAliasPrfxLbl = HiveConf.getVar(conf,
         HiveConf.ConfVars.HIVE_AUTOGEN_COLUMNALIAS_PREFIX_LABEL);
     autogenColAliasPrfxIncludeFuncName = HiveConf.getBoolVar(conf,
@@ -1358,7 +1359,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       String viewText = tab.getViewExpandedText();
       // Reparse text, passing null for context to avoid clobbering
       // the top-level token stream.
-      ASTNode tree = pd.parse(viewText, null);
+      ASTNode tree = pd.parse(viewText, ctx, false);
       tree = ParseUtils.findRootNonNullToken(tree);
       viewTree = tree;
       Dispatcher nodeOriginDispatcher = new Dispatcher() {
@@ -2029,7 +2030,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         	aliasToOpInfo.put(havingInputAlias, input);
         }
 
-        subQuery.validateAndRewriteAST(inputRR, forHavingClause, havingInputAlias);
+        subQuery.validateAndRewriteAST(inputRR, forHavingClause, havingInputAlias, aliasToOpInfo.keySet());
 
         QB qbSQ = new QB(subQuery.getOuterQueryId(), subQuery.getAlias(), true);
         Operator sqPlanTopOp = genPlanForSubQueryPredicate(qbSQ, subQuery);
@@ -2198,9 +2199,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           if (replacementText.length() > 0) {
             replacementText.append(", ");
           }
-          replacementText.append(HiveUtils.unparseIdentifier(tmp[0]));
+          replacementText.append(HiveUtils.unparseIdentifier(tmp[0], conf));
           replacementText.append(".");
-          replacementText.append(HiveUtils.unparseIdentifier(tmp[1]));
+          replacementText.append(HiveUtils.unparseIdentifier(tmp[1], conf));
         }
       }
     }
@@ -2756,7 +2757,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
    * Returns whether the pattern is a regex expression (instead of a normal
    * string). Normal string is a string with all alphabets/digits and "_".
    */
-  private static boolean isRegex(String pattern) {
+  private static boolean isRegex(String pattern, HiveConf conf) {
+    String qIdSupport = HiveConf.getVar(conf, HiveConf.ConfVars.HIVE_QUOTEDID_SUPPORT);
+    if ( "column".equals(qIdSupport)) {
+      return false;
+    }    
     for (int i = 0; i < pattern.length(); i++) {
       if (!Character.isLetterOrDigit(pattern.charAt(i))
           && pattern.charAt(i) != '_') {
@@ -2950,7 +2955,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         selectStar = true;
       } else if (expr.getType() == HiveParser.TOK_TABLE_OR_COL && !hasAsClause
           && !inputRR.getIsExprResolver()
-          && isRegex(unescapeIdentifier(expr.getChild(0).getText()))) {
+          && isRegex(unescapeIdentifier(expr.getChild(0).getText()), conf)) {
         // In case the expression is a regex COL.
         // This can only happen without AS clause
         // We don't allow this for ExprResolver - the Group By case
@@ -2961,7 +2966,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           && inputRR.hasTableAlias(unescapeIdentifier(expr.getChild(0)
               .getChild(0).getText().toLowerCase())) && !hasAsClause
           && !inputRR.getIsExprResolver()
-          && isRegex(unescapeIdentifier(expr.getChild(1).getText()))) {
+          && isRegex(unescapeIdentifier(expr.getChild(1).getText()), conf)) {
         // In case the expression is TABLE.COL (col can be regex).
         // This can only happen without AS clause
         // We don't allow this for ExprResolver - the Group By case
@@ -5358,8 +5363,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       // Create the work for moving the table
       // NOTE: specify Dynamic partitions in dest_tab for WriteEntity
       if (!isNonNativeTable) {
-        ltd = new LoadTableDesc(queryTmpdir, ctx.getExternalTmpFileURI(dest_path.toUri()),
-            table_desc, dpCtx);
+        ltd = new LoadTableDesc(new Path(queryTmpdir),table_desc, dpCtx);
         ltd.setReplace(!qb.getParseInfo().isInsertIntoTable(dest_tab.getDbName(),
             dest_tab.getTableName()));
         ltd.setLbCtx(lbCtx);
@@ -5442,8 +5446,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       lbCtx = constructListBucketingCtx(dest_part.getSkewedColNames(),
           dest_part.getSkewedColValues(), dest_part.getSkewedColValueLocationMaps(),
           dest_part.isStoredAsSubDirectories(), conf);
-      ltd = new LoadTableDesc(queryTmpdir, ctx.getExternalTmpFileURI(dest_path.toUri()),
-          table_desc, dest_part.getSpec());
+      ltd = new LoadTableDesc(new Path(queryTmpdir), table_desc, dest_part.getSpec());
       ltd.setReplace(!qb.getParseInfo().isInsertIntoTable(dest_tab.getDbName(),
           dest_tab.getTableName()));
       ltd.setLbCtx(lbCtx);
@@ -5474,8 +5477,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       // fall through
     case QBMetaData.DEST_DFS_FILE: {
       dest_path = new Path(qbm.getDestFileForAlias(dest));
-      String destStr = dest_path.toString();
-
+      
       if (isLocal) {
         // for local directory - we always write to map-red intermediate
         // store and then copy to local fs
@@ -5557,14 +5559,14 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         tblDesc.setCols(new ArrayList<FieldSchema>(field_schemas));
       }
 
-      if (!ctx.isMRTmpFileURI(destStr)) {
-        idToTableNameMap.put(String.valueOf(destTableId), destStr);
+      if (!ctx.isMRTmpFileURI(dest_path.toUri().toString())) {
+        idToTableNameMap.put(String.valueOf(destTableId), dest_path.toUri().toString());
         currentTableId = destTableId;
         destTableId++;
       }
 
       boolean isDfsDir = (dest_type.intValue() == QBMetaData.DEST_DFS_FILE);
-      loadFileWork.add(new LoadFileDesc(tblDesc, queryTmpdir, destStr, isDfsDir, cols,
+      loadFileWork.add(new LoadFileDesc(tblDesc, new Path(queryTmpdir), dest_path, isDfsDir, cols,
           colTypes));
 
       if (tblDesc == null) {
@@ -5580,7 +5582,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       if (!outputs.add(new WriteEntity(dest_path, !isDfsDir))) {
         throw new SemanticException(ErrorMsg.OUTPUT_SPECIFIED_MULTIPLE_TIMES
-            .getMsg(destStr));
+            .getMsg(dest_path.toUri().toString()));
       }
       break;
     }
@@ -5662,7 +5664,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     if (ltd != null && SessionState.get() != null) {
       SessionState.get().getLineageState()
-          .mapDirToFop(ltd.getSourceDir(), (FileSinkOperator) output);
+          .mapDirToFop(ltd.getSourcePath(), (FileSinkOperator) output);
     }
 
     if (LOG.isDebugEnabled()) {
@@ -9077,10 +9079,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         // Modify a copy, not the original
         fieldSchema = new FieldSchema(fieldSchema);
         derivedSchema.set(i, fieldSchema);
-        sb.append(HiveUtils.unparseIdentifier(fieldSchema.getName()));
+        sb.append(HiveUtils.unparseIdentifier(fieldSchema.getName(), conf));
         sb.append(" AS ");
         String imposedName = imposedSchema.get(i).getName();
-        sb.append(HiveUtils.unparseIdentifier(imposedName));
+        sb.append(HiveUtils.unparseIdentifier(imposedName, conf));
         fieldSchema.setName(imposedName);
         // We don't currently allow imposition of a type
         fieldSchema.setComment(imposedSchema.get(i).getComment());
@@ -9088,7 +9090,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       sb.append(" FROM (");
       sb.append(expandedText);
       sb.append(") ");
-      sb.append(HiveUtils.unparseIdentifier(createVwDesc.getViewName()));
+      sb.append(HiveUtils.unparseIdentifier(createVwDesc.getViewName(), conf));
       expandedText = sb.toString();
     }
 
@@ -9269,9 +9271,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
       String[] tmp = input.reverseLookup(columnDesc.getColumn());
       StringBuilder replacementText = new StringBuilder();
-      replacementText.append(HiveUtils.unparseIdentifier(tmp[0]));
+      replacementText.append(HiveUtils.unparseIdentifier(tmp[0], conf));
       replacementText.append(".");
-      replacementText.append(HiveUtils.unparseIdentifier(tmp[1]));
+      replacementText.append(HiveUtils.unparseIdentifier(tmp[1], conf));
       unparseTranslator.addTranslation(node, replacementText.toString());
     }
 

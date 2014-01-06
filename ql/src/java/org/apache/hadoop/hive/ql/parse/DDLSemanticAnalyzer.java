@@ -130,9 +130,6 @@ import org.apache.hadoop.hive.ql.security.authorization.PrivilegeRegistry;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.hadoop.hive.serde2.typeinfo.BaseCharTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.CharTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.VarcharTypeInfo;
@@ -459,8 +456,17 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
   private void analyzeGrantRevokeRole(boolean grant, ASTNode ast) {
     List<PrincipalDesc> principalDesc = analyzePrincipalListDef(
         (ASTNode) ast.getChild(0));
+
+    //check if admin option has been specified
+    int rolesStartPos = 1;
+    ASTNode wAdminOption = (ASTNode) ast.getChild(1);
+    if(wAdminOption.getToken().getType() == HiveParser.TOK_GRANT_WITH_ADMIN_OPTION){
+      rolesStartPos = 2; //start reading role names from next postion
+      //TODO: use the admin option
+    }
+
     List<String> roles = new ArrayList<String>();
-    for (int i = 1; i < ast.getChildCount(); i++) {
+    for (int i = rolesStartPos; i < ast.getChildCount(); i++) {
       roles.add(unescapeIdentifier(ast.getChild(i).getText()));
     }
     String roleOwnerName = "";
@@ -492,21 +498,26 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
     }
     String principalName = unescapeIdentifier(principal.getChild(0).getText());
     PrincipalDesc principalDesc = new PrincipalDesc(principalName, type);
+
     List<String> cols = null;
     if (ast.getChildCount() > 1) {
       ASTNode child = (ASTNode) ast.getChild(1);
       if (child.getToken().getType() == HiveParser.TOK_PRIV_OBJECT_COL) {
         privHiveObj = new PrivilegeObjectDesc();
+        //set object name
         privHiveObj.setObject(unescapeIdentifier(child.getChild(0).getText()));
-        if (child.getChildCount() > 1) {
-          for (int i = 1; i < child.getChildCount(); i++) {
+        //set object type
+        ASTNode objTypeNode = (ASTNode) child.getChild(1);
+        privHiveObj.setTable(objTypeNode.getToken().getType() == HiveParser.TOK_TABLE_TYPE);
+
+        //set col and partition spec if specified
+        if (child.getChildCount() > 2) {
+          for (int i = 2; i < child.getChildCount(); i++) {
             ASTNode grandChild = (ASTNode) child.getChild(i);
             if (grandChild.getToken().getType() == HiveParser.TOK_PARTSPEC) {
               privHiveObj.setPartSpec(DDLSemanticAnalyzer.getPartSpec(grandChild));
             } else if (grandChild.getToken().getType() == HiveParser.TOK_TABCOLNAME) {
               cols = getColumnNames((ASTNode) grandChild);
-            } else {
-              privHiveObj.setTable(child.getChild(i) != null);
             }
           }
         }
@@ -523,6 +534,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
         principalDesc, privHiveObj, cols);
     rootTasks.add(TaskFactory.get(new DDLWork(getInputs(), getOutputs(),
         showGrant), conf));
+    setFetchTask(createFetchTask(ShowGrantDesc.getSchema()));
   }
 
   private void analyzeGrant(ASTNode ast) throws SemanticException {
@@ -576,16 +588,15 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
       HashSet<WriteEntity> outputs)
       throws SemanticException {
     PrivilegeObjectDesc subject = new PrivilegeObjectDesc();
+    //set object identifier
     subject.setObject(unescapeIdentifier(ast.getChild(0).getText()));
-    if (ast.getChildCount() > 1) {
-      for (int i = 0; i < ast.getChildCount(); i++) {
-        ASTNode astChild = (ASTNode) ast.getChild(i);
-        if (astChild.getToken().getType() == HiveParser.TOK_PARTSPEC) {
-          subject.setPartSpec(DDLSemanticAnalyzer.getPartSpec(astChild));
-        } else {
-          subject.setTable(ast.getChild(0) != null);
-        }
-      }
+    //set object type
+    ASTNode objTypeNode =  (ASTNode) ast.getChild(1);
+    subject.setTable(objTypeNode.getToken().getType() == HiveParser.TOK_TABLE_TYPE);
+    if (ast.getChildCount() == 3) {
+      //if partition spec node is present, set partition spec
+      ASTNode partSpecNode = (ASTNode) ast.getChild(2);
+      subject.setPartSpec(DDLSemanticAnalyzer.getPartSpec(partSpecNode));
     }
 
     if (subject.getTable()) {
@@ -683,6 +694,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
     createRoleDesc.setResFile(ctx.getResFile().toString());
     rootTasks.add(TaskFactory.get(new DDLWork(getInputs(), getOutputs(),
         createRoleDesc), conf));
+    setFetchTask(createFetchTask(RoleDDLDesc.getSchema()));
   }
 
   private void analyzeAlterDatabase(ASTNode ast) throws SemanticException {
@@ -1000,7 +1012,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
 
         truncateTblDesc.setColumnIndexes(new ArrayList<Integer>(columnIndexes));
 
-        truncateTblDesc.setInputDir(oldTblPartLoc.toString());
+        truncateTblDesc.setInputDir(oldTblPartLoc);
         addInputsOutputsAlterTable(tableName, partSpec);
 
         truncateTblDesc.setLbCtx(lbCtx);
@@ -1011,8 +1023,8 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
         // Write the output to temporary directory and move it to the final location at the end
         // so the operation is atomic.
         String queryTmpdir = ctx.getExternalTmpFileURI(newTblPartLoc.toUri());
-        truncateTblDesc.setOutputDir(queryTmpdir);
-        LoadTableDesc ltd = new LoadTableDesc(queryTmpdir, queryTmpdir, tblDesc,
+        truncateTblDesc.setOutputDir(new Path(queryTmpdir));
+        LoadTableDesc ltd = new LoadTableDesc(new Path(queryTmpdir), tblDesc,
             partSpec == null ? new HashMap<String, String>() : partSpec);
         ltd.setLbCtx(lbCtx);
         Task<MoveWork> moveTsk = TaskFactory.get(new MoveWork(null, null, ltd, null, false),
@@ -1534,7 +1546,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
     AlterTablePartMergeFilesDesc mergeDesc = new AlterTablePartMergeFilesDesc(
         tableName, partSpec);
 
-    List<String> inputDir = new ArrayList<String>();
+    List<Path> inputDir = new ArrayList<Path>();
     Path oldTblPartLoc = null;
     Path newTblPartLoc = null;
     Table tblObj = null;
@@ -1614,7 +1626,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
             "Merge can not perform on archived partitions.");
       }
 
-      inputDir.add(oldTblPartLoc.toString());
+      inputDir.add(oldTblPartLoc);
 
       mergeDesc.setInputDir(inputDir);
 
@@ -1626,8 +1638,8 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
       Task<? extends Serializable> mergeTask = TaskFactory.get(ddlWork, conf);
       TableDesc tblDesc = Utilities.getTableDesc(tblObj);
       String queryTmpdir = ctx.getExternalTmpFileURI(newTblPartLoc.toUri());
-      mergeDesc.setOutputDir(queryTmpdir);
-      LoadTableDesc ltd = new LoadTableDesc(queryTmpdir, queryTmpdir, tblDesc,
+      mergeDesc.setOutputDir(new Path(queryTmpdir));
+      LoadTableDesc ltd = new LoadTableDesc(new Path(queryTmpdir), tblDesc,
           partSpec == null ? new HashMap<String, String>() : partSpec);
       ltd.setLbCtx(lbCtx);
       Task<MoveWork> moveTsk = TaskFactory.get(new MoveWork(null, null, ltd, null, false),
@@ -1932,10 +1944,8 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
   }
 
   /**
-   * Create a FetchTask for a given table and thrift ddl schema.
+   * Create a FetchTask for a given thrift ddl schema.
    *
-   * @param tablename
-   *          tablename
    * @param schema
    *          thrift ddl
    */
@@ -1948,7 +1958,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
     prop.setProperty("columns", colTypes[0]);
     prop.setProperty("columns.types", colTypes[1]);
     prop.setProperty(serdeConstants.SERIALIZATION_LIB, LazySimpleSerDe.class.getName());
-    FetchWork fetch = new FetchWork(ctx.getResFile().toString(), new TableDesc(
+    FetchWork fetch = new FetchWork(ctx.getResFile(), new TableDesc(
         TextInputFormat.class,IgnoreKeyTextOutputFormat.class, prop), -1);
     fetch.setSerializationNullFormat(" ");
     return (FetchTask) TaskFactory.get(fetch, conf);
@@ -2760,7 +2770,7 @@ public class DDLSemanticAnalyzer extends BaseSemanticAnalyzer {
           } else {
             cmd.append(" AND ");
           }
-          cmd.append(HiveUtils.unparseIdentifier(entry.getKey()));
+          cmd.append(HiveUtils.unparseIdentifier(entry.getKey(), conf));
           cmd.append(" = '");
           cmd.append(HiveUtils.escapeString(entry.getValue()));
           cmd.append("'");

@@ -149,7 +149,7 @@ public class MapReduceCompiler {
         resultTab = PlanUtils.getDefaultQueryOutputTableDesc(cols, colTypes, resFileFormat);
       }
 
-      FetchWork fetch = new FetchWork(new Path(loadFileDesc.getSourceDir()).toString(),
+      FetchWork fetch = new FetchWork(loadFileDesc.getSourcePath(),
           resultTab, qb.getParseInfo().getOuterQueryLimit());
       fetch.setSource(pCtx.getFetchSource());
       fetch.setSink(pCtx.getFetchSink());
@@ -191,8 +191,9 @@ public class MapReduceCompiler {
           assert (oneLoadFile); // should not have more than 1 load file for
           // CTAS
           // make the movetask's destination directory the table's destination.
-          String location = qb.getTableDesc().getLocation();
-          if (location == null) {
+          Path location;
+          String loc = qb.getTableDesc().getLocation();
+          if (loc == null) {
             // get the table's default location
             Table dumpTable;
             Path targetPath;
@@ -211,7 +212,9 @@ public class MapReduceCompiler {
               throw new SemanticException(e);
             }
 
-            location = targetPath.toString();
+            location = targetPath;
+          } else {
+              location = new Path(loc);
           }
           lfd.setTargetDir(location);
 
@@ -477,7 +480,7 @@ public class MapReduceCompiler {
     String resFileFormat = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEQUERYRESULTFILEFORMAT);
     TableDesc resultTab = PlanUtils.getDefaultQueryOutputTableDesc(cols, colTypes, resFileFormat);
 
-    fetch = new FetchWork(new Path(loadFileWork.get(0).getSourceDir()).toString(),
+    fetch = new FetchWork(loadFileWork.get(0).getSourcePath(),
         resultTab, qb.getParseInfo().getOuterQueryLimit());
 
     ColumnStatsDesc cStatsDesc = new ColumnStatsDesc(tableName, partName,

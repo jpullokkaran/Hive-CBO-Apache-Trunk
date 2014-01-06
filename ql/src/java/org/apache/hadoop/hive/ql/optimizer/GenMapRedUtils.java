@@ -38,10 +38,12 @@ import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ConditionalTask;
 import org.apache.hadoop.hive.ql.exec.DemuxOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
+import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorFactory;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
+import org.apache.hadoop.hive.ql.exec.SMBMapJoinOperator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.TaskFactory;
@@ -59,6 +61,7 @@ import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
 import org.apache.hadoop.hive.ql.parse.OpParseContext;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
+import org.apache.hadoop.hive.ql.parse.QBJoinTree;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
@@ -691,10 +694,10 @@ public final class GenMapRedUtils {
         tblDesc = Utilities.getTableDesc(partsList.getSourceTable());
         localPlan.getAliasToFetchWork().put(
             alias_id,
-            new FetchWork(FetchWork.convertPathToStringArray(partDir), partDesc, tblDesc));
+            new FetchWork(partDir, partDesc, tblDesc));
       } else {
         localPlan.getAliasToFetchWork().put(alias_id,
-            new FetchWork(tblDir.toString(), tblDesc));
+            new FetchWork(tblDir, tblDesc));
       }
       plan.setMapLocalWork(localPlan);
     }
@@ -742,7 +745,7 @@ public final class GenMapRedUtils {
       assert localPlan.getAliasToWork().get(alias) == null;
       assert localPlan.getAliasToFetchWork().get(alias) == null;
       localPlan.getAliasToWork().put(alias, topOp);
-      localPlan.getAliasToFetchWork().put(alias, new FetchWork(alias, tt_desc));
+      localPlan.getAliasToFetchWork().put(alias, new FetchWork(new Path(alias), tt_desc));
       plan.setMapLocalWork(localPlan);
     }
   }
@@ -978,9 +981,23 @@ public final class GenMapRedUtils {
     MapredWork cplan = (MapredWork) childTask.getWork();
 
     if (needsTagging(cplan.getReduceWork())) {
-      String origStreamDesc;
-      streamDesc = "$INTNAME";
-      origStreamDesc = streamDesc;
+      Operator<? extends OperatorDesc> reducerOp = cplan.getReduceWork().getReducer();
+      QBJoinTree joinTree = null;
+      if (reducerOp instanceof JoinOperator) {
+        joinTree = parseCtx.getJoinContext().get(reducerOp);
+      } else if (reducerOp instanceof MapJoinOperator) {
+        joinTree = parseCtx.getMapJoinContext().get(reducerOp);
+      } else if (reducerOp instanceof SMBMapJoinOperator) {
+        joinTree = parseCtx.getSmbMapJoinContext().get(reducerOp);
+      }
+
+      if (joinTree != null && joinTree.getId() != null) {
+        streamDesc = joinTree.getId() + ":$INTNAME";
+      } else {
+        streamDesc = "$INTNAME";
+      }
+
+      String origStreamDesc = streamDesc;
       int pos = 0;
       while (cplan.getMapWork().getAliasToWork().get(streamDesc) != null) {
         streamDesc = origStreamDesc.concat(String.valueOf(++pos));
