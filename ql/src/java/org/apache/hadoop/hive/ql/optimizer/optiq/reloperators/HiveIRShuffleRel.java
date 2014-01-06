@@ -6,7 +6,6 @@ import java.util.List;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.eigenbase.relopt.RelOptCluster;
-import org.eigenbase.relopt.RelOptPlanWriter;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.rex.RexNode;
@@ -30,13 +29,13 @@ public class HiveIRShuffleRel extends HiveIRRel {
   }
 
 
-  public RelOptPlanWriter explainTerms(RelOptPlanWriter pw) {
-      super.explainTerms(pw);
-      for (Integer pColIndx : m_partCols) {
-          pw.item("partitionCol" + pColIndx, exps.get(pColIndx));
-      }
-      return pw;
-  }
+//  public RelOptPlanWriter explainTerms(RelOptPlanWriter pw) {
+//      super.explainTerms(pw);
+//      for (Integer pColIndx : m_partCols) {
+//          pw.item("partitionCol" + pColIndx, exps.get(pColIndx));
+//      }
+//      return pw;
+//  }
 
   @Override
   public Double getEstimatedMemUsageInVertex() {

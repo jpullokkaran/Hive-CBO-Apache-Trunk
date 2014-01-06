@@ -167,9 +167,18 @@
       <version>${datanucleus-core.version}</version>
     </dependency>
     <dependency>
-       <groupId>org.eigenbase</groupId>
-       <artifactId>optiq</artifactId>
+       <groupId>net.hydromatic</groupId>
+       <artifactId>optiq-core</artifactId>
        <version>${optiq.version}</version>
+        <exclusions>
+        	<!-- hsqldb interferes with the use of derby as the default db
+        	     in hive's use of datanucleus. 
+        	-->
+        	<exclusion>
+        		<groupId>org.hsqldb</groupId>
+        		<artifactId>hsqldb</artifactId>
+        	</exclusion>
+        </exclusions>
     </dependency>      
     <dependency>
       <groupId>com.google.guava</groupId>

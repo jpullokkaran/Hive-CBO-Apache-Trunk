@@ -77,9 +77,13 @@ public class OperatorUtils {
 			}
 
 			if (backward) {
-				nextSetOfOperators.addAll(op.getParentOperators());
+				if (op.getParentOperators() != null ) {
+					nextSetOfOperators.addAll(op.getParentOperators());
+				}
 			} else {
-				nextSetOfOperators.addAll(op.getChildOperators());
+				if ( op.getChildOperators() != null ) {
+					nextSetOfOperators.addAll(op.getChildOperators());
+				}
 			}
 		}
 

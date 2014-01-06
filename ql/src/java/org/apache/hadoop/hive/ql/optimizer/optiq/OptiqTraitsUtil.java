@@ -243,7 +243,10 @@ public class OptiqTraitsUtil {
       return getCombinedTrait(cluster, table.getBucketTrait(rowtype));
     }
     else {
-      traitSet.add(table.getBucketTrait(rowtype));
+    	RelBucketing bTrait = table.getBucketTrait(rowtype);
+    	if ( bTrait != null ) {
+    		traitSet.add(bTrait);
+    	}
       return traitSet;
     }
   }

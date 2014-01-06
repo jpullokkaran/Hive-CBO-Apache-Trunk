@@ -1,6 +1,7 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -48,8 +49,9 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     public static HiveJoinRel getJoin(RelOptCluster cluster, RelNode left,
             RelNode right, RexNode condition, JoinRelType joinType) {
         try {
+        	Set<String> variablesStopped = Collections.emptySet();
             return new HiveJoinRel(cluster, null, left, right, condition,
-                    joinType, null, JoinAlgorithm.NONE, null);
+                    joinType, variablesStopped, JoinAlgorithm.NONE, null);
         } catch (InvalidRelException e) {
             throw new RuntimeException(e);
         }
