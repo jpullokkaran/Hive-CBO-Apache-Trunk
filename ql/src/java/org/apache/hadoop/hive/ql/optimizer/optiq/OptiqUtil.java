@@ -320,14 +320,14 @@ public class OptiqUtil {
     public static HiveJoinRel introduceShuffleOperator(HiveJoinRel origJoin,
             boolean introduceShuffleAtLeft, boolean introduceShuffleAtRight,
             List<Integer> leftSortKeys, List<Integer> rightSortKeys) {
-        HiveRel leftOfNewJoin = (HiveRel) origJoin.getLeft();
-        HiveRel rightOfNewJoin = (HiveRel) origJoin.getRight();
+        HiveRel leftOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin.getLeft());
+        HiveRel rightOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin.getRight());
 
         if (introduceShuffleAtLeft) {
             leftOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(leftOfNewJoin.getCluster(),
                     leftOfNewJoin.getTraitSet(), leftSortKeys, leftOfNewJoin);
         }
-        if (introduceShuffleAtLeft) {
+        if (introduceShuffleAtRight) {
             rightOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(rightOfNewJoin.getCluster(),
                     rightOfNewJoin.getTraitSet(), rightSortKeys, rightOfNewJoin);
         }
@@ -341,16 +341,16 @@ public class OptiqUtil {
 
     public static HiveJoinRel introduceBroadcastOperator(HiveJoinRel origJoin,
             MapJoinStreamingRelation m_streamingSide) {
-        HiveRel leftOfNewJoin = (HiveRel) origJoin.getLeft();
-        HiveRel rightOfNewJoin = (HiveRel) origJoin.getRight();
+        HiveRel leftOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin.getLeft());
+        HiveRel rightOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin.getRight());
 
         if (m_streamingSide == MapJoinStreamingRelation.LEFT_RELATION) {
             rightOfNewJoin = HiveIRBroadCastRel.constructHiveIRBroadCastRel(
                     rightOfNewJoin.getCluster(), rightOfNewJoin.getTraitSet(),
-                    (HiveRel) origJoin.getRight());
+                    rightOfNewJoin);
         } else {
             leftOfNewJoin = HiveIRBroadCastRel.constructHiveIRBroadCastRel(leftOfNewJoin.getCluster(),
-                    leftOfNewJoin.getTraitSet(), (HiveRel) origJoin.getLeft());
+                    leftOfNewJoin.getTraitSet(), leftOfNewJoin);
         }
 
         HiveJoinRel newJoin = origJoin.copy(origJoin.getTraitSet(),

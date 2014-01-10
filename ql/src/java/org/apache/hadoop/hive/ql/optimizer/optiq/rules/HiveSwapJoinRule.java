@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.eigenbase.rel.CalcRel;
@@ -135,11 +136,20 @@ public class HiveSwapJoinRule extends RelOptRule {
       // would fire on the new join, ad infinitum.
       final List<RexNode> exps =
           RelOptUtil.createSwappedJoinExprs(newJoin, join, false);
-      RelNode project =
-          CalcRel.createProject(
-              swapped,
-              exps,
-              newJoin.getRowType().getFieldNames());
+      
+      /*
+       * hb: ProjRel node doesn't have the RelBucketingTrait.
+       * Planner creates a new Subset for this, which causes an explosion of Plans.
+       */
+//      RelNode project =
+//          CalcRel.createProject(
+//              swapped,
+//              exps,
+//              newJoin.getRowType().getFieldNames());
+      
+      RelNode project = 
+    		  new HiveProjectRel(swapped.getCluster(), swapped, exps, 
+    				  newJoin.getRowType().getFieldNames(), 0);
 
       // Make sure extra traits are carried over from the original rel
       project =

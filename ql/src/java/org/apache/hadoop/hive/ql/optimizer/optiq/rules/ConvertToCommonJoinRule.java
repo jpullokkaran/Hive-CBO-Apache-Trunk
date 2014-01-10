@@ -61,8 +61,9 @@ public class ConvertToCommonJoinRule extends RelOptRule {
       HiveJoinRel newJoin = OptiqUtil.introduceShuffleOperator(j, introduceShuffleAtLeft,
           introduceShuffleAtRight,
           jpi.getJoinKeysFromLeftRelation(), jpi.getJoinKeysFromLeftRelation());
-      RelTraitSet shuffleJoinTrait = OptiqTraitsUtil.getShuffleJoinTraitSet(j);
-      j.getTraitSet().merge(shuffleJoinTrait);
+      newJoin.setJoinAlgorithm(JoinAlgorithm.COMMON_JOIN);
+      RelTraitSet shuffleJoinTrait = OptiqTraitsUtil.getShuffleJoinTraitSet(newJoin);
+      newJoin.getTraitSet().merge(shuffleJoinTrait);
       call.getPlanner().ensureRegistered(newJoin, j);
     }
   }

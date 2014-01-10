@@ -51,17 +51,8 @@ public class RelOptHiveTable extends RelOptAbstractTable {
     m_hiveTblMetadata = hiveTblMetadata;
     m_hiveRowSchema = hiveRowSchema;
     m_hiveConf = hconf;
-    String rowCount = System.getenv(name);
-    if (rowCount != null) {
-      try {
-        m_rowCount = Double.parseDouble(rowCount);
-      } catch (Exception e) {
-      }
-    }
-
-    if (m_rowCount < 0) {
-      m_rowCount = 100;
-    }
+    
+    m_rowCount = StatsUtils.getNumRows(m_hiveTblMetadata.getDbName(), m_hiveTblMetadata.getTableName());
   }
 
   @Override

@@ -7,6 +7,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelCollation;
+import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
@@ -14,7 +15,7 @@ import org.eigenbase.rex.RexNode;
 
 public abstract class HiveIRRel extends ProjectRelBase implements HiveRel {
 
-  public HiveIRRel(RelOptCluster cluster, RelTraitSet traitSet, HiveRel child, List<RexNode> exps, RelDataType rowType, int flags) {
+  public HiveIRRel(RelOptCluster cluster, RelTraitSet traitSet, RelNode child, List<RexNode> exps, RelDataType rowType, int flags) {
     super(cluster, traitSet, child, exps, rowType, flags);
   }
 

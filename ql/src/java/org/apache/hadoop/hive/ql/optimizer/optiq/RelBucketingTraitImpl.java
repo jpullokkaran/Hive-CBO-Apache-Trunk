@@ -26,8 +26,8 @@ public class RelBucketingTraitImpl implements RelBucketing {
   public static final RelBucketing EMPTY =
       RelBucketingTraitDef.INSTANCE.canonize(
           new RelBucketingTraitImpl(ImmutableSet.of(ImmutableList.<Integer> of()), ImmutableSet
-              .of(RelCollationImpl.EMPTY), null,
-              null));
+              .of(RelCollationImpl.EMPTY), 0,
+              0.0));
 
   public static RelBucketing of(
       ImmutableSet<ImmutableList<Integer>> partitioningColsSet,
@@ -106,8 +106,8 @@ public class RelBucketingTraitImpl implements RelBucketing {
 
     if (obj instanceof RelBucketingTraitImpl) {
       RelBucketingTraitImpl that = (RelBucketingTraitImpl) obj;
-      if ((this.m_noOfBuckets == that.m_noOfBuckets)
-          && (this.m_szOfLargestBucket == that.m_szOfLargestBucket)) {
+      if ((this.m_noOfBuckets.equals(that.m_noOfBuckets) )
+          && (this.m_szOfLargestBucket.equals(that.m_szOfLargestBucket))) {
         if (this.m_partitioningColsSet.equals(that.m_partitioningColsSet)) {
           if ((this.m_collationSet == null && that.m_collationSet == null)
               || ((this.m_collationSet != null && that.m_collationSet != null) && this.m_collationSet
@@ -120,8 +120,13 @@ public class RelBucketingTraitImpl implements RelBucketing {
 
     return false;
   }
+  
+  public String toString() {
+	  return m_partitioningColsSet.toString() + ", " + m_collationSet.toString();
+  }
 
   public boolean noOfBucketsMultipleOfEachOther(RelBucketing bucketTraitToCompare) {
+	  
     if (this == bucketTraitToCompare) {
       return true;
     }
@@ -131,6 +136,10 @@ public class RelBucketingTraitImpl implements RelBucketing {
     if (this.m_noOfBuckets < bucketTraitToCompare.getNumberOfBuckets()) {
       largerNoOfBuckets = bucketTraitToCompare.getNumberOfBuckets();
       smallererNoOfBuckets = this.m_noOfBuckets;
+    }
+    
+    if ( largerNoOfBuckets == 0 || smallererNoOfBuckets == 0 ) {
+    	return false;
     }
 
     if ((largerNoOfBuckets % smallererNoOfBuckets) == 0) {
@@ -182,36 +191,38 @@ public class RelBucketingTraitImpl implements RelBucketing {
       ImmutableSet<RelCollation> collationset) {
     ImmutableSet<ImmutableList<Integer>> immutableSetOfSortCols = null;
 
-    if (collationset != null && !collationset.isEmpty())
+    if (collationset != null && !collationset.isEmpty() )
     {
       RelCollation representativeCollation = collationset.asList().get(0);
       int noOfSortingCols = representativeCollation.getFieldCollations().size();
-      Direction bucketNonNullSortOrder = representativeCollation.getFieldCollations().get(0).direction;
-      NullDirection bucketNullSortOrder = representativeCollation.getFieldCollations().get(0).nullDirection;
-
-      Set<ImmutableList<Integer>> sortingColsSet = new HashSet<ImmutableList<Integer>>();
-      List<Integer> sortCols = null;
-
-      for (RelCollation collation : collationset) {
-        if (collation.getFieldCollations().size() != noOfSortingCols) {
-          throw new RuntimeException("Invalid Bucket Sort Order");
-        }
-
-        sortCols = new LinkedList<Integer>();
-        for (RelFieldCollation fieldCollation : collation.getFieldCollations()) {
-          sortCols.add(fieldCollation.getFieldIndex());
-          if (bucketNonNullSortOrder != fieldCollation.direction
-              || bucketNullSortOrder != fieldCollation.nullDirection) {
-            throw new RuntimeException("Invalid Bucket Sort Order");
-          }
-        }
-
-        if (!sortCols.isEmpty()) {
-          sortingColsSet.add(ImmutableList.copyOf(sortCols));
-        }
+      if ( noOfSortingCols > 0 ) {
+	      Direction bucketNonNullSortOrder = representativeCollation.getFieldCollations().get(0).direction;
+	      NullDirection bucketNullSortOrder = representativeCollation.getFieldCollations().get(0).nullDirection;
+	
+	      Set<ImmutableList<Integer>> sortingColsSet = new HashSet<ImmutableList<Integer>>();
+	      List<Integer> sortCols = null;
+	
+	      for (RelCollation collation : collationset) {
+	        if (collation.getFieldCollations().size() != noOfSortingCols) {
+	          throw new RuntimeException("Invalid Bucket Sort Order");
+	        }
+	
+	        sortCols = new LinkedList<Integer>();
+	        for (RelFieldCollation fieldCollation : collation.getFieldCollations()) {
+	          sortCols.add(fieldCollation.getFieldIndex());
+	          if (bucketNonNullSortOrder != fieldCollation.direction
+	              || bucketNullSortOrder != fieldCollation.nullDirection) {
+	            throw new RuntimeException("Invalid Bucket Sort Order");
+	          }
+	        }
+	
+	        if (!sortCols.isEmpty()) {
+	          sortingColsSet.add(ImmutableList.copyOf(sortCols));
+	        }
+	      }
+	
+	      immutableSetOfSortCols = ImmutableSet.copyOf(sortingColsSet);
       }
-
-      immutableSetOfSortCols = ImmutableSet.copyOf(sortingColsSet);
     }
 
     return immutableSetOfSortCols;

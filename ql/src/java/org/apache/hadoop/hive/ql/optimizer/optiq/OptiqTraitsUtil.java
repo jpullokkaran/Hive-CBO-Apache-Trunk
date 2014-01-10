@@ -20,6 +20,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
+import org.eigenbase.rel.RelCollationTraitDef;
 import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelFieldCollation.Direction;
 import org.eigenbase.rel.RelFieldCollation.NullDirection;
@@ -80,7 +81,7 @@ public class OptiqTraitsUtil {
           List<Integer> translatedBucketSortCols = OptiqUtil.translateProjIndxToChild(n,
               bucketSortCols);
           if (translatedBucketSortCols != null) {
-            if (propgateBucketTrait((HiveRel) n.getInput(0), translatedBucketingCols,
+            if (propgateBucketTrait((HiveRel) OptiqUtil.getNonSubsetRelNode(n.getInput(0)), translatedBucketingCols,
                 translatedBucketSortCols)) {
               ((HiveProjectRel) n).propagateBucketingTraitUpwardsViaTransformation(
                   translatedBucketingCols,
@@ -230,7 +231,7 @@ public class OptiqTraitsUtil {
     if (traitSet == null) {
       return getCombinedTrait(cluster, bucketingtrait);
     } else {
-      traitSet.add(bucketingtrait);
+      traitSet = traitSet.plus(bucketingtrait);
       return traitSet;
     }
   }
@@ -288,6 +289,7 @@ public class OptiqTraitsUtil {
    * @return
    */
   private static RelTraitSet getSortMergeJoinTraitSet(HiveJoinRel j) {
+	  	  
     HiveRel left = OptiqUtil.getNonSubsetRelNode(j.getLeft());
     HiveRel right = OptiqUtil.getNonSubsetRelNode(j.getRight());
     RelBucketing leftBucketingTrait = getBucketingTrait(left.getTraitSet());
@@ -509,9 +511,9 @@ public class OptiqTraitsUtil {
     RelTraitSet traitSet = null;
 
     if (trait != null) {
-      traitSet = cluster.traitSetOf(HiveRel.CONVENTION, trait);
+      traitSet = cluster.traitSetOf(HiveRel.CONVENTION, RelCollationTraitDef.INSTANCE.getDefault(), trait);
     } else {
-      traitSet = cluster.traitSetOf(HiveRel.CONVENTION);
+      traitSet = cluster.traitSetOf(HiveRel.CONVENTION, RelCollationTraitDef.INSTANCE.getDefault());
     }
 
     return traitSet;

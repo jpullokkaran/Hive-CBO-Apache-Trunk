@@ -23,8 +23,8 @@ public class ConvertToSMBJoinRule extends RelOptRule {
     boolean matchesRule = false;
 
     HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    HiveRel left = (HiveRel) j.getLeft();
-    HiveRel right = (HiveRel) j.getRight();
+    HiveRel left = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getLeft());
+    HiveRel right = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getRight());
     if (j.getJoinAlgorithm() == JoinAlgorithm.NONE) {
       RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(left.getTraitSet());
       RelBucketing rightBucketingTrait = OptiqTraitsUtil.getBucketingTrait(right.getTraitSet());

@@ -22,10 +22,17 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.rules.PropagateSortTraitUpwards
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
+import org.eigenbase.rel.RelCollationTraitDef;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptPlanner;
+import org.eigenbase.relopt.RelOptQuery;
 import org.eigenbase.relopt.RelOptSchema;
+import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.rex.RexBuilder;
+import org.eigenbase.sql.SqlExplainLevel;
 
 public class CBO implements Frameworks.PlannerAction<RelNode> {
     private static final List<OperatorType> m_unsupportedOpTypes = Arrays
@@ -50,7 +57,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
             @SuppressWarnings("rawtypes") Operator sinkOp,
             SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
         ASTNode optiqOptimizedAST = null;
-
+        
         if (shouldRunOptiqOptimizer(sinkOp, conf)) {
             RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
                     semanticAnalyzer, conf));
@@ -70,8 +77,32 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         Long totalMemForSmallTable = m_conf
                 .getLongVar(HiveConf.ConfVars.HIVESMALLTABLESFILESIZE);
 
+        RelOptPlanner planner = cluster.getPlanner();
+        planner.addRelTraitDef(RelBucketingTraitDef.INSTANCE);
+        
+        /*
+         * recreate cluster, so that it picks up the additional traitDef
+         */
+        RelOptQuery query = new RelOptQuery(planner);
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        cluster =
+            query.createCluster(rexBuilder.getTypeFactory(), rexBuilder);
+        
+        
+        /*
+         * wrap MetaDataProvider in a Caching Provider.
+         */
+        cluster.setMetadataProvider(
+        		new CachingRelMetadataProvider(cluster.getMetadataProvider(), planner));
+
+        
         RelNode opTreeInOptiq = HiveToOptiqRelConverter.convertOpDAG(cluster,
                 relOptSchema, schema, m_sinkOp, m_semanticAnalyzer, m_conf);
+        
+        /*
+         * The starting tree
+         */
+        System.out.println(RelOptUtil.toString(opTreeInOptiq, SqlExplainLevel.ALL_ATTRIBUTES));
 
         // TODO: Add rules for projection pruning, predicate push down,
         // transitive predicate propagation
@@ -90,9 +121,12 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
         cluster.getPlanner().addRule(
                 new ConvertToMapJoinRule(totalMemForSmallTable));
-
-        RelTraitSet desiredTraits = opTreeInOptiq.getTraitSet().replace(
-                HiveRel.CONVENTION);
+        
+        RelTraitSet desiredTraits = 
+        		RelTraitSet.createEmpty().
+        		plus(HiveRel.CONVENTION).
+        		plus(RelCollationTraitDef.INSTANCE.getDefault()).
+        		plus(RelBucketingTraitImpl.EMPTY);
         final RelNode rootRel = cluster.getPlanner().changeTraits(
                 opTreeInOptiq, desiredTraits);
         cluster.getPlanner().setRoot(rootRel);
@@ -115,4 +149,5 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 
         return runOptiq;
     }
+    
 }

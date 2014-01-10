@@ -8952,6 +8952,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           LOG.debug("CBO rewritten query: \n" + newAstExpanded);
         }
       } catch (Exception e) {
+    	  e.printStackTrace();
         skipCBOPlan = true;
       }
 

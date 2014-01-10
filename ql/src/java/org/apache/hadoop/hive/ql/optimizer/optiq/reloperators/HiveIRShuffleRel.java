@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
+import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
@@ -22,10 +23,21 @@ public class HiveIRShuffleRel extends HiveIRRel {
   }
   
   //TODO: Handle expressions as partition cols (x+Y)
-  public HiveIRShuffleRel(RelOptCluster cluster, RelTraitSet traitSet, List<Integer> partCols, HiveRel child, List<RexNode> exps, RelDataType rowType) {
+  public HiveIRShuffleRel(RelOptCluster cluster, RelTraitSet traitSet, List<Integer> partCols, RelNode child, List<RexNode> exps, RelDataType rowType) {
         super(cluster, OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
                 partCols, null, child), child, exps, rowType, 0);
     m_partCols.addAll(partCols);
+  }
+  
+  @Override
+  public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+    assert traitSet.containsIfApplicable(HiveRel.CONVENTION);
+    return new HiveIRShuffleRel(
+        getCluster(), traitSet,
+        m_partCols,
+        sole(inputs),
+        exps,
+        rowType);
   }
 
 
