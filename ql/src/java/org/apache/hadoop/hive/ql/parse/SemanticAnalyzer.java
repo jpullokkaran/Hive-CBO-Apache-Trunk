@@ -1271,8 +1271,8 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                 throw new SemanticException(e);
               }
               try {
-                fname = ctx.getExternalTmpFileURI(
-                    FileUtils.makeQualified(location, conf).toUri());
+                fname = ctx.getExternalTmpPath(
+                    FileUtils.makeQualified(location, conf).toUri()).toString();
               } catch (Exception e) {
                 throw new SemanticException(generateErrorMessage(ast,
                     "Error creating temporary folder on: " + location.toString()), e);
@@ -5272,7 +5272,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
     Table dest_tab = null; // destination table if any
     Partition dest_part = null;// destination partition if any
-    String queryTmpdir = null; // the intermediate destination directory
+    Path queryTmpdir = null; // the intermediate destination directory
     Path dest_path = null; // the final destination directory
     TableDesc table_desc = null;
     int currentTableId = 0;
@@ -5338,9 +5338,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       boolean isNonNativeTable = dest_tab.isNonNative();
       if (isNonNativeTable) {
-        queryTmpdir = dest_path.toUri().getPath();
+        queryTmpdir = dest_path;
       } else {
-        queryTmpdir = ctx.getExternalTmpFileURI(dest_path.toUri());
+        queryTmpdir = ctx.getExternalTmpPath(dest_path.toUri());
       }
       if (dpCtx != null) {
         // set the root of the temporay path where dynamic partition columns will populate
@@ -5363,7 +5363,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       // Create the work for moving the table
       // NOTE: specify Dynamic partitions in dest_tab for WriteEntity
       if (!isNonNativeTable) {
-        ltd = new LoadTableDesc(new Path(queryTmpdir),table_desc, dpCtx);
+        ltd = new LoadTableDesc(queryTmpdir,table_desc, dpCtx);
         ltd.setReplace(!qb.getParseInfo().isInsertIntoTable(dest_tab.getDbName(),
             dest_tab.getTableName()));
         ltd.setLbCtx(lbCtx);
@@ -5433,7 +5433,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       dest_path = new Path(tabPath.toUri().getScheme(), tabPath.toUri()
           .getAuthority(), partPath.toUri().getPath());
 
-      queryTmpdir = ctx.getExternalTmpFileURI(dest_path.toUri());
+      queryTmpdir = ctx.getExternalTmpPath(dest_path.toUri());
       table_desc = Utilities.getTableDesc(dest_tab);
 
       // Add sorting/bucketing if needed
@@ -5446,7 +5446,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       lbCtx = constructListBucketingCtx(dest_part.getSkewedColNames(),
           dest_part.getSkewedColValues(), dest_part.getSkewedColValueLocationMaps(),
           dest_part.isStoredAsSubDirectories(), conf);
-      ltd = new LoadTableDesc(new Path(queryTmpdir), table_desc, dest_part.getSpec());
+      ltd = new LoadTableDesc(queryTmpdir, table_desc, dest_part.getSpec());
       ltd.setReplace(!qb.getParseInfo().isInsertIntoTable(dest_tab.getDbName(),
           dest_tab.getTableName()));
       ltd.setLbCtx(lbCtx);
@@ -5477,18 +5477,18 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       // fall through
     case QBMetaData.DEST_DFS_FILE: {
       dest_path = new Path(qbm.getDestFileForAlias(dest));
-      
+
       if (isLocal) {
         // for local directory - we always write to map-red intermediate
         // store and then copy to local fs
-        queryTmpdir = ctx.getMRTmpFileURI();
+        queryTmpdir = new Path(ctx.getMRTmpFileURI());
       } else {
         // otherwise write to the file system implied by the directory
         // no copy is required. we may want to revisit this policy in future
 
         try {
           Path qPath = FileUtils.makeQualified(dest_path, conf);
-          queryTmpdir = ctx.getExternalTmpFileURI(qPath.toUri());
+          queryTmpdir = ctx.getExternalTmpPath(qPath.toUri());
         } catch (Exception e) {
           throw new SemanticException("Error creating temporary folder on: "
               + dest_path, e);
@@ -5566,7 +5566,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
 
       boolean isDfsDir = (dest_type.intValue() == QBMetaData.DEST_DFS_FILE);
-      loadFileWork.add(new LoadFileDesc(tblDesc, new Path(queryTmpdir), dest_path, isDfsDir, cols,
+      loadFileWork.add(new LoadFileDesc(tblDesc, queryTmpdir, dest_path, isDfsDir, cols,
           colTypes));
 
       if (tblDesc == null) {
@@ -5646,7 +5646,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     // the same as directory name. The directory name
     // can be changed in the optimizer but the key should not be changed
     // it should be the same as the MoveWork's sourceDir.
-    fileSinkDesc.setStatsAggPrefix(fileSinkDesc.getDirName());
+    fileSinkDesc.setStatsAggPrefix(fileSinkDesc.getDirName().toString());
 
     if (dest_part != null) {
       try {
@@ -6653,7 +6653,8 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       ASTNode hint = (ASTNode) hints.getChild(pos);
       if (((ASTNode) hint.getChild(0)).getToken().getType() == HiveParser.TOK_MAPJOIN) {
         // the user has specified to ignore mapjoin hint
-        if (!conf.getBoolVar(HiveConf.ConfVars.HIVEIGNOREMAPJOINHINT)) {
+        if (!conf.getBoolVar(HiveConf.ConfVars.HIVEIGNOREMAPJOINHINT)
+            && !conf.getVar(HiveConf.ConfVars.HIVE_EXECUTION_ENGINE).equals("tez")) {
           ASTNode hintTblNames = (ASTNode) hint.getChild(1);
           int numCh = hintTblNames.getChildCount();
           for (int tblPos = 0; tblPos < numCh; tblPos++) {
@@ -8360,6 +8361,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       // Add a mapping from the table scan operator to Table
       topToTable.put((TableScanOperator) top, tab);
+
       Map<String, String> props = qb.getTabPropsForAlias(alias);
       if (props != null) {
         topToTableProps.put((TableScanOperator) top, props);
@@ -9019,7 +9021,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     if (!ctx.getExplainLogical()) {
       // At this point we have the complete operator tree
       // from which we want to create the map-reduce plan
-      MapReduceCompiler compiler = new MapReduceCompiler();
+      TaskCompiler compiler = TaskCompilerFactory.getCompiler(conf, pCtx);
       compiler.init(conf, console, db);
       compiler.compile(pCtx, rootTasks, inputs, outputs);
       fetchTask = pCtx.getFetchTask();

@@ -15,38 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.hive.ql.exec.tez;
 
-package org.apache.hadoop.hive.ql.udf;
+import java.util.Map;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.hadoop.hive.ql.exec.Description;
-import org.apache.hadoop.hive.ql.exec.UDF;
-import org.apache.hadoop.hive.ql.exec.vector.VectorizedExpressions;
-import org.apache.hadoop.hive.ql.exec.vector.expressions.StringRTrim;
-import org.apache.hadoop.io.Text;
+import org.apache.hadoop.hive.ql.exec.MapredContext;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.tez.runtime.api.LogicalInput;
 
 /**
- * UDFRTrim.
- *
+ * TezContext contains additional context only available with Tez
  */
-@Description(name = "rtrim",
-    value = "_FUNC_(str) - Removes the trailing space characters from str ",
-    extended = "Example:\n"
-    + "  > SELECT _FUNC_('facebook   ') FROM src LIMIT 1;\n" + "  'facebook'")
-@VectorizedExpressions({StringRTrim.class})
-public class UDFRTrim extends UDF {
+public class TezContext extends MapredContext {
 
-  Text result = new Text();
+  // all the inputs for the tez processor
+  private Map<String, LogicalInput> inputs;
 
-  public UDFRTrim() {
+  public TezContext(boolean isMap, JobConf jobConf) {
+    super(isMap, jobConf);
   }
 
-  public Text evaluate(Text s) {
-    if (s == null) {
+  public void setInputs(Map<String, LogicalInput> inputs) {
+    this.inputs = inputs;
+  }
+
+  public LogicalInput getInput(String name) {
+    if (inputs == null) {
       return null;
     }
-    result.set(StringUtils.stripEnd(s.toString(), " "));
-    return result;
+    return inputs.get(name);
   }
-
 }

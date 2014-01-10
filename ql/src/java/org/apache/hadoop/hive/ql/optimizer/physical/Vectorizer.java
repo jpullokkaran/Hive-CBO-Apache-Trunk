@@ -48,6 +48,7 @@ import org.apache.hadoop.hive.ql.exec.TableScanOperator;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
+import org.apache.hadoop.hive.ql.exec.tez.TezTask;
 import org.apache.hadoop.hive.ql.exec.vector.VectorExpressionDescriptor;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizationContext;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizationContextRegion;
@@ -69,6 +70,7 @@ import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.AbstractOperatorDesc;
 import org.apache.hadoop.hive.ql.plan.AggregationDesc;
+import org.apache.hadoop.hive.ql.plan.BaseWork;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
@@ -77,6 +79,7 @@ import org.apache.hadoop.hive.ql.plan.MapWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
+import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.apache.hadoop.hive.ql.udf.UDFAcos;
 import org.apache.hadoop.hive.ql.udf.UDFAsin;
@@ -89,7 +92,6 @@ import org.apache.hadoop.hive.ql.udf.UDFDegrees;
 import org.apache.hadoop.hive.ql.udf.UDFExp;
 import org.apache.hadoop.hive.ql.udf.UDFHex;
 import org.apache.hadoop.hive.ql.udf.UDFHour;
-import org.apache.hadoop.hive.ql.udf.UDFLTrim;
 import org.apache.hadoop.hive.ql.udf.UDFLength;
 import org.apache.hadoop.hive.ql.udf.UDFLike;
 import org.apache.hadoop.hive.ql.udf.UDFLn;
@@ -98,7 +100,6 @@ import org.apache.hadoop.hive.ql.udf.UDFLog10;
 import org.apache.hadoop.hive.ql.udf.UDFLog2;
 import org.apache.hadoop.hive.ql.udf.UDFMinute;
 import org.apache.hadoop.hive.ql.udf.UDFMonth;
-import org.apache.hadoop.hive.ql.udf.UDFRTrim;
 import org.apache.hadoop.hive.ql.udf.UDFRadians;
 import org.apache.hadoop.hive.ql.udf.UDFRand;
 import org.apache.hadoop.hive.ql.udf.UDFRegExp;
@@ -116,7 +117,6 @@ import org.apache.hadoop.hive.ql.udf.UDFToInteger;
 import org.apache.hadoop.hive.ql.udf.UDFToLong;
 import org.apache.hadoop.hive.ql.udf.UDFToShort;
 import org.apache.hadoop.hive.ql.udf.UDFToString;
-import org.apache.hadoop.hive.ql.udf.UDFTrim;
 import org.apache.hadoop.hive.ql.udf.UDFWeekOfYear;
 import org.apache.hadoop.hive.ql.udf.UDFYear;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
@@ -129,6 +129,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFConcat;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFFloor;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIf;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFIn;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFLower;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPAnd;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPDivide;
@@ -151,8 +152,10 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPower;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRound;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPPlus;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFPosMod;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFRTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTimestamp;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFToUnixTimeStamp;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFTrim;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFUpper;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFWhen;
 
@@ -217,9 +220,9 @@ public class Vectorizer implements PhysicalPlanResolver {
     supportedGenericUDFs.add(UDFLike.class);
     supportedGenericUDFs.add(UDFRegExp.class);
     supportedGenericUDFs.add(UDFSubstr.class);
-    supportedGenericUDFs.add(UDFLTrim.class);
-    supportedGenericUDFs.add(UDFRTrim.class);
-    supportedGenericUDFs.add(UDFTrim.class);
+    supportedGenericUDFs.add(GenericUDFLTrim.class);
+    supportedGenericUDFs.add(GenericUDFRTrim.class);
+    supportedGenericUDFs.add(GenericUDFTrim.class);
 
     supportedGenericUDFs.add(UDFSin.class);
     supportedGenericUDFs.add(UDFCos.class);
@@ -293,16 +296,26 @@ public class Vectorizer implements PhysicalPlanResolver {
         throws SemanticException {
       Task<? extends Serializable> currTask = (Task<? extends Serializable>) nd;
       if (currTask instanceof MapRedTask) {
-        boolean ret = validateMRTask((MapRedTask) currTask);
-        if (ret) {
-          vectorizeMRTask((MapRedTask) currTask);
+        convertMapWork(((MapRedTask) currTask).getWork().getMapWork());
+      } else if (currTask instanceof TezTask) {
+        TezWork work = ((TezTask) currTask).getWork();
+        for (BaseWork w: work.getAllWork()) {
+          if (w instanceof MapWork) {
+            convertMapWork((MapWork)w);
+          }
         }
       }
       return null;
     }
 
-    private boolean validateMRTask(MapRedTask mrTask) throws SemanticException {
-      MapWork mapWork = mrTask.getWork().getMapWork();
+    private void convertMapWork(MapWork mapWork) throws SemanticException {
+      boolean ret = validateMapWork(mapWork);
+      if (ret) {
+        vectorizeMapWork(mapWork);
+      }
+    }
+
+    private boolean validateMapWork(MapWork mapWork) throws SemanticException {
 
       // Validate the input format
       for (String path : mapWork.getPathToPartitionInfo().keySet()) {
@@ -338,12 +351,11 @@ public class Vectorizer implements PhysicalPlanResolver {
       return true;
     }
 
-    private void vectorizeMRTask(MapRedTask mrTask) throws SemanticException {
+    private void vectorizeMapWork(MapWork mapWork) throws SemanticException {
       LOG.info("Vectorizing task...");
-      MapWork mapWork = mrTask.getWork().getMapWork();
       mapWork.setVectorMode(true);
       Map<Rule, NodeProcessor> opRules = new LinkedHashMap<Rule, NodeProcessor>();
-      VectorizationNodeProcessor vnp = new VectorizationNodeProcessor(mrTask);
+      VectorizationNodeProcessor vnp = new VectorizationNodeProcessor(mapWork);
       opRules.put(new RuleRegExp("R1", TableScanOperator.getOperatorName() + ".*" +
           ReduceSinkOperator.getOperatorName()), vnp);
       opRules.put(new RuleRegExp("R2", TableScanOperator.getOperatorName() + ".*"
@@ -403,8 +415,8 @@ public class Vectorizer implements PhysicalPlanResolver {
     private final Set<Operator<? extends OperatorDesc>> opsDone =
         new HashSet<Operator<? extends OperatorDesc>>();
 
-    public VectorizationNodeProcessor(MapRedTask mrTask) {
-      this.mWork = mrTask.getWork().getMapWork();
+    public VectorizationNodeProcessor(MapWork mWork) {
+      this.mWork = mWork;
     }
 
     public Map<String, Map<Integer, String>> getScratchColumnVectorTypes() {

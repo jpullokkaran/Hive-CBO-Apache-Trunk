@@ -523,6 +523,10 @@ public class HiveConf extends Configuration {
 
     HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD("hive.exec.orc.dictionary.key.size.threshold", 0.8f),
 
+    HIVE_ORC_INCLUDE_FILE_FOOTER_IN_SPLITS("hive.orc.splits.include.file.footer", false),
+    HIVE_ORC_CACHE_STRIPE_DETAILS_SIZE("hive.orc.cache.stripe.details.size", 10000),
+    HIVE_ORC_COMPUTE_SPLITS_NUM_THREADS("hive.orc.compute.splits.num.threads", 10),
+
     HIVESKEWJOIN("hive.optimize.skewjoin", false),
     HIVECONVERTJOIN("hive.auto.convert.join", true),
     HIVECONVERTJOINNOCONDITIONALTASK("hive.auto.convert.join.noconditionaltask", true),
@@ -711,7 +715,6 @@ public class HiveConf extends Configuration {
     HIVECONFVALIDATION("hive.conf.validation", true),
 
     SEMANTIC_ANALYZER_HOOK("hive.semantic.analyzer.hook", ""),
-
     HIVE_AUTHORIZATION_ENABLED("hive.security.authorization.enabled", false),
     HIVE_AUTHORIZATION_MANAGER("hive.security.authorization.manager",
         "org.apache.hadoop.hive.ql.security.authorization.DefaultHiveAuthorizationProvider"),
@@ -863,7 +866,12 @@ public class HiveConf extends Configuration {
     // Whether to show the unquoted partition names in query results.
     HIVE_DECODE_PARTITION_NAME("hive.decode.partition.name", false),
 
-    //Vectorization enabled
+    HIVE_EXECUTION_ENGINE("hive.execution.engine", "mr",
+        new StringsValidator("mr", "tez")),
+    HIVE_JAR_DIRECTORY("hive.jar.directory", "hdfs:///user/hive/"),
+    HIVE_USER_INSTALL_DIR("hive.user.install.directory", "hdfs:///user/"),
+
+    // Vectorization enabled
     HIVE_VECTORIZATION_ENABLED("hive.vectorized.execution.enabled", false),
     HIVE_VECTORIZATION_GROUPBY_CHECKINTERVAL("hive.vectorized.groupby.checkinterval", 100000),
     HIVE_VECTORIZATION_GROUPBY_MAXENTRIES("hive.vectorized.groupby.maxentries", 1000000),
@@ -871,6 +879,12 @@ public class HiveConf extends Configuration {
     
 
     HIVE_TYPE_CHECK_ON_INSERT("hive.typecheck.on.insert", true),
+
+    // Whether to send the query plan via local resource or RPC
+    HIVE_RPC_QUERY_PLAN("hive.rpc.query.plan", false),
+
+    // Whether to generate the splits locally or in the AM (tez only)
+    HIVE_AM_SPLIT_GENERATION("hive.compute.splits.in.am", true),
 
     // none, idonly, traverse, execution
     HIVESTAGEIDREARRANGE("hive.stageid.rearrange", "none"),
@@ -1341,7 +1355,11 @@ public class HiveConf extends Configuration {
     return hiveDefaultURL;
   }
 
-  public URL getHiveSiteLocation() {
+  public static void setHiveSiteLocation(URL location) {
+    hiveSiteURL = location;
+  }
+
+  public static URL getHiveSiteLocation() {
     return hiveSiteURL;
   }
 
