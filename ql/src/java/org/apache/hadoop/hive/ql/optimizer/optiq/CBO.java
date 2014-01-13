@@ -109,18 +109,18 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         cluster.getPlanner().addRule(new HiveSwapJoinRule());
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
-        cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
+        //cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
         cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.FILTER);
         cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.LIMIT);
         cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.PROJECT);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
-        cluster.getPlanner().addRule(
-                new ConvertToBucketJoinRule(totalMemForSmallTable));
-        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
-        cluster.getPlanner().addRule(
-                new ConvertToMapJoinRule(totalMemForSmallTable));
+//        cluster.getPlanner().addRule(
+//                new ConvertToBucketJoinRule(totalMemForSmallTable));
+//        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
+//        cluster.getPlanner().addRule(
+//                new ConvertToMapJoinRule(totalMemForSmallTable));
         
         RelTraitSet desiredTraits = 
         		RelTraitSet.createEmpty().

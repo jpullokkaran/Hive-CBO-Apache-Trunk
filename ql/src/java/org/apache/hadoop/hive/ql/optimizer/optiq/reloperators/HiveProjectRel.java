@@ -11,6 +11,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
@@ -72,15 +73,16 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
         m_virtualCols = OptiqUtil.getVirtualCols(exps);
     }
 
-    @Override
-    public double getRows() {
-        return -1;
-    }
-
 //    @Override
-//    public RelOptCost computeSelfCost(RelOptPlanner planner) {
-//        return null;
+//    public double getRows() {
+//        return -1;
 //    }
+
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner)
+    {
+        return super.computeSelfCost(planner).multiplyBy(0.01);
+    }
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {

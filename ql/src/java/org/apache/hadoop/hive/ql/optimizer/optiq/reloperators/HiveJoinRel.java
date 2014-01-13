@@ -131,8 +131,8 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         return m_jpi;
     }
 
-    @Override
-    public RelOptCost computeSelfCost(RelOptPlanner planner) {
+//    @Override
+    public RelOptCost _computeSelfCost(RelOptPlanner planner) {
         // We always "build" the
         double rowCount = RelMetadataQuery.getRowCount(this);
         double leftCost = this.left.getRows();
@@ -155,6 +155,57 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
          * right.getId()) { rowCount = addEpsilon(rowCount); } }
          */
         return planner.makeCost(rowCount, 0, 0);
+    }
+    
+    private double addEpsilon(double d) {
+        assert d >= 0d;
+        final double d0 = d;
+        if (d < 10) {
+          // For small d, adding 1 would change the value significantly.
+          d *= 1.001d;
+          if (d != d0) {
+            return d;
+          }
+        }
+        // For medium d, add 1. Keeps integral values integral.
+        ++d;
+        if (d != d0) {
+          return d;
+        }
+        // For large d, adding 1 might not change the value. Add .1%.
+        // If d is NaN, this still will probably not change the value. That's OK.
+        d *= 1.001d;
+        return d;
+      }
+    
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner) {
+      // We always "build" the
+      double rowCount = RelMetadataQuery.getRowCount(this);
+
+      // Joins can be flipped, and for many algorithms, both versions are viable
+      // and have the same cost. To make the results stable between versions of
+      // the planner, make one of the versions slightly more expensive.
+      switch (joinType) {
+      case RIGHT:
+        rowCount = addEpsilon(rowCount);
+        break;
+      default:
+        if (left.getId() > right.getId()) {
+          rowCount = addEpsilon(rowCount);
+        }
+      }
+
+      // Cheaper if the smaller number of rows is coming from the RHS.
+      final double rightRowCount = right.getRows();
+      final double leftRowCount = left.getRows();
+      if (rightRowCount > leftRowCount && !Double.isInfinite(rightRowCount)) {
+        rowCount *= rightRowCount / (leftRowCount + 1d);
+      }
+      if (condition.isAlwaysTrue()) {
+        rowCount *= 10d;
+      }
+      return planner.makeCost(rowCount, 0, 0);
     }
 
     // @Override

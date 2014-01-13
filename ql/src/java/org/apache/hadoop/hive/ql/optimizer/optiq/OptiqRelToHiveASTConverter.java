@@ -11,9 +11,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import net.hydromatic.optiq.rules.java.JavaRules.EnumerableCalcRel;
-import net.hydromatic.optiq.rules.java.JavaRules.EnumerableJoinRel;
 
 import org.antlr.runtime.CommonToken;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.eigenbase.rel.AggregateRel;
@@ -242,7 +242,7 @@ public class OptiqRelToHiveASTConverter {
 
     if (joinChild instanceof TableAccessRelBase) {
       joinChildASTNode = getTableNode((TableAccessRelBase) joinChild, stateInfo);
-    } else if (joinChild instanceof EnumerableCalcRel || joinChild instanceof ProjectRel) {
+    } else if (joinChild instanceof EnumerableCalcRel || joinChild instanceof HiveProjectRel) {
       joinChildASTNode = convert(joinChild, true);
       String tabName = getUniqueDerivedTabName(null);
       assemblecolToTabMap((SingleRel) joinChild, stateInfo, tabName);
@@ -378,8 +378,8 @@ public class OptiqRelToHiveASTConverter {
           inputMap.get(inputRel.getRowType().getFieldNames().get(colPosInInputRel)));
     }
 
-    stateInfo.m_opToColTabMap.remove(((EnumerableJoinRel) fromNode).getLeft());
-    stateInfo.m_opToColTabMap.remove(((EnumerableJoinRel) fromNode).getRight());
+    stateInfo.m_opToColTabMap.remove(((JoinRelBase) fromNode).getLeft());
+    stateInfo.m_opToColTabMap.remove(((JoinRelBase) fromNode).getRight());
 
     stateInfo.m_opToColTabMap.put(fromNode, colToTabMap);
   }
@@ -393,8 +393,8 @@ public class OptiqRelToHiveASTConverter {
       String tabName = getUniqueDerivedTabName(null);
       assemblecolToTabMap((SingleRel) fromNode, stateInfo, tabName);
       childNodeOfFrom.addChild(new ASTNode(new CommonToken(HiveParser.Identifier, tabName)));
-    } else if (fromNode instanceof EnumerableJoinRel) {
-      childNodeOfFrom = getJoinToken((EnumerableJoinRel) fromNode, stateInfo);
+    } else if (fromNode instanceof JoinRelBase) {
+      childNodeOfFrom = getJoinToken((JoinRelBase) fromNode, stateInfo);
     } else if (fromNode instanceof TableAccessRelBase) {
       // TODO introduce table alias if needed to handle self join
       childNodeOfFrom = getTableNode((TableAccessRelBase) fromNode, stateInfo);
@@ -451,7 +451,7 @@ public class OptiqRelToHiveASTConverter {
         }
       } else if (relNode instanceof AggregateRelBase) {
         hiveSelectStmt.m_groupByNode = (AggregateRelBase) relNode;
-      } else if (relNode instanceof EnumerableJoinRel || relNode instanceof EnumerableCalcRel
+      } else if (relNode instanceof JoinRelBase || relNode instanceof EnumerableCalcRel
           || relNode instanceof TableAccessRelBase) {
         hiveSelectStmt.m_fromNode = relNode;
         doneExtractingNodes = true;
