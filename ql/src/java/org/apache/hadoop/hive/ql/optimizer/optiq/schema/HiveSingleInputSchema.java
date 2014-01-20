@@ -8,7 +8,7 @@ import org.eigenbase.relopt.RelOptCluster;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Ranges;
 
-public class HiveSingleInputSchema extends HiveInputSchema {
+public class HiveSingleInputSchema extends HiveSchema {
 	RowResolver rr;	
 	ImmutableMap<String, ColInfo> internalnameToPosMap;
 	
@@ -47,7 +47,7 @@ public class HiveSingleInputSchema extends HiveInputSchema {
 		return getColInfo(ci.getInternalName());
 	}	
 	
-	protected HiveInputSchema move(int offset) {
+	protected HiveSchema move(int offset) {
 		return new HiveSingleInputSchema(this, offset);
 	}
 }

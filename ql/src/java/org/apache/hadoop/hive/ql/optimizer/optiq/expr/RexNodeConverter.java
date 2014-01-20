@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.schema.HiveInputSchema;
+import org.apache.hadoop.hive.ql.optimizer.optiq.schema.HiveSchema;
 import org.apache.hadoop.hive.ql.optimizer.optiq.schema.TypeConverter;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
@@ -22,9 +22,9 @@ import org.eigenbase.sql.SqlOperator;
 public class RexNodeConverter {
 	
 	RelOptCluster m_cluster;
-	HiveInputSchema schema;
+	HiveSchema schema;
 	
-	public RexNodeConverter(RelOptCluster m_cluster, HiveInputSchema schema) {
+	public RexNodeConverter(RelOptCluster m_cluster, HiveSchema schema) {
 		this.m_cluster = m_cluster;
 		this.schema = schema;
 	}

@@ -6,17 +6,17 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 import com.google.common.collect.Ranges;
 
-public class HiveInputJoinSchema extends HiveInputSchema {
+public class HiveJoinSchema extends HiveSchema {
 	
-	ImmutableList<HiveInputSchema> inputs;
+	ImmutableList<HiveSchema> inputs;
 
-	protected HiveInputJoinSchema(RelOptCluster cluster, Range<Integer> positionRange, HiveInputSchema ...inputSchemas) {
+	protected HiveJoinSchema(RelOptCluster cluster, Range<Integer> positionRange, HiveSchema ...inputSchemas) {
 		super(cluster, positionRange);
 		inputs = ImmutableList.copyOf(inputSchemas);
 	}
 	
-	protected HiveInputSchema getInput(String cName) {
-		for (HiveInputSchema i : inputs) {
+	protected HiveSchema getInput(String cName) {
+		for (HiveSchema i : inputs) {
 			if (i.isValidColumn(cName)) {
 				return i;
 			}
@@ -24,8 +24,8 @@ public class HiveInputJoinSchema extends HiveInputSchema {
 		return null;
 	}
 
-	protected HiveInputSchema getInput(int pos) {
-		for (HiveInputSchema i : inputs) {
+	protected HiveSchema getInput(int pos) {
+		for (HiveSchema i : inputs) {
 			if (i.isValidPosition(pos)) {
 				return i;
 			}
@@ -45,12 +45,12 @@ public class HiveInputJoinSchema extends HiveInputSchema {
 		return getInput(pos).getColInfo(pos);
 	}
 	
-	protected HiveInputSchema move(int offset) {
-		HiveInputSchema[] ins = new HiveInputSchema[inputs.size()];
+	protected HiveSchema move(int offset) {
+		HiveSchema[] ins = new HiveSchema[inputs.size()];
 		for(int i=0; i < inputs.size(); i++) {
 			ins[i] = inputs.get(i).move(offset);
 		}
-		return new HiveInputJoinSchema(m_cluster, 
+		return new HiveJoinSchema(m_cluster, 
 				Ranges.closedOpen(offset, positionRange.upperEndpoint() + offset), 
 				ins);
 	}

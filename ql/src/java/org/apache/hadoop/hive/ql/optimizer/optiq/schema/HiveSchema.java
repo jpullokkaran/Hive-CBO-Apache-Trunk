@@ -3,12 +3,16 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.schema;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.util.LinkedList;
+import java.util.List;
+
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.ASTUtils;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.reltype.RelDataTypeFactory;
 import org.eigenbase.rex.RexBuilder;
 import org.eigenbase.rex.RexNode;
@@ -21,11 +25,11 @@ import com.google.common.collect.Ranges;
  * represents the input schema of a Node in the Optiq Graph.
  * represented in the form of Hive data structures.
  */
-public abstract class HiveInputSchema {
+public abstract class HiveSchema {
 	RelOptCluster m_cluster;
 	Range<Integer> positionRange;
 	
-	protected HiveInputSchema(RelOptCluster cluster, Range<Integer> positionRange) {
+	protected HiveSchema(RelOptCluster cluster, Range<Integer> positionRange) {
 		this.m_cluster = cluster;
 		this.positionRange = positionRange;
 	}
@@ -40,7 +44,23 @@ public abstract class HiveInputSchema {
 		return positionRange.contains(pos);
 	}
 	
-	protected abstract HiveInputSchema move(int offset);
+	protected abstract HiveSchema move(int offset);
+	
+	
+	public RelDataType getRelDataType() {
+	    RexBuilder rexBuilder = m_cluster.getRexBuilder();
+	    RelDataTypeFactory dtFactory = rexBuilder.getTypeFactory();
+	    List<RelDataType> oTypes = new LinkedList<RelDataType>();
+	    List<String> oNames = new LinkedList<String>();
+	    
+	    for(int i = positionRange.lowerEndpoint(); i < positionRange.upperEndpoint(); i++) {
+	    	ColInfo cI = getColInfo(i);
+	    	RelDataType oType = TypeConverter.convert(cI.ci.getType(), dtFactory);
+	    	oNames.add(cI.ci.getInternalName());
+	    	oTypes.add(oType);
+	    }	    
+	    return dtFactory.createStructType(oTypes, oNames);
+	  }
 	
 	public int getPosition(ExprNodeColumnDesc e) {
 		checkNotNull(e);
@@ -85,36 +105,36 @@ public abstract class HiveInputSchema {
 		}
 		
 		protected int getPos() {
-			return pos + HiveInputSchema.this.positionRange.lowerEndpoint();
+			return pos + HiveSchema.this.positionRange.lowerEndpoint();
 		}
 	}
 	
-	public static HiveInputSchema createSchema(RelOptCluster cluster, int offset, RowResolver rr) {
+	public static HiveSchema createSchema(RelOptCluster cluster, int offset, RowResolver rr) {
 		return new HiveSingleInputSchema(cluster, offset, rr);
 	}
 	
-	public static HiveInputSchema createSchema(RelOptCluster cluster, RowResolver rr) {
+	public static HiveSchema createSchema(RelOptCluster cluster, RowResolver rr) {
 		return createSchema(cluster, 0, rr);
 	}
 	
-	public static HiveInputSchema createJoinSchema(RelOptCluster cluster, int offset, Object ...ins) {
+	public static HiveSchema createJoinSchema(RelOptCluster cluster, int offset, Object ...ins) {
 		int currSize = offset;
 		int i = 0;
-		HiveInputSchema[] childSchemas = new HiveInputSchema[ins.length];
+		HiveSchema[] childSchemas = new HiveSchema[ins.length];
 		for(Object o : ins) {
 			if ( o instanceof RowResolver ) {
 				childSchemas[i] = createSchema(cluster, currSize, (RowResolver) o);
 			} else {
-				childSchemas[i] = ((HiveInputSchema)o).move(currSize);
+				childSchemas[i] = ((HiveSchema)o).move(currSize);
 			}
 			currSize = childSchemas[i].positionRange.upperEndpoint();
 			i++;
 		}
 		
-		return new HiveInputJoinSchema(cluster, Ranges.closedOpen(offset, currSize), childSchemas);
+		return new HiveJoinSchema(cluster, Ranges.closedOpen(offset, currSize), childSchemas);
 	}
 	
-	public static  HiveInputSchema createJoinSchema(RelOptCluster cluster, Object ...ins) {
+	public static  HiveSchema createJoinSchema(RelOptCluster cluster, Object ...ins) {
 		return createJoinSchema(cluster, 0, ins);
 	}
 
