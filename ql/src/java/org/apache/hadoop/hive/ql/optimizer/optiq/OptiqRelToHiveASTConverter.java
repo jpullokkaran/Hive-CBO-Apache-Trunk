@@ -424,14 +424,6 @@ public class OptiqRelToHiveASTConverter {
     OptiqNodesForHiveSelectStmt hiveSelectStmt = new OptiqNodesForHiveSelectStmt();
 
     hiveSelectStmt.m_selectNode = (SingleRel) relNode;
-    if (hiveSelectStmt.m_selectNode instanceof EnumerableCalcRel) {
-      EnumerableCalcRel eRel = (EnumerableCalcRel) hiveSelectStmt.m_selectNode;
-      if (eRel.getProgram() != null
-          && eRel.getProgram().getCondition() != null) {
-        hiveSelectStmt.m_filterNodeExprs = eRel.getProgram().getExprList();
-        hiveSelectStmt.m_filterIndx = eRel.getProgram().getCondition().getIndex();
-      }
-    }
     relNode = relNode.getInput(0);
     while (!doneExtractingNodes) {
       if (relNode instanceof SortRel) {
@@ -451,7 +443,7 @@ public class OptiqRelToHiveASTConverter {
         }
       } else if (relNode instanceof AggregateRelBase) {
         hiveSelectStmt.m_groupByNode = (AggregateRelBase) relNode;
-      } else if (relNode instanceof JoinRelBase || relNode instanceof EnumerableCalcRel
+      } else if (relNode instanceof JoinRelBase || relNode instanceof HiveProjectRel
           || relNode instanceof TableAccessRelBase) {
         hiveSelectStmt.m_fromNode = relNode;
         doneExtractingNodes = true;
