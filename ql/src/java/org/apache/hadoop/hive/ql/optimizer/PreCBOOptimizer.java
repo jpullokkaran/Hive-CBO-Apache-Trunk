@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.optimizer.lineage.Generator;
 import org.apache.hadoop.hive.ql.optimizer.pcr.PartitionConditionRemover;
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
+import org.apache.hadoop.hive.ql.optimizer.stats.annotation.AnnotateWithStatistics;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.ppd.PredicatePushDown;
@@ -50,6 +51,7 @@ public class PreCBOOptimizer {
 		transformations.add(new PartitionPruner());
 		transformations.add(new PartitionConditionRemover());
 		transformations.add(new ColumnPruner());
+		transformations.add(new AnnotateWithStatistics());
 	}
 
 	/**
