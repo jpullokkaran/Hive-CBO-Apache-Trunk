@@ -47,7 +47,7 @@ public class HiveSingleInputSchema extends HiveSchema {
 		return getColInfo(ci.getInternalName());
 	}	
 	
-	protected HiveSchema move(int offset) {
+	public HiveSchema move(int offset) {
 		return new HiveSingleInputSchema(this, offset);
 	}
 }

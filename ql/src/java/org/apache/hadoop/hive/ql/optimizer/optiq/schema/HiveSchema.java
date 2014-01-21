@@ -44,7 +44,7 @@ public abstract class HiveSchema {
 		return positionRange.contains(pos);
 	}
 	
-	protected abstract HiveSchema move(int offset);
+	public abstract HiveSchema move(int offset);
 	
 	
 	public RelDataType getRelDataType() {

@@ -45,7 +45,7 @@ public class HiveJoinSchema extends HiveSchema {
 		return getInput(pos).getColInfo(pos);
 	}
 	
-	protected HiveSchema move(int offset) {
+	public HiveSchema move(int offset) {
 		HiveSchema[] ins = new HiveSchema[inputs.size()];
 		for(int i=0; i < inputs.size(); i++) {
 			ins[i] = inputs.get(i).move(offset);

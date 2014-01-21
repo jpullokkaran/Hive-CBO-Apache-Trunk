@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators2;
 
 import java.util.Set;
 
+import org.apache.hadoop.hive.ql.exec.JoinOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.SelectOperator;
 import org.apache.hadoop.hive.ql.optimizer.optiq.expr.JoinTree;
@@ -19,11 +20,15 @@ public class HiveJoinRel extends JoinRelBase implements HiveRelNode {
 	
 	JoinTree joinTree;
 	HiveSchema hSchema;
+	HiveSchema inputSchema;
 	SelectOperator joinOp;
 	Statistics hiveStats;
 
-	protected HiveJoinRel(RelOptCluster cluster, RelTraitSet traits,
-			RelNode left, RelNode right, RexNode condition,
+	protected HiveJoinRel(JoinOperator joinOp,
+			HiveSchema sch,
+			HiveSchema inpSchema,
+			RelOptCluster cluster, RelTraitSet traits,
+			HiveRelNode left, HiveRelNode right, RexNode condition,
 			JoinRelType joinType, Set<String> variablesStopped) {
 		super(cluster, traits, left, right, condition, joinType, variablesStopped);
 		// TODO Auto-generated constructor stub

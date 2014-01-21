@@ -20,24 +20,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class HiveTableScanRel extends TableAccessRelBase implements HiveRelNode {
 
-	public static HiveTableScanRel create(RelOptCluster cluster, 
-			RelOptSchema schema, 
-			RelTraitSet traits,
-			TableScanOperator tableScanOp, 
-			RowResolver rr) {
-		
-		HiveSchema hSch = HiveSchema.createSchema(cluster, rr);
-		String name = tableScanOp.getConf().getAlias();
-		RelDataType dT = hSch.getRelDataType();
-		
-		RelOptHiveTable oTbl = new RelOptHiveTable(tableScanOp, 
-				hSch,
-				schema,
-				name,
-				dT);
-		return new HiveTableScanRel(cluster, traits, oTbl);
-	}
-
 	HiveSchema hSchema;
 	TableScanOperator tableScanOp;
 	Statistics hiveStats;

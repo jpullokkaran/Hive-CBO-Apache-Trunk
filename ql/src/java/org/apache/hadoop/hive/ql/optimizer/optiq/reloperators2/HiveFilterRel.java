@@ -23,26 +23,6 @@ import org.eigenbase.rex.RexNode;
 
 public class HiveFilterRel extends FilterRelBase implements HiveRelNode {
 	
-	public static HiveFilterRel create(RelOptCluster cluster, 
-			RelOptSchema schema, 
-			RelTraitSet traits,
-			FilterOperator filterOp, 
-			RowResolver rr,
-			HiveRelNode input) {
-		
-		HiveSchema ihSch = input.getSchema();
-		RexNodeConverter rC = new RexNodeConverter(cluster, ihSch);
-		RexNode oExpr = rC.convert(filterOp.getConf().getPredicate());
-		HiveSchema hSch = HiveSchema.createSchema(cluster, rr);
-
-	    return new HiveFilterRel(filterOp, hSch,
-	    		cluster, 
-	    		traits,
-	    		input, 
-	    		oExpr);
-		
-	}
-
 	HiveSchema hSchema;
 	FilterOperator filterOp;
 	Statistics hiveStats;
