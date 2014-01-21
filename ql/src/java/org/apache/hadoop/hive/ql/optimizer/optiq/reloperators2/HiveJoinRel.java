@@ -51,5 +51,9 @@ public class HiveJoinRel extends JoinRelBase implements HiveRelNode {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	public JoinTree getJoinTree() {
+		return joinTree;
+	}
 
 }

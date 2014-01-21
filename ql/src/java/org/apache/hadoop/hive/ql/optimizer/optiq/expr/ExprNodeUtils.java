@@ -17,11 +17,13 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.lib.Rule;
 import org.apache.hadoop.hive.ql.lib.RuleRegExp;
+import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 public class ExprNodeUtils {
 	
@@ -34,23 +36,24 @@ public class ExprNodeUtils {
 	public static ExprNodeDesc mapReference(ExprNodeDesc inp,
 			ImmutableMap<String, String> aliasMap) throws SemanticException {
 
-		AliaMapper.AliasMapping exprCtx = new AliaMapper.ExplicitAliasMapping(aliasMap);
+		AliasMapper.AliasMapping exprCtx = new AliasMapper.ExplicitAliasMapping(aliasMap);
 		return mapReference(inp, exprCtx);
 	}
 	
 	public static ExprNodeDesc mapReference(ExprNodeDesc inp, String newAlias) throws SemanticException {
 
-		AliaMapper.AliasMapping exprCtx = new AliaMapper.AllTablesAliasMapping(newAlias);
+		AliasMapper.AliasMapping exprCtx = new AliasMapper.AllTablesAliasMapping(newAlias);
 		return mapReference(inp, exprCtx);
 	}
 	
-	protected static ExprNodeDesc mapReference(ExprNodeDesc inp,
-			AliaMapper.AliasMapping exprCtx) throws SemanticException {
-
+	public static ImmutableSet<String> findAliases(ExprNodeDesc inp, RowResolver rr)  
+	throws SemanticException {
+		
+		AliasCollectorCtx ctx = new AliasCollectorCtx(rr);
 		Map<Rule, NodeProcessor> exprRules = new LinkedHashMap<Rule, NodeProcessor>();
-		exprRules.put(new RuleRegExp("R1", ExprNodeColumnDesc.class.getName() + "%"), new AliaMapper.ColumnExprProcessor());
+		exprRules.put(new RuleRegExp("R1", ExprNodeColumnDesc.class.getName() + "%"), ctx);
 
-		Dispatcher disp = new DefaultRuleDispatcher(new AliaMapper.DefaultProcessor(), exprRules, exprCtx);
+		Dispatcher disp = new DefaultRuleDispatcher(ctx, exprRules, ctx);
 		GraphWalker egw = new DefaultGraphWalker(disp);
 
 		List<Node> startNodes = new ArrayList<Node>();
@@ -58,11 +61,28 @@ public class ExprNodeUtils {
 
 		HashMap<Node, Object> outputMap = new HashMap<Node, Object>();
 		egw.startWalking(startNodes, outputMap);
-		return inp;
+		return ctx.b.build();
+	}
+	
+	protected static ExprNodeDesc mapReference(ExprNodeDesc inp,
+			AliasMapper.AliasMapping exprCtx) throws SemanticException {
+
+		Map<Rule, NodeProcessor> exprRules = new LinkedHashMap<Rule, NodeProcessor>();
+		exprRules.put(new RuleRegExp("R1", ExprNodeColumnDesc.class.getName() + "%"), new AliasMapper.ColumnExprProcessor());
+
+		Dispatcher disp = new DefaultRuleDispatcher(new AliasMapper.DefaultProcessor(), exprRules, exprCtx);
+		GraphWalker egw = new DefaultGraphWalker(disp);
+
+		List<Node> startNodes = new ArrayList<Node>();
+		startNodes.add(inp);
+
+		HashMap<Node, Object> outputMap = new HashMap<Node, Object>();
+		egw.startWalking(startNodes, outputMap);
+		return (ExprNodeDesc) outputMap.get(inp);
 	}
 
 
-	static class AliaMapper {
+	static class AliasMapper {
 		
 		static interface AliasMapping extends NodeProcessorCtx {
 			public String replace(String iAlias);
@@ -136,5 +156,26 @@ public class ExprNodeUtils {
 			}
 		}
 	};
+	
+	static class AliasCollectorCtx implements NodeProcessorCtx, NodeProcessor {
+		ImmutableSet.Builder<String> b = new ImmutableSet.Builder<String>();
+		RowResolver rr;
+		
+		AliasCollectorCtx(RowResolver rr) {
+			this.rr = rr;
+		}
+		
+		public Object process(Node nd, Stack<Node> stack,
+				NodeProcessorCtx procCtx, Object... nodeOutputs)
+				throws SemanticException {
+			if ( nd instanceof ExprNodeColumnDesc ) {
+				ExprNodeColumnDesc c = (ExprNodeColumnDesc) nd;
+				AliasCollectorCtx ctx = (AliasCollectorCtx) procCtx;
+				String[] alias = rr.getInvRslvMap().get(c.getName());
+				b.add(alias[0]);
+			}
+			return nd;
+		}
+	}
 
 }
