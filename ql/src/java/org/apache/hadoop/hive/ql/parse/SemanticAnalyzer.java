@@ -90,6 +90,7 @@ import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.optimizer.Optimizer;
+import org.apache.hadoop.hive.ql.optimizer.PreCBOOptimizer;
 import org.apache.hadoop.hive.ql.optimizer.optiq.CBO;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
@@ -8945,6 +8946,19 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       disableJoinMerge = false; //TODO: remove disableJoinMerge in production
 
       try {
+    	  ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner,
+    		        opToPartList, topOps, topSelOps, opParseCtx, joinContext, smbMapJoinContext,
+    		        topToTable, topToTableProps, fsopToTable,
+    		        loadTableWork, loadFileWork, ctx, idToTableNameMap, destTableId, uCtx,
+    		        listMapJoinOpsNoReducer, groupOpToInputTables, prunedPartitions,
+    		        opToSamplePruner, globalLimitCtx, nameToSplitSample, inputs, rootTasks,
+    		        opToPartToSkewedPruner, viewAliasToInput,
+    		        reduceSinkOperatorsAddedByEnforceBucketingSorting, queryProperties);
+    	  PreCBOOptimizer optm = new PreCBOOptimizer();
+    	    optm.setPctx(pCtx);
+    	    optm.initialize(conf);
+    	    pCtx = optm.optimize();
+    	  
         newAST = CBO.optimize(sinkOp, this, this.conf);
         if (newAST == null) {
           skipCBOPlan = true;
