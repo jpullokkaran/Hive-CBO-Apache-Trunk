@@ -90,6 +90,7 @@ import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.optimizer.Optimizer;
+import org.apache.hadoop.hive.ql.optimizer.PreCBOOptimizer;
 import org.apache.hadoop.hive.ql.optimizer.optiq.CBO;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
@@ -182,7 +183,9 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.mapred.InputFormat;
 
 /**
- * Implementation of the semantic analyzer.
+ * Implementation of the semantic analyzer. It generates the query plan.
+ * There are other specific semantic analyzers for some hive operations such as
+ * DDLSemanticAnalyzer for ddl operations.
  */
 
 public class SemanticAnalyzer extends BaseSemanticAnalyzer {
@@ -971,10 +974,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         break;
 
       case HiveParser.TOK_UNION:
-        // currently, we dont support subq1 union subq2 - the user has to
-        // explicitly say:
-        // select * from (subq1 union subq2) subqalias
         if (!qbp.getIsSubQ()) {
+          // this shouldn't happen. The parser should have converted the union to be
+          // contained in a subquery. Just in case, we keep the error as a fallback.
           throw new SemanticException(generateErrorMessage(ast,
               ErrorMsg.UNION_NOTIN_SUBQ.getMsg()));
         }
@@ -1025,7 +1027,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           } catch (HiveException e) {
             LOG.info("Error while getting metadata : ", e);
           }
-          validatePartSpec(table, partition, (ASTNode)tab, conf);
+          validatePartSpec(table, partition, (ASTNode)tab, conf, false);
         }
         skipRecursion = false;
         break;
@@ -1286,7 +1288,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
               }
             } else {
               qb.setIsQuery(true);
-              fname = ctx.getMRTmpFileURI();
+              fname = ctx.getMRTmpPath().toString();
               ctx.setResDir(new Path(fname));
             }
           }
@@ -5315,7 +5317,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         }
         dpCtx = qbm.getDPCtx(dest);
         if (dpCtx == null) {
-          Utilities.validatePartSpecColumnNames(dest_tab, partSpec);
+          dest_tab.validatePartColumnNames(partSpec, false);
           dpCtx = new DynamicPartitionCtx(dest_tab, partSpec,
               conf.getVar(HiveConf.ConfVars.DEFAULTPARTITIONNAME),
               conf.getIntVar(HiveConf.ConfVars.DYNAMICPARTITIONMAXPARTSPERNODE));
@@ -5426,7 +5428,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
 
       Path tabPath = dest_tab.getPath();
-      Path partPath = dest_part.getPartitionPath();
+      Path partPath = dest_part.getDataLocation();
 
       // if the table is in a different dfs than the partition,
       // replace the partition's dfs with the table's dfs.
@@ -5481,7 +5483,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       if (isLocal) {
         // for local directory - we always write to map-red intermediate
         // store and then copy to local fs
-        queryTmpdir = new Path(ctx.getMRTmpFileURI());
+        queryTmpdir = ctx.getMRTmpPath();
       } else {
         // otherwise write to the file system implied by the directory
         // no copy is required. we may want to revisit this policy in future
@@ -8944,6 +8946,19 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       disableJoinMerge = false; //TODO: remove disableJoinMerge in production
 
       try {
+    	  ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner,
+    		        opToPartList, topOps, topSelOps, opParseCtx, joinContext, smbMapJoinContext,
+    		        topToTable, topToTableProps, fsopToTable,
+    		        loadTableWork, loadFileWork, ctx, idToTableNameMap, destTableId, uCtx,
+    		        listMapJoinOpsNoReducer, groupOpToInputTables, prunedPartitions,
+    		        opToSamplePruner, globalLimitCtx, nameToSplitSample, inputs, rootTasks,
+    		        opToPartToSkewedPruner, viewAliasToInput,
+    		        reduceSinkOperatorsAddedByEnforceBucketingSorting, queryProperties);
+    	  PreCBOOptimizer optm = new PreCBOOptimizer();
+    	    optm.setPctx(pCtx);
+    	    optm.initialize(conf);
+    	    pCtx = optm.optimize();
+    	  
         newAST = CBO.optimize(sinkOp, this, this.conf);
         if (newAST == null) {
           skipCBOPlan = true;

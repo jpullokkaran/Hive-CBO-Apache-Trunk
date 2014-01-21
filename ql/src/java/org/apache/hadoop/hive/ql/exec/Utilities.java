@@ -95,7 +95,6 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.hive.common.HiveInterruptCallback;
 import org.apache.hadoop.hive.common.HiveInterruptUtils;
 import org.apache.hadoop.hive.common.HiveStatsUtils;
-import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.Warehouse;
@@ -133,12 +132,9 @@ import org.apache.hadoop.hive.ql.metadata.HiveUtils;
 import org.apache.hadoop.hive.ql.metadata.InputEstimator;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
-import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
-import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.BaseWork;
 import org.apache.hadoop.hive.ql.plan.DynamicPartitionCtx;
-import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.GroupByDesc;
@@ -183,8 +179,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.FieldSerializer;
-
-import org.apache.commons.codec.binary.Base64;
 
 /**
  * Utilities.
@@ -563,22 +557,22 @@ public final class Utilities {
     }
   }
 
-  public static void setMapRedWork(Configuration conf, MapredWork w, String hiveScratchDir) {
+  public static void setMapRedWork(Configuration conf, MapredWork w, Path hiveScratchDir) {
     setMapWork(conf, w.getMapWork(), hiveScratchDir, true);
     if (w.getReduceWork() != null) {
       setReduceWork(conf, w.getReduceWork(), hiveScratchDir, true);
     }
   }
 
-  public static Path setMapWork(Configuration conf, MapWork w, String hiveScratchDir, boolean useCache) {
+  public static Path setMapWork(Configuration conf, MapWork w, Path hiveScratchDir, boolean useCache) {
     return setBaseWork(conf, w, hiveScratchDir, MAP_PLAN_NAME, useCache);
   }
 
-  public static Path setReduceWork(Configuration conf, ReduceWork w, String hiveScratchDir, boolean useCache) {
+  public static Path setReduceWork(Configuration conf, ReduceWork w, Path hiveScratchDir, boolean useCache) {
     return setBaseWork(conf, w, hiveScratchDir, REDUCE_PLAN_NAME, useCache);
   }
 
-  private static Path setBaseWork(Configuration conf, BaseWork w, String hiveScratchDir, String name, boolean useCache) {
+  private static Path setBaseWork(Configuration conf, BaseWork w, Path hiveScratchDir, String name, boolean useCache) {
     try {
       setPlanPath(conf, hiveScratchDir);
 
@@ -635,7 +629,7 @@ public final class Utilities {
     return new Path(planPath, name);
   }
 
-  private static void setPlanPath(Configuration conf, String hiveScratchDir) throws IOException {
+  private static void setPlanPath(Configuration conf, Path hiveScratchDir) throws IOException {
     if (getPlanPath(conf) == null) {
       // this is the unique conf ID, which is kept in JobConf as part of the plan file name
       String jobID = UUID.randomUUID().toString();
@@ -1430,10 +1424,6 @@ public final class Utilities {
     return new Path(orig.getParent(), taskTmpPrefix + orig.getName());
   }
 
-  public static Path toTaskTempPath(String orig) {
-    return toTaskTempPath(new Path(orig));
-  }
-
   public static Path toTempPath(Path orig) {
     if (orig.getName().indexOf(tmpPrefix) == 0) {
       return orig;
@@ -1692,15 +1682,14 @@ public final class Utilities {
     }
   }
 
-  public static void mvFileToFinalPath(String specPath, Configuration hconf,
+  public static void mvFileToFinalPath(Path specPath, Configuration hconf,
       boolean success, Log log, DynamicPartitionCtx dpCtx, FileSinkDesc conf,
       Reporter reporter) throws IOException,
       HiveException {
 
-    FileSystem fs = (new Path(specPath)).getFileSystem(hconf);
+    FileSystem fs = specPath.getFileSystem(hconf);
     Path tmpPath = Utilities.toTempPath(specPath);
     Path taskTmpPath = Utilities.toTaskTempPath(specPath);
-    Path finalPath = new Path(specPath);
     if (success) {
       if (fs.exists(tmpPath)) {
         // remove any tmp file or double-committed output files
@@ -1712,8 +1701,8 @@ public final class Utilities {
         }
 
         // move to the file destination
-        log.info("Moving tmp dir: " + tmpPath + " to: " + finalPath);
-        Utilities.renameOrMoveFiles(fs, tmpPath, finalPath);
+        log.info("Moving tmp dir: " + tmpPath + " to: " + specPath);
+        Utilities.renameOrMoveFiles(fs, tmpPath, specPath);
       }
     } else {
       fs.delete(tmpPath, true);
@@ -2014,6 +2003,25 @@ public final class Utilities {
     return names;
   }
 
+  /**
+   * Extract db and table name from dbtable string, where db and table are separated by "."
+   * If there is no db name part, set the current sessions default db
+   * @param dbtable
+   * @return String array with two elements, first is db name, second is table name
+   * @throws HiveException
+   */
+  public static String[] getDbTableName(String dbtable) throws HiveException{
+    String[] names =  dbtable.split("\\.");
+    switch (names.length) {
+    case 2:
+      return names;
+    case 1:
+      return new String [] {SessionState.get().getCurrentDatabase(), dbtable};
+    default:
+      throw new HiveException(ErrorMsg.INVALID_TABLE_NAME, dbtable);
+    }
+  }
+
   public static void validateColumnNames(List<String> colNames, List<String> checkCols)
       throws SemanticException {
     Iterator<String> checkColsIter = checkCols.iterator();
@@ -2191,6 +2199,8 @@ public final class Utilities {
                   }
                   resultMap.put(pathStr, new ContentSummary(total, -1, -1));
                 }
+                // todo: should nullify summary for non-native tables,
+                // not to be selected as a mapjoin target
                 FileSystem fs = p.getFileSystem(myConf);
                 resultMap.put(pathStr, fs.getContentSummary(p));
               } catch (Exception e) {
@@ -2250,6 +2260,23 @@ public final class Utilities {
         HiveInterruptUtils.remove(interrup);
       }
     }
+  }
+
+  // return sum of lengths except one alias. returns -1 if any of other alias is unknown
+  public static long sumOfExcept(Map<String, Long> aliasToSize,
+      Set<String> aliases, String except) {
+    long total = 0;
+    for (String alias : aliases) {
+      if (alias.equals(except)) {
+        continue;
+      }
+      Long size = aliasToSize.get(alias);
+      if (size == null) {
+        return -1;
+      }
+      total += size;
+    }
+    return total;
   }
 
   public static boolean isEmptyPath(JobConf job, Path dirPath, Context ctx)
@@ -2451,28 +2478,12 @@ public final class Utilities {
     jobConf.set(serdeConstants.LIST_COLUMN_TYPES, columnTypesString);
   }
 
-  public static void validatePartSpecColumnNames(Table tbl, Map<String, String> partSpec)
-      throws SemanticException {
-
-    List<FieldSchema> parts = tbl.getPartitionKeys();
-    Set<String> partCols = new HashSet<String>(parts.size());
-    for (FieldSchema col : parts) {
-      partCols.add(col.getName());
-    }
-    for (String col : partSpec.keySet()) {
-      if (!partCols.contains(col)) {
-        throw new SemanticException(ErrorMsg.NONEXISTPARTCOL.getMsg(col));
-      }
-    }
-  }
-
   public static String suffix = ".hashtable";
 
-  public static String generatePath(String baseURI, String dumpFilePrefix,
+  public static Path generatePath(Path basePath, String dumpFilePrefix,
       Byte tag, String bigBucketFileName) {
-    String path = new String(baseURI + Path.SEPARATOR + "MapJoin-" + dumpFilePrefix + tag +
+    return new Path(basePath, "MapJoin-" + dumpFilePrefix + tag +
       "-" + bigBucketFileName + suffix);
-    return path;
   }
 
   public static String generateFileName(Byte tag, String bigBucketFileName) {
@@ -2480,24 +2491,16 @@ public final class Utilities {
     return fileName;
   }
 
-  public static String generateTmpURI(String baseURI, String id) {
-    String tmpFileURI = new String(baseURI + Path.SEPARATOR + "HashTable-" + id);
-    return tmpFileURI;
+  public static Path generateTmpPath(Path basePath, String id) {
+    return new Path(basePath, "HashTable-" + id);
   }
 
-  public static String generateTarURI(String baseURI, String filename) {
-    String tmpFileURI = new String(baseURI + Path.SEPARATOR + filename + ".tar.gz");
-    return tmpFileURI;
-  }
-
-  public static String generateTarURI(Path baseURI, String filename) {
-    String tmpFileURI = new String(baseURI + Path.SEPARATOR + filename + ".tar.gz");
-    return tmpFileURI;
+  public static Path generateTarPath(Path basePath, String filename) {
+    return new Path(basePath, filename + ".tar.gz");
   }
 
   public static String generateTarFileName(String name) {
-    String tmpFileURI = new String(name + ".tar.gz");
-    return tmpFileURI;
+    return name + ".tar.gz";
   }
 
   public static String generatePath(Path baseURI, String filename) {
@@ -2921,7 +2924,7 @@ public final class Utilities {
    * @return List of paths to process for the given MapWork
    * @throws Exception
    */
-  public static List<Path> getInputPaths(JobConf job, MapWork work, String hiveScratchDir, Context ctx)
+  public static List<Path> getInputPaths(JobConf job, MapWork work, Path hiveScratchDir, Context ctx)
       throws Exception {
     int sequenceNumber = 0;
 
@@ -2976,7 +2979,7 @@ public final class Utilities {
   }
 
   @SuppressWarnings({"rawtypes", "unchecked"})
-  private static Path createEmptyFile(String hiveScratchDir,
+  private static Path createEmptyFile(Path hiveScratchDir,
       Class<? extends HiveOutputFormat> outFileFormat, JobConf job,
       int sequenceNumber, Properties props, boolean dummyRow)
           throws IOException, InstantiationException, IllegalAccessException {
@@ -2993,7 +2996,6 @@ public final class Utilities {
     String newFile = newDir + File.separator + "emptyFile";
     Path newFilePath = new Path(newFile);
 
-    String onefile = newPath.toString();
     FSRecordWriter recWriter = outFileFormat.newInstance().getHiveRecordWriter(job, newFilePath,
         Text.class, false, props, null);
     if (dummyRow) {
@@ -3009,7 +3011,7 @@ public final class Utilities {
 
   @SuppressWarnings("rawtypes")
   private static Path createDummyFileForEmptyPartition(Path path, JobConf job, MapWork work,
-      String hiveScratchDir, String alias, int sequenceNumber)
+      Path hiveScratchDir, String alias, int sequenceNumber)
           throws IOException, InstantiationException, IllegalAccessException {
 
     String strPath = path.toString();
@@ -3051,7 +3053,7 @@ public final class Utilities {
 
   @SuppressWarnings("rawtypes")
   private static Path createDummyFileForEmptyTable(JobConf job, MapWork work,
-      String hiveScratchDir, String alias, int sequenceNumber)
+      Path hiveScratchDir, String alias, int sequenceNumber)
           throws IOException, InstantiationException, IllegalAccessException {
 
     TableDesc tableDesc = work.getAliasToPartnInfo().get(alias).getTableDesc();
@@ -3194,10 +3196,24 @@ public final class Utilities {
     }
   }
 
-  public static void clearWorkMap() {
+  /**
+   * Returns true if a plan is both configured for vectorized execution
+   * and vectorization is allowed. The plan may be configured for vectorization
+   * but vectorization dissalowed eg. for FetchOperator execution. 
+   */
+  public static boolean isVectorMode(Configuration conf) {
+    if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
+        Utilities.getPlanPath(conf) != null && Utilities
+        .getMapRedWork(conf).getMapWork().getVectorMode()) {
+      return true;
+    }
+    return false;
+  }
+  
+    public static void clearWorkMap() {
     gWorkMap.clear();
   }
-
+  
   /**
    * Create a temp dir in specified baseDir
    * This can go away once hive moves to support only JDK 7
