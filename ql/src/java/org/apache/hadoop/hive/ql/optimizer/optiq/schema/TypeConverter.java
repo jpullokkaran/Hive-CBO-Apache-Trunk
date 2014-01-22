@@ -1,7 +1,11 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.schema;
 
+import java.util.LinkedList;
 import java.util.List;
 
+import org.apache.hadoop.hive.ql.exec.ColumnInfo;
+import org.apache.hadoop.hive.ql.exec.RowSchema;
+import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.serde2.typeinfo.BaseCharTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
@@ -9,14 +13,32 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
+import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.reltype.RelDataTypeFactory;
+import org.eigenbase.rex.RexBuilder;
 import org.eigenbase.sql.type.SqlTypeName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
 public class TypeConverter {
+	
+	public static RelDataType getType(RelOptCluster cluster, RowResolver rr, List<String> neededCols) {
+		RexBuilder rexBuilder = cluster.getRexBuilder();
+		RelDataTypeFactory dtFactory = rexBuilder.getTypeFactory();
+		RowSchema rs = rr.getRowSchema();
+		List<RelDataType> fieldTypes = new LinkedList<RelDataType>();
+		List<String> fieldNames = new LinkedList<String>();
+
+		for (ColumnInfo ci : rs.getSignature()) {
+			if ( neededCols == null || neededCols.contains(ci.getInternalName())) {
+				fieldTypes.add(convert(ci.getType(), dtFactory));
+				fieldNames.add(ci.getInternalName());
+			}
+		}
+		return dtFactory.createStructType(fieldTypes, fieldNames);
+	}
 
 	public static RelDataType convert(TypeInfo type,
 			RelDataTypeFactory dtFactory) {

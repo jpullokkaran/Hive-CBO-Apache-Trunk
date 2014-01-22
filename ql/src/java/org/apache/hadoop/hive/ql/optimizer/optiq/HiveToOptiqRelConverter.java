@@ -20,6 +20,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.schema.TypeConverter;
 import org.apache.hadoop.hive.ql.parse.ParseUtils;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
@@ -183,8 +184,10 @@ public class HiveToOptiqRelConverter {
       final List<RelNode> childRelNodesInOptiqRelTree,
       final TableScanOperator tableScanOp) {
     TableAccessRelBase tableRel = null;
+    
+    List<String> neededCols = tableScanOp.getNeededColumns();
 
-    RelDataType rowType = HiveToOptiqTypeConverter.getType(m_cluster, tableScanOp);
+    RelDataType rowType = TypeConverter.getType(m_cluster, m_semanticAnalyzer.getRowResolver(tableScanOp), neededCols);
     RelOptHiveTable optTable = new RelOptHiveTable(m_relOptSchema, tableScanOp.getConf()
         .getAlias(), rowType, m_semanticAnalyzer.getTable(tableScanOp), tableScanOp.getSchema(), m_conf);
 
