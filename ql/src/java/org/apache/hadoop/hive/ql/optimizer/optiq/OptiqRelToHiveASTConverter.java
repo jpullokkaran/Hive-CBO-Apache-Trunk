@@ -21,6 +21,7 @@ import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.FilterRel;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.ProjectRel;
+import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
 import org.eigenbase.rel.SortRel;
@@ -388,7 +389,7 @@ public class OptiqRelToHiveASTConverter {
     ASTNode fromASTNode = new ASTNode(new CommonToken(HiveParser.TOK_FROM, "TOK_FROM"));
     ASTNode childNodeOfFrom = null;
 
-    if (fromNode instanceof EnumerableCalcRel || fromNode instanceof ProjectRel) {
+    if (fromNode instanceof EnumerableCalcRel || fromNode instanceof ProjectRelBase ) {
       childNodeOfFrom = convert(fromNode, true);
       String tabName = getUniqueDerivedTabName(null);
       assemblecolToTabMap((SingleRel) fromNode, stateInfo, tabName);
