@@ -14,6 +14,7 @@ import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.SelectOperator;
 import org.apache.hadoop.hive.ql.exec.TableScanOperator;
+import org.apache.hadoop.hive.ql.optimizer.optiq.expr.RexNodeConverter;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
@@ -268,13 +269,15 @@ public class HiveToOptiqRelConverter {
       int i = 0;
       for (ExprNodeDesc expr : leftCols) {
         List<RexNode> eqExpr = new LinkedList<RexNode>();
-        if (expr instanceof ExprNodeColumnDesc) {
-          eqExpr.add(convertToOptiqColumn((ExprNodeColumnDesc) expr, (Operator) leftParent
-              .getParentOperators().get(0), leftRel, 0));
-          eqExpr.add(convertToOptiqColumn((ExprNodeColumnDesc) rightCols.get(i),
-              (Operator) rightParent.getParentOperators().get(0), rightRel, leftRel.getRowType()
-                  .getFieldCount()));
-        }
+        eqExpr.add(convertToOptiqExpr(expr, 
+        		(Operator<? extends OperatorDesc>) leftParent.getParentOperators().get(0),
+            leftRel,
+            0));
+        eqExpr.add(convertToOptiqExpr(rightCols.get(i), 
+        		(Operator<? extends OperatorDesc>) rightParent.getParentOperators().get(0),
+        		rightRel,
+        		leftRel.getRowType().getFieldCount()));
+        
         RexNode eqOp = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.equalsOperator,
             eqExpr);
         i++;
@@ -313,18 +316,26 @@ public class HiveToOptiqRelConverter {
 
     return joinNode;
   }
+  
+  private RexNode convertToOptiqExpr(final ExprNodeDesc expr, 
+		  final Operator<? extends OperatorDesc> hiveOP,
+      final RelNode optiqOP) {    
+    return RexNodeConverter.convert(expr, 
+    		m_cluster, 
+    		m_semanticAnalyzer.getRowResolver(hiveOP), 
+    		optiqOP.getRowType(),
+    		0);
+  }
 
-  private RexNode convertToOptiqExpr(final ExprNodeDesc expr, final Operator hiveOP,
-      final RelNode optiqOP) {
-    if (expr instanceof ExprNodeGenericFuncDesc) {
-      return convertToOptiqFunc((ExprNodeGenericFuncDesc) expr, hiveOP, optiqOP);
-    } else if (expr instanceof ExprNodeConstantDesc) {
-      return convertToOptiqLiteral((ExprNodeConstantDesc) expr, optiqOP);
-    } else if (expr instanceof ExprNodeColumnDesc) {
-      return convertToOptiqColumn((ExprNodeColumnDesc) expr, hiveOP, optiqOP, 0);
-    } else {
-      throw new RuntimeException("Unsupported Expression");
-    }
+  private RexNode convertToOptiqExpr(final ExprNodeDesc expr, 
+		  final Operator<? extends OperatorDesc> hiveOP,
+      final RelNode optiqOP,
+      int offset) {    
+    return RexNodeConverter.convert(expr, 
+    		m_cluster, 
+    		m_semanticAnalyzer.getRowResolver(hiveOP), 
+    		optiqOP.getRowType(),
+    		offset);
   }
 
   private static List<ExprNodeDesc> getTypeSafeChildExprs(final ExprNodeGenericFuncDesc func) {
@@ -360,222 +371,6 @@ public class HiveToOptiqRelConverter {
 
     return childExprs;
   }
-
-  private RexNode convertToOptiqFunc(final ExprNodeGenericFuncDesc func,
-      final Operator hiveOP, final RelNode optiqOP) {
-    List<RexNode> childRexNodeLst = new LinkedList<RexNode>();
-    List<ExprNodeDesc> childExprs = getTypeSafeChildExprs(func);
-
-    for (ExprNodeDesc childExpr : childExprs) {
-      childRexNodeLst.add(convertToOptiqExpr(childExpr, hiveOP, optiqOP));
-    }
-
-    return convertToOptiqUDF(func.getGenericUDF(), m_cluster.getRexBuilder(), childRexNodeLst);
-  }
-
-
-  private RexNode convertToOptiqLiteral(ExprNodeConstantDesc literal, final RelNode optiqOP) {
-    RexBuilder rexBuilder = m_cluster.getRexBuilder();
-    RelDataTypeFactory dtFactory = rexBuilder.getTypeFactory();
-    PrimitiveTypeInfo hiveLiteralType = (PrimitiveTypeInfo) literal.getTypeInfo();
-    RelDataType optiqLiteralType = HiveToOptiqTypeConverter.convert(hiveLiteralType, dtFactory);
-    PrimitiveCategory hiveLiteralTypeCategory = hiveLiteralType.getPrimitiveCategory();
-    RexNode optiqLiteral = null;
-    Object value = literal.getValue();
-
-    // TODO: Verify if we need to use ConstantObjectInspector to unwrap data
-    switch (hiveLiteralTypeCategory) {
-    case BOOLEAN:
-      optiqLiteral = rexBuilder.makeLiteral(((Boolean) value).booleanValue());
-      break;
-    case BYTE:
-      optiqLiteral = rexBuilder.makeExactLiteral(new BigDecimal((Short) value));
-      break;
-    case SHORT:
-      optiqLiteral = rexBuilder.makeExactLiteral(new BigDecimal((Short) value));
-      break;
-    case INT:
-      optiqLiteral = rexBuilder.makeExactLiteral(new BigDecimal((Integer) value));
-      break;
-    case LONG:
-      optiqLiteral = rexBuilder.makeBigintLiteral(new BigDecimal((Long) value));
-      break;
-    // TODO: is Decimal an exact numeric or approximate numeric?
-    case DECIMAL:
-      optiqLiteral = rexBuilder.makeExactLiteral((BigDecimal) value);
-      break;
-    case FLOAT:
-      optiqLiteral = rexBuilder.makeApproxLiteral(new BigDecimal((Float) value), optiqLiteralType);
-      break;
-    case DOUBLE:
-      optiqLiteral = rexBuilder.makeApproxLiteral(new BigDecimal((Double) value), optiqLiteralType);
-      break;
-    case STRING:
-      optiqLiteral = rexBuilder.makeLiteral((String) value);
-      break;
-    case DATE:
-    case TIMESTAMP:
-    case BINARY:
-    case VOID:
-    case UNKNOWN:
-    default:
-      throw new RuntimeException("UnSupported Literal");
-    }
-
-    return optiqLiteral;
-  }
-
-  private RexNode convertToOptiqColumn(ExprNodeColumnDesc col, final Operator hiveOP,
-      final RelNode optiqOP,
-      int offset) {
-    int pos = m_semanticAnalyzer.getRowResolver(hiveOP).getPositionDiscardingHiddenColumns(
-        col.getColumn());
-    return m_cluster.getRexBuilder().makeInputRef(
-        optiqOP.getRowType().getFieldList().get(pos).getType(), pos + offset);
-  }
-
-
-  private RexNode convertToOptiqUDF(final GenericUDF func, RexBuilder rexBuilder, List<RexNode> args) {
-    SqlBinaryOperator op = null;
-
-    if (func instanceof GenericUDFEWAHBitmapAnd) {
-      op = null;
-    } else if (func instanceof GenericUDFEWAHBitmapOr) {
-
-    } else if (func instanceof GenericUDFReflect) {
-
-    } else if (func instanceof GenericUDFReflect2) {
-
-    } else if (func instanceof GenericUDFArray) {
-
-    } else if (func instanceof GenericUDFArrayContains) {
-
-    } else if (func instanceof GenericUDFAssertTrue) {
-
-    } else if (func instanceof GenericUDFOPEqualNS) {
-
-    } else if (func instanceof GenericUDFOPEqual) {
-
-    } else if (func instanceof GenericUDFOPEqualOrGreaterThan) {
-
-    } else if (func instanceof GenericUDFOPEqualOrLessThan) {
-
-    } else if (func instanceof GenericUDFOPGreaterThan) {
-
-    } else if (func instanceof GenericUDFOPLessThan) {
-
-    } else if (func instanceof GenericUDFOPNotEqual) {
-
-    } else if (func instanceof GenericUDFBetween) {
-
-    } else if (func instanceof GenericUDFBridge) {
-
-    } else if (func instanceof GenericUDFCase) {
-
-    } else if (func instanceof GenericUDFCoalesce) {
-
-    } else if (func instanceof GenericUDFConcat) {
-
-    } else if (func instanceof GenericUDFConcatWS) {
-
-    } else if (func instanceof GenericUDFElt) {
-
-    } else if (func instanceof GenericUDFEncode) {
-
-    } else if (func instanceof GenericUDFEWAHBitmapEmpty) {
-
-    } else if (func instanceof GenericUDFField) {
-
-    } else if (func instanceof GenericUDFFormatNumber) {
-
-    } else if (func instanceof GenericUDFToUtcTimestamp) {
-
-    } else if (func instanceof GenericUDFFromUtcTimestamp) {
-
-    } else if (func instanceof GenericUDFHash) {
-
-    } else if (func instanceof GenericUDFIf) {
-
-    } else if (func instanceof GenericUDFInstr) {
-
-    } else if (func instanceof GenericUDFLeadLag) {
-
-    } else if (func instanceof GenericUDFLocate) {
-
-    } else if (func instanceof GenericUDFLower) {
-
-    } else if (func instanceof GenericUDFMacro) {
-
-    } else if (func instanceof GenericUDFMap) {
-
-    } else if (func instanceof GenericUDFMapKeys) {
-
-    } else if (func instanceof GenericUDFEWAHBitmapAnd) {
-
-    } else if (func instanceof GenericUDFMapValues) {
-
-    } else if (func instanceof GenericUDFNamedStruct) {
-
-    } else if (func instanceof GenericUDFNvl) {
-
-    } else if (func instanceof GenericUDFOPAnd) {
-
-    } else if (func instanceof GenericUDFOPNot) {
-
-    } else if (func instanceof GenericUDFOPNotNull) {
-
-    } else if (func instanceof GenericUDFOPNull) {
-
-    } else if (func instanceof GenericUDFOPOr) {
-
-    } else if (func instanceof GenericUDFPrintf) {
-
-    } else if (func instanceof GenericUDFSentences) {
-
-    } else if (func instanceof GenericUDFSize) {
-
-    } else if (func instanceof GenericUDFSortArray) {
-
-    } else if (func instanceof GenericUDFSplit) {
-
-    } else if (func instanceof GenericUDFStringToMap) {
-
-    } else if (func instanceof GenericUDFStruct) {
-
-    } else if (func instanceof GenericUDFTimestamp) {
-
-    } else if (func instanceof GenericUDFToBinary) {
-
-    } else if (func instanceof GenericUDFToDate) {
-
-    } else if (func instanceof GenericUDFToDecimal) {
-
-    } else if (func instanceof GenericUDFUnixTimeStamp) {
-
-    } else if (func instanceof GenericUDFToUnixTimeStamp) {
-
-    } else if (func instanceof GenericUDFToVarchar) {
-
-    } else if (func instanceof GenericUDFTranslate) {
-
-    } else if (func instanceof GenericUDFUnion) {
-
-    } else if (func instanceof GenericUDFUpper) {
-
-    } else if (func instanceof GenericUDFWhen) {
-
-    } else if (func instanceof GenericUDFXPath) {
-
-    }
-
-
-    return rexBuilder.makeCall(SqlStdOperatorTable.equalsOperator, args);
-
-    // return rexBuilder.makeCall(SqlStdOperatorTable.greaterThanOperator, args);
-    // rexBuilder.makeCall(SqlStdOperatorTable.lessThanOperator, args);
-    // rexBuilder.makeCall(SqlStdOperatorTable.equalsOperator, args);
-  }
-
 
   public static RelNode convertOpDAG(RelOptCluster cluster, RelOptSchema relOptSchema,
       Schema schema, Operator sinkOp, SemanticAnalyzer semanticAnalyzer, HiveConf conf) {

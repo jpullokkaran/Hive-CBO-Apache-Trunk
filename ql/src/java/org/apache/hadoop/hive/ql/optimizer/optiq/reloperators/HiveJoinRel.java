@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -22,7 +23,9 @@ import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.reltype.RelDataTypeField;
 import org.eigenbase.rex.RexNode;
+import org.eigenbase.sql.SqlOperator;
 
 //TODO: Should we convert MultiJoin to be a child of HiveJoinRelBase
 public class HiveJoinRel extends JoinRelBase implements HiveRel {
@@ -65,11 +68,14 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
             throws InvalidRelException {
         super(cluster, OptiqTraitsUtil.getJoinTraitSet(cluster, traits), left,
                 right, condition, joinType, variablesStopped);
-        final List<Integer> leftKeys = new ArrayList<Integer>();
-        final List<Integer> rightKeys = new ArrayList<Integer>();
-        RexNode remaining = RelOptUtil.splitJoinCondition(left, right,
-                condition, leftKeys, rightKeys);
-        if (!remaining.isAlwaysTrue()) {
+        List<RelDataTypeField> sysFieldList = new LinkedList<RelDataTypeField>();
+        final List<RexNode> leftKeys = new ArrayList<RexNode>();
+        final List<RexNode> rightKeys = new ArrayList<RexNode>();
+        List<Integer> filterNulls = new LinkedList<Integer>();
+        RexNode remaining = RelOptUtil.splitJoinCondition(sysFieldList, left, right,
+                condition, leftKeys, rightKeys, filterNulls, (List<SqlOperator>) null);
+
+        if (remaining != null && !remaining.isAlwaysTrue()) {
             throw new InvalidRelException(
                     "EnumerableJoinRel only supports equi-join");
         }
