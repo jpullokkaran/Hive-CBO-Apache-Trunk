@@ -6,6 +6,7 @@ import java.util.List;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.ProjectRelBase;
@@ -78,16 +79,15 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
 //    }
 
     @Override
-    public RelOptCost computeSelfCost(RelOptPlanner planner)
-    {
-        return super.computeSelfCost(planner).multiplyBy(0.01);
-    }
-
-    @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
         assert traitSet.containsIfApplicable(Convention.NONE);
         return new HiveProjectRel(getCluster(), sole(inputs), getProjects(),
                 rowType, getFlags(), collationList);
+    }
+
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner) {
+    	return HiveCostUtil.computeCost(this);
     }
 
     public void implement(Implementor implementor) {

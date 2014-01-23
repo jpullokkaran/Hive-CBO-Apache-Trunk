@@ -10,6 +10,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.InvalidRelException;
@@ -184,34 +185,10 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         return d;
       }
     
+
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner) {
-      // We always "build" the
-      double rowCount = RelMetadataQuery.getRowCount(this);
-
-      // Joins can be flipped, and for many algorithms, both versions are viable
-      // and have the same cost. To make the results stable between versions of
-      // the planner, make one of the versions slightly more expensive.
-      switch (joinType) {
-      case RIGHT:
-        rowCount = addEpsilon(rowCount);
-        break;
-      default:
-        if (left.getId() > right.getId()) {
-          rowCount = addEpsilon(rowCount);
-        }
-      }
-
-      // Cheaper if the smaller number of rows is coming from the RHS.
-      final double rightRowCount = right.getRows();
-      final double leftRowCount = left.getRows();
-      if (rightRowCount > leftRowCount && !Double.isInfinite(rightRowCount)) {
-        rowCount *= rightRowCount / (leftRowCount + 1d);
-      }
-      if (condition.isAlwaysTrue()) {
-        rowCount *= 10d;
-      }
-      return planner.makeCost(rowCount, 0, 0);
+    	return HiveCostUtil.computeCost(this);
     }
 
     // @Override

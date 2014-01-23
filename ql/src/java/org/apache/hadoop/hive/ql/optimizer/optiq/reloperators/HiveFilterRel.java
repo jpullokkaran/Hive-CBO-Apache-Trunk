@@ -5,11 +5,14 @@ import java.util.List;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexNode;
 
@@ -34,6 +37,11 @@ public class HiveFilterRel extends FilterRelBase implements HiveRel {
 
   @Override
   public void implement(Implementor implementor) {
+  }
+
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+  	return HiveCostUtil.computeCost(this);
   }
 
   @Override

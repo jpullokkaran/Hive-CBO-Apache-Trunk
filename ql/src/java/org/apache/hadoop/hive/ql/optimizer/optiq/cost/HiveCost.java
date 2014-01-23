@@ -110,10 +110,9 @@ public class HiveCost implements RelOptCost {
       return false;
     }
     HiveCost that = (HiveCost) other;
+    //TODO: should we consider cardinality as well?
     return (this == that)
-        || ((this.dRows == that.dRows)
-            && (this.dCpu == that.dCpu)
-            && (this.dIo == that.dIo));
+        || ((this.dCpu + this.dIo) ==  (that.dCpu + that.dIo));
   }
 
   public boolean isEqWithEpsilon(RelOptCost other)
@@ -123,9 +122,7 @@ public class HiveCost implements RelOptCost {
     }
     HiveCost that = (HiveCost) other;
     return (this == that)
-        || ((Math.abs(this.dRows - that.dRows) < RelOptUtil.EPSILON)
-            && (Math.abs(this.dCpu - that.dCpu) < RelOptUtil.EPSILON)
-            && (Math.abs(this.dIo - that.dIo) < RelOptUtil.EPSILON));
+        || (Math.abs((this.dCpu + this.dIo) - (that.dCpu + that.dIo)) < RelOptUtil.EPSILON);
   }
 
   public RelOptCost minus(RelOptCost other)
