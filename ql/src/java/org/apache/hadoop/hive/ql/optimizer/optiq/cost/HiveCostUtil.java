@@ -36,13 +36,15 @@ public class HiveCostUtil {
 		return new HiveCost(s.getRows(), 0, 0);
 	}
 
-	public static HiveCost computeCost(HiveIRShuffleRel sh) {
-		double shuffleCardinality = sh.getRows();
-		double shuffleAvgTupleSize = sh.getAvgTupleSize();
+	private static HiveCost computeShuffleCost(double shuffleCardinality, double shuffleAvgTupleSize) {
 		double cpuCost = shuffleCardinality * Math.log(shuffleCardinality) * cpuCostInNanoSec;
 		double ioCost = shuffleCardinality * shuffleAvgTupleSize * (localFSWriteCostInNanoSec + localFSReadCostInNanoSec + netCostInNanoSec);
 
-		return new HiveCost(shuffleCardinality, cpuCost, ioCost);
+		return new HiveCost(shuffleCardinality, cpuCost, ioCost);		
+	}
+	
+	public static HiveCost computeCost(HiveIRShuffleRel sh) {
+		return computeShuffleCost(sh.getRows(), sh.getAvgTupleSize());
 	}
 
 	public static HiveCost computeCost(HiveJoinRel j) {
@@ -71,7 +73,12 @@ public class HiveCostUtil {
 				// hb: 1/24/14 for now give this choice a finite cost; so we can test plan generation logic
 				// with all Join Alg rules turned off. 
 				if (j.getJoinAlgorithm() == JoinAlgorithm.NONE ) {
+					HiveCost leftShuffleCost = computeShuffleCost(leftCardinality, leftAvgTupleSize);
+					HiveCost rightShuffleCost = computeShuffleCost(rightCardinality, rightAvgTupleSize);
+					cpuCost += leftShuffleCost.getCpu() + rightShuffleCost.getCpu();
+					ioCost += leftShuffleCost.getIo() + rightShuffleCost.getIo();
 					cpuCost *= 2;
+					ioCost *= 2;
 				}
 				
 			} else if (j.getJoinAlgorithm() == JoinAlgorithm.MAP_JOIN || j.getJoinAlgorithm() == JoinAlgorithm.BUCKET_JOIN) {
