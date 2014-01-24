@@ -32,10 +32,12 @@ public class HivePushJoinThroughJoinRule extends RelOptRule {
 
   private HivePushJoinThroughJoinRule(String description, boolean right,
       Class<? extends JoinRelBase> clazz) {
-    super(
-        some(
-            clazz, any(clazz), any(HiveRel.class)),
-        description);
+       super(
+            operand(
+                clazz,
+                operand(clazz, any()),
+                operand(HiveRel.class, any())),
+            description);    
     m_right = right;
   }
 

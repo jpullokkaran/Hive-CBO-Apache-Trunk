@@ -17,7 +17,8 @@ public class ConvertToBucketJoinRule extends RelOptRule {
   private final double m_maxMemorySize;
 
   public ConvertToBucketJoinRule(double maxAllowedSize) {
-    super(some(HiveJoinRel.class, any(HiveRel.class), any(HiveRel.class)));
+		super(operand(HiveJoinRel.class, operand(HiveRel.class, any()),
+				operand(HiveRel.class, any())));
     m_maxMemorySize = maxAllowedSize;
   }
 

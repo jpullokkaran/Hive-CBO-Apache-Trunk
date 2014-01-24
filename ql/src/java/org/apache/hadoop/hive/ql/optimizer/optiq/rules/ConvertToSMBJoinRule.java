@@ -14,7 +14,8 @@ import org.eigenbase.relopt.RelTraitSet;
 public class ConvertToSMBJoinRule extends RelOptRule {
 
   public ConvertToSMBJoinRule() {
-    super(some(HiveJoinRel.class, any(HiveRel.class), any(HiveRel.class)));
+	  super(operand(HiveJoinRel.class, operand(HiveRel.class, any()),
+				operand(HiveRel.class, any())));
   }
 
   @Override

@@ -29,8 +29,8 @@ public class HiveSwapJoinRule extends RelOptRule {
 
   public HiveSwapJoinRule() {
     super(
-        some(
-            HiveJoinRel.class, any(HiveRel.class), any(HiveRel.class)),
+        operand(
+            HiveJoinRel.class, operand(HiveRel.class, any()), operand(HiveRel.class, any())),
         "Hive Swap Join Rule");
   }
 
@@ -84,7 +84,7 @@ public class HiveSwapJoinRule extends RelOptRule {
       final RelDataType rightRowType = join.getRight().getRowType();
       final VariableReplacer variableReplacer =
           new VariableReplacer(rexBuilder, leftRowType, rightRowType);
-      final RexNode oldCondition = join.getCondition().clone();
+      final RexNode oldCondition =  join.getCondition();
       RexNode condition = variableReplacer.go(oldCondition);
 
       // NOTE jvs 14-Mar-2006: We preserve attribute semiJoinDone after the

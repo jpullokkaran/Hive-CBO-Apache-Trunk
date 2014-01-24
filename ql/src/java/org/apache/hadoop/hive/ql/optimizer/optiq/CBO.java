@@ -5,11 +5,13 @@ import java.util.HashSet;
 import java.util.List;
 
 import net.hydromatic.optiq.Schema;
+import net.hydromatic.optiq.SchemaPlus;
 import net.hydromatic.optiq.tools.Frameworks;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToBucketJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToCommonJoinRule;
@@ -73,11 +75,12 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 
     @Override
     public RelNode apply(RelOptCluster cluster, RelOptSchema relOptSchema,
-            Schema schema) {
+            SchemaPlus schema) {
         Long totalMemForSmallTable = m_conf
                 .getLongVar(HiveConf.ConfVars.HIVESMALLTABLESFILESIZE);
 
-        RelOptPlanner planner = cluster.getPlanner();
+      //RelOptPlanner planner = cluster.getPlanner();
+        RelOptPlanner planner = HiveVolcanoPlanner.createPlanner();
         planner.addRelTraitDef(RelBucketingTraitDef.INSTANCE);
         
         /*

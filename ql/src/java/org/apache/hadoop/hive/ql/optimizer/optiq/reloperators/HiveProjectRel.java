@@ -69,7 +69,7 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
             List<RexNode> exps, RelDataType rowType, int flags,
             final List<RelCollation> collationList) {
         super(cluster, OptiqTraitsUtil.getSelectTraitSet(cluster, exps,
-                child), child, exps, rowType, flags, collationList);
+                child), child, exps, rowType, flags);
         m_virtualCols = OptiqUtil.getVirtualCols(exps);
     }
 

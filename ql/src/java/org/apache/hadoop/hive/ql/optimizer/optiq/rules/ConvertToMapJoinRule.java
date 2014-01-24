@@ -14,7 +14,7 @@ public class ConvertToMapJoinRule extends RelOptRule {
   private final double m_maxMemorySize;
 
   public ConvertToMapJoinRule(double maxAllowedSize) {
-    super(some(HiveJoinRel.class, any(RelNode.class), any(RelNode.class)));
+    super(operand(HiveJoinRel.class, operand(RelNode.class, any()), operand(RelNode.class, any())));
     m_maxMemorySize = maxAllowedSize;
   }
 

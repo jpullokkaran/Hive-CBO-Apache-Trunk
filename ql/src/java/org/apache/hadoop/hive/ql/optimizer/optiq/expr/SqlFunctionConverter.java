@@ -122,11 +122,11 @@ public class SqlFunctionConverter {
 	}
 	
 	private static void stringFunction(String name) {
-		registerFunction( name, SqlFunctionCategory.String, new ExplicitReturnTypeInference(new BasicSqlType(SqlTypeName.VARCHAR)));
+		registerFunction( name, SqlFunctionCategory.String, ExplicitReturnTypeInference.of(new BasicSqlType(SqlTypeName.VARCHAR)));
 	}
 	
 	private static void numericFunction(String name) {
-		registerFunction( name, SqlFunctionCategory.Numeric, new ExplicitReturnTypeInference(new BasicSqlType(SqlTypeName.DECIMAL)));
+		registerFunction( name, SqlFunctionCategory.Numeric, ExplicitReturnTypeInference.of(new BasicSqlType(SqlTypeName.DECIMAL)));
 	}
 	
 	private static void registerFunction(String name, SqlFunctionCategory cat, SqlReturnTypeInference rti) {
