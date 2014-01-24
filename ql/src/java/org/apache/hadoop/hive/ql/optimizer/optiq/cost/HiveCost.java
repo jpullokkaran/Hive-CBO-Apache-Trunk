@@ -85,9 +85,8 @@ public class HiveCost implements RelOptCost {
   // TODO: If two cost is equal, could we do any better than comparing cardinality (may be some
   // other heuristics to break the tie)
   public boolean isLe(RelOptCost other) {
-    HiveCost that = (HiveCost) other;
-    if (((this.dCpu + this.dIo) < (that.dCpu + that.dIo))
-        || ((this.dCpu + this.dIo) == (that.dCpu + that.dIo) && this.dRows <= that.dRows)) {
+    if (((this.dCpu + this.dIo) < (other.getCpu() + other.getIo()))
+        || ((this.dCpu + this.dIo) == (other.getCpu() + other.getIo()) && this.dRows <= other.getRows())) {
       return true;
     } else {
       return false;
@@ -106,23 +105,15 @@ public class HiveCost implements RelOptCost {
 
   public boolean equals(RelOptCost other)
   {
-    if (!(other instanceof HiveCost)) {
-      return false;
-    }
-    HiveCost that = (HiveCost) other;
     //TODO: should we consider cardinality as well?
-    return (this == that)
-        || ((this.dCpu + this.dIo) ==  (that.dCpu + that.dIo));
+    return (this == other)
+        || ((this.dCpu + this.dIo) ==  (other.getCpu() + other.getIo()));
   }
 
   public boolean isEqWithEpsilon(RelOptCost other)
   {
-    if (!(other instanceof HiveCost)) {
-      return false;
-    }
-    HiveCost that = (HiveCost) other;
-    return (this == that)
-        || (Math.abs((this.dCpu + this.dIo) - (that.dCpu + that.dIo)) < RelOptUtil.EPSILON);
+    return (this == other)
+        || (Math.abs((this.dCpu + this.dIo) - (other.getCpu() + other.getIo())) < RelOptUtil.EPSILON);
   }
 
   public RelOptCost minus(RelOptCost other)
@@ -130,11 +121,11 @@ public class HiveCost implements RelOptCost {
     if (this == INFINITY) {
       return this;
     }
-    HiveCost that = (HiveCost) other;
+
     return new HiveCost(
-        this.dRows - that.dRows,
-        this.dCpu - that.dCpu,
-        this.dIo - that.dIo);
+        this.dRows - other.getRows(),
+        this.dCpu - other.getCpu(),
+        this.dIo - other.getIo());
   }
 
   public RelOptCost multiplyBy(double factor)
@@ -149,31 +140,30 @@ public class HiveCost implements RelOptCost {
   {
     // Compute the geometric average of the ratios of all of the factors
     // which are non-zero and finite.
-    HiveCost that = (HiveCost) cost;
     double d = 1;
     double n = 0;
     if ((this.dRows != 0)
         && !Double.isInfinite(this.dRows)
-        && (that.dRows != 0)
-        && !Double.isInfinite(that.dRows))
+        && (cost.getRows() != 0)
+        && !Double.isInfinite(cost.getRows()))
     {
-      d *= this.dRows / that.dRows;
+      d *= this.dRows / cost.getRows();
       ++n;
     }
     if ((this.dCpu != 0)
         && !Double.isInfinite(this.dCpu)
-        && (that.dCpu != 0)
-        && !Double.isInfinite(that.dCpu))
+        && (cost.getCpu() != 0)
+        && !Double.isInfinite(cost.getCpu()))
     {
-      d *= this.dCpu / that.dCpu;
+      d *= this.dCpu / cost.getCpu();
       ++n;
     }
     if ((this.dIo != 0)
         && !Double.isInfinite(this.dIo)
-        && (that.dIo != 0)
-        && !Double.isInfinite(that.dIo))
+        && (cost.getIo() != 0)
+        && !Double.isInfinite(cost.getIo()))
     {
-      d *= this.dIo / that.dIo;
+      d *= this.dIo / cost.getIo();
       ++n;
     }
     if (n == 0) {
@@ -184,14 +174,13 @@ public class HiveCost implements RelOptCost {
 
   public RelOptCost plus(RelOptCost other)
   {
-    HiveCost that = (HiveCost) other;
-    if ((this == INFINITY) || (that == INFINITY)) {
+    if ((this == INFINITY) || (other.isInfinite())) {
       return INFINITY;
     }
     return new HiveCost(
-        this.dRows + that.dRows,
-        this.dCpu + that.dCpu,
-        this.dIo + that.dIo);
+        this.dRows + other.getRows(),
+        this.dCpu + other.getCpu(),
+        this.dIo + other.getIo());
   }
 
   public void set(

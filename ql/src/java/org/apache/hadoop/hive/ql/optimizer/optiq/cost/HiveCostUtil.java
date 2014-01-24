@@ -2,10 +2,14 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.cost;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveIRShuffleRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.MapJoinStreamingRelation;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 
 public class HiveCostUtil {
 	private static final double cpuCostInNanoSec = 1.0;
@@ -17,7 +21,8 @@ public class HiveCostUtil {
 
 	public static HiveCost computeCost(HiveTableScanRel t) {
 		double cardinality = t.getRows();
-		return new HiveCost(cardinality, 0, hDFSWriteCostInNanoSec * cardinality * t.getAvgTupleSize());
+		return new HiveCost(cardinality, 0, hDFSWriteCostInNanoSec
+				* cardinality * t.getAvgTupleSize());
 	}
 
 	public static HiveCost computeCost(HiveFilterRel f) {
@@ -30,28 +35,64 @@ public class HiveCostUtil {
 		return new HiveCost(s.getRows(), 0, 0);
 	}
 
+	public static HiveCost computeCost(HiveIRShuffleRel sh) {
+		double shuffleCardinality = sh.getRows();
+		double shuffleAvgTupleSize = sh.getAvgTupleSize();
+		double cpuCost = shuffleCardinality * Math.log(shuffleCardinality) * cpuCostInNanoSec;
+		double ioCost = shuffleCardinality * shuffleAvgTupleSize * (localFSWriteCostInNanoSec + localFSReadCostInNanoSec + netCostInNanoSec);
+
+		return new HiveCost(shuffleCardinality, cpuCost, ioCost);
+	}
+
 	public static HiveCost computeCost(HiveJoinRel j) {
-		double leftCardinality = OptiqUtil.getNonSubsetRelNode(j.getLeft())
-				.getRows();
-		double leftAvgTupleSize = OptiqUtil.getNonSubsetRelNode(j.getLeft())
-				.getAvgTupleSize();
-		double rightCardinality = OptiqUtil.getNonSubsetRelNode(j.getRight())
-				.getRows();
-		double rightAvgTupleSize = OptiqUtil.getNonSubsetRelNode(j.getRight())
-				.getAvgTupleSize();
+		HiveRel leftRel = OptiqUtil.getNonSubsetRelNode(j.getLeft());
+		HiveRel rightRel = OptiqUtil.getNonSubsetRelNode(j.getRight());
 		double cpuCost = Double.MAX_VALUE;
 		double ioCost = Double.MAX_VALUE;
+		double joinCardinality = Double.MAX_VALUE;
+		;
 
-		if (j.getJoinAlgorithm() == JoinAlgorithm.COMMON_JOIN) {
-			cpuCost = leftCardinality * Math.log(leftCardinality)
-					* cpuCostInNanoSec + rightCardinality
-					* Math.log(rightCardinality) * cpuCostInNanoSec
-					+ (leftCardinality + rightCardinality) * cpuCostInNanoSec;
-			ioCost = (leftCardinality * leftAvgTupleSize + rightCardinality * rightAvgTupleSize) * (localFSWriteCostInNanoSec + localFSReadCostInNanoSec + netCostInNanoSec);
-		} else if (j.getJoinAlgorithm() == JoinAlgorithm.MAP_JOIN) {
-			
+		if (leftRel != null && rightRel != null) {
+			double leftCardinality = leftRel.getRows();
+			double leftAvgTupleSize = leftRel.getAvgTupleSize();
+			double rightCardinality = rightRel.getRows();
+			double rightAvgTupleSize = rightRel.getAvgTupleSize();
+			joinCardinality = j.getRows();
+
+			if (j.getJoinAlgorithm() == JoinAlgorithm.COMMON_JOIN) {
+				cpuCost = (leftCardinality + rightCardinality) * cpuCostInNanoSec;
+				ioCost = 0;
+			} else if (j.getJoinAlgorithm() == JoinAlgorithm.MAP_JOIN || j.getJoinAlgorithm() == JoinAlgorithm.BUCKET_JOIN) {
+				/*long hashTableReplication = 0;
+				MapJoinStreamingRelation streamingSide = j.getMapJoinStreamingSide();
+				double streamingRelCardinality = leftCardinality;
+				double nonStreamingRelCardinality = rightCardinality;
+				double nonStreamingRelAvgTupleSize = rightAvgTupleSize;
+				
+				if (streamingSide == MapJoinStreamingRelation.LEFT_RELATION) {
+					streamingRelCardinality = leftCardinality;
+				} else if (streamingSide == MapJoinStreamingRelation.RIGHT_RELATION) {
+					nonStreamingRelCardinality = rightCardinality;
+					nonStreamingRelAvgTupleSize = rightAvgTupleSize;
+				} else {
+					throw new RuntimeException ("Map Join has no streaming side");
+				}
+				
+				cpuCost = nonStreamingRelCardinality + (streamingRelCardinality + nonStreamingRelCardinality) * cpuCostInNanoSec;
+				
+				if (j.getJoinAlgorithm() == JoinAlgorithm.MAP_JOIN)
+					hashTableReplication = OptiqStatsUtil.computeDegreeOfParallelization(j);
+				else if (j.getJoinAlgorithm() == JoinAlgorithm.BUCKET_JOIN)
+					hashTableReplication = getBucketReplicationFactor(j, JoinAlgorithm.BUCKET_JOIN);
+
+				
+				ioCost = nonStreamingRelCardinality * nonStreamingRelAvgTupleSize * netCostInNanoSec * hashTableReplication;
+				*/
+			} else if (j.getJoinAlgorithm() == JoinAlgorithm.SMB_JOIN) {
+				//cpuCost =
+			}
 		}
-		
-		return new HiveCost(j.getRows(), cpuCost, ioCost);
+
+		return new HiveCost(joinCardinality, cpuCost, ioCost);
 	}
 }

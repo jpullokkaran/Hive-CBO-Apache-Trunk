@@ -107,8 +107,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
          */
         System.out.println(RelOptUtil.toString(opTreeInOptiq, SqlExplainLevel.ALL_ATTRIBUTES));
 
-        // TODO: Add rules for projection pruning, predicate push down,
-        // transitive predicate propagation
+        cluster.getPlanner().clearRules();
         cluster.getPlanner().addRule(new HiveSwapJoinRule());
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
