@@ -10,6 +10,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
+import org.eigenbase.relopt.RelOptUtil;
 
 public class HiveCostUtil {
 	private static final double cpuCostInNanoSec = 1.0;
@@ -50,7 +51,7 @@ public class HiveCostUtil {
 		double cpuCost = Double.MAX_VALUE;
 		double ioCost = Double.MAX_VALUE;
 		double joinCardinality = Double.MAX_VALUE;
-		;
+		
 
 		if (leftRel != null && rightRel != null) {
 			double leftCardinality = leftRel.getRows();
@@ -59,9 +60,20 @@ public class HiveCostUtil {
 			double rightAvgTupleSize = rightRel.getAvgTupleSize();
 			joinCardinality = j.getRows();
 
-			if (j.getJoinAlgorithm() == JoinAlgorithm.COMMON_JOIN) {
+			if (j.getJoinAlgorithm() == JoinAlgorithm.COMMON_JOIN || 
+					j.getJoinAlgorithm() == JoinAlgorithm.NONE)  {
 				cpuCost = (leftCardinality + rightCardinality) * cpuCostInNanoSec;
+				// favor plans with the larger table to the right
+				// cost of holding left rows in memory
+				cpuCost += (leftCardinality * cpuCostInNanoSec);
 				ioCost = 0;
+				
+				// hb: 1/24/14 for now give this choice a finite cost; so we can test plan generation logic
+				// with all Join Alg rules turned off. 
+				if (j.getJoinAlgorithm() == JoinAlgorithm.NONE ) {
+					cpuCost *= 2;
+				}
+				
 			} else if (j.getJoinAlgorithm() == JoinAlgorithm.MAP_JOIN || j.getJoinAlgorithm() == JoinAlgorithm.BUCKET_JOIN) {
 				/*long hashTableReplication = 0;
 				MapJoinStreamingRelation streamingSide = j.getMapJoinStreamingSide();
