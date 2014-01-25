@@ -60,7 +60,7 @@ public class ConvertToCommonJoinRule extends RelOptRule {
     if (introduceShuffleAtLeft || introduceShuffleAtRight) {
       HiveJoinRel newJoin = OptiqUtil.introduceShuffleOperator(j, introduceShuffleAtLeft,
           introduceShuffleAtRight,
-          jpi.getJoinKeysFromLeftRelation(), jpi.getJoinKeysFromLeftRelation());
+          jpi.getJoinKeysFromLeftRelation(), jpi.getJoinKeysFromLeftRelation(), call.getPlanner());
       newJoin.setJoinAlgorithm(JoinAlgorithm.COMMON_JOIN);
       RelTraitSet shuffleJoinTrait = OptiqTraitsUtil.getShuffleJoinTraitSet(newJoin);
       newJoin.getTraitSet().merge(shuffleJoinTrait);

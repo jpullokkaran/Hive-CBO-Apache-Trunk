@@ -22,6 +22,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.rules.RemoveTrivialProjectRule;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.reltype.RelDataType;
@@ -327,21 +328,26 @@ public class OptiqUtil {
 
 	public static HiveJoinRel introduceShuffleOperator(HiveJoinRel origJoin,
 			boolean introduceShuffleAtLeft, boolean introduceShuffleAtRight,
-			List<Integer> leftSortKeys, List<Integer> rightSortKeys) {
+			List<Integer> leftSortKeys, List<Integer> rightSortKeys, RelOptPlanner relOptPlanner) {
 		HiveRel leftOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin
 				.getLeft());
 		HiveRel rightOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin
 				.getRight());
+		HiveRel oldRel;
 
 		if (introduceShuffleAtLeft) {
+			oldRel =  leftOfNewJoin;
 			leftOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(
 					leftOfNewJoin.getCluster(), leftOfNewJoin.getTraitSet(),
 					leftSortKeys, leftOfNewJoin);
+			relOptPlanner.ensureRegistered(leftOfNewJoin, oldRel);
 		}
 		if (introduceShuffleAtRight) {
+			oldRel =  rightOfNewJoin;
 			rightOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(
 					rightOfNewJoin.getCluster(), rightOfNewJoin.getTraitSet(),
 					rightSortKeys, rightOfNewJoin);
+			relOptPlanner.ensureRegistered(rightOfNewJoin, oldRel);
 		}
 
 		HiveJoinRel newJoin = origJoin.copy(origJoin.getTraitSet(),
