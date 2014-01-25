@@ -5,8 +5,11 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.rex.RexNode;
@@ -40,6 +43,10 @@ public class HiveIRShuffleRel extends HiveIRRel {
         rowType);
   }
 
+  @Override
+  public RelOptCost computeSelfCost(RelOptPlanner planner) {
+  	return HiveCostUtil.computeCost(this);
+  }
 
 //  public RelOptPlanWriter explainTerms(RelOptPlanWriter pw) {
 //      super.explainTerms(pw);
