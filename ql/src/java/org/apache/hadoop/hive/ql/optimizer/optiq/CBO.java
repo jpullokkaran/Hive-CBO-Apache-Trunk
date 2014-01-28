@@ -4,11 +4,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
-import net.hydromatic.optiq.Schema;
 import net.hydromatic.optiq.SchemaPlus;
 import net.hydromatic.optiq.tools.Frameworks;
 
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.QueryProperties;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
@@ -60,7 +60,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
             SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
         ASTNode optiqOptimizedAST = null;
         
-        if (shouldRunOptiqOptimizer(sinkOp, conf)) {
+        if (shouldRunOptiqOptimizer(sinkOp, conf, semanticAnalyzer.getQueryProperties())) {
             RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
                     semanticAnalyzer, conf));
 
@@ -136,20 +136,24 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         return cluster.getPlanner().findBestExp();
     }
 
-    private static boolean shouldRunOptiqOptimizer(Operator sinkOp,
-            HiveConf conf) {
-        boolean runOptiq = false;
-        HashSet<Operator> start = new HashSet<Operator>();
-        HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(
-                m_unsupportedOpTypes);
+	private static boolean shouldRunOptiqOptimizer(Operator sinkOp,
+			HiveConf conf, QueryProperties qp) {
+		boolean runOptiq = false;
 
-        start.add(sinkOp);
-        // TODO: use queryproperties instead of walking the tree
-        if (!OperatorUtils.operatorExists(start, true, opsThatsNotSupported)) {
-            runOptiq = true;
-        }
+		if (qp.getJoinCount() < HiveConf.getIntVar(conf,
+				HiveConf.ConfVars.HIVE_CBO_MAX_JOINS_SUPPORTED)) {
+			final HashSet<Operator> start = new HashSet<Operator>();
+			final HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(
+					m_unsupportedOpTypes);
 
-        return runOptiq;
-    }
-    
+			start.add(sinkOp);
+			// TODO: use queryproperties instead of walking the tree
+			if (!OperatorUtils
+					.operatorExists(start, true, opsThatsNotSupported)) {
+				runOptiq = true;
+			}
+		}
+
+		return runOptiq;
+	}
 }

@@ -47,13 +47,19 @@ public class QueryProperties {
   boolean hasClusterBy = false;
   boolean mapJoinRemoved = false;
   boolean hasMapGroupBy = false;
-
+  
+  private int noOfJoins = 0;
+  
   public boolean hasJoin() {
-    return hasJoin;
+    return (noOfJoins > 0);
   }
 
-  public void setHasJoin(boolean hasJoin) {
-    this.hasJoin = hasJoin;
+  public void incrementJoinCount() {
+	noOfJoins++;
+  }
+
+  public int getJoinCount() {
+	return noOfJoins;
   }
 
   public boolean hasGroupBy() {

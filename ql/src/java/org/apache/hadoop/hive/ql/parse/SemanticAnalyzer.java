@@ -854,7 +854,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             frm.getToken().getType() == HiveParser.TOK_LATERAL_VIEW_OUTER) {
           processLateralView(qb, frm);
         } else if (isJoinToken(frm)) {
-          queryProperties.setHasJoin(true);
           processJoin(qb, frm);
           qbp.setJoinExpr(frm);
         }else if(frm.getToken().getType() == HiveParser.TOK_PTBLFUNCTION){
@@ -6322,6 +6321,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
       desc.setNullSafes(nullsafes);
     }
+    queryProperties.incrementJoinCount();
     return putOpInsertMap(joinOp, outputRS);
   }
 
