@@ -527,55 +527,54 @@ public class Driver implements CommandProcessor {
     SessionState ss = SessionState.get();
     HiveOperation op = ss.getHiveOperation();
     Hive db = sem.getDb();
-    if(ss.isAuthorizationModeV2()){
+    if (ss.isAuthorizationModeV2()) {
       doAuthorizationV2(ss, op, inputs, outputs);
       return;
     }
 
-    if (op != null) {
-      if (op.equals(HiveOperation.CREATEDATABASE)) {
-        ss.getAuthorizer().authorize(
-            op.getInputRequiredPrivileges(), op.getOutputRequiredPrivileges());
-      } else if (op.equals(HiveOperation.CREATETABLE_AS_SELECT)
-          || op.equals(HiveOperation.CREATETABLE)) {
-        ss.getAuthorizer().authorize(
-            db.getDatabase(SessionState.get().getCurrentDatabase()), null,
-            HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
-      } else {
-        if (op.equals(HiveOperation.IMPORT)) {
-          ImportSemanticAnalyzer isa = (ImportSemanticAnalyzer) sem;
-          if (!isa.existsTable()) {
-            ss.getAuthorizer().authorize(
-                db.getDatabase(SessionState.get().getCurrentDatabase()), null,
-                HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
-          }
+    if (op == null) {
+      throw new HiveException("Operation should not be null");
+    }
+    if (op.equals(HiveOperation.CREATEDATABASE)) {
+      ss.getAuthorizer().authorize(
+          op.getInputRequiredPrivileges(), op.getOutputRequiredPrivileges());
+    } else if (op.equals(HiveOperation.CREATETABLE_AS_SELECT)
+        || op.equals(HiveOperation.CREATETABLE)) {
+      ss.getAuthorizer().authorize(
+          db.getDatabase(SessionState.get().getCurrentDatabase()), null,
+          HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
+    } else {
+      if (op.equals(HiveOperation.IMPORT)) {
+        ImportSemanticAnalyzer isa = (ImportSemanticAnalyzer) sem;
+        if (!isa.existsTable()) {
+          ss.getAuthorizer().authorize(
+              db.getDatabase(SessionState.get().getCurrentDatabase()), null,
+              HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
         }
       }
-      if (outputs != null && outputs.size() > 0) {
-        //do authorization for each output
-        for (WriteEntity write : outputs) {
-          if (write.getType() == Entity.Type.DATABASE) {
-            ss.getAuthorizer().authorize(write.getDatabase(),
-                null, op.getOutputRequiredPrivileges());
-            continue;
-          }
+    }
+    if (outputs != null && outputs.size() > 0) {
+      for (WriteEntity write : outputs) {
+        if (write.getType() == Entity.Type.DATABASE) {
+          ss.getAuthorizer().authorize(write.getDatabase(),
+              null, op.getOutputRequiredPrivileges());
+          continue;
+        }
 
-          if (write.getType() == WriteEntity.Type.PARTITION) {
-            Partition part = db.getPartition(write.getTable(), write
-                .getPartition().getSpec(), false);
-            if (part != null) {
-              ss.getAuthorizer().authorize(write.getPartition(), null,
-                      op.getOutputRequiredPrivileges());
-              continue;
-            }
-          }
-
-          if (write.getTable() != null) {
-            ss.getAuthorizer().authorize(write.getTable(), null,
+        if (write.getType() == WriteEntity.Type.PARTITION) {
+          Partition part = db.getPartition(write.getTable(), write
+              .getPartition().getSpec(), false);
+          if (part != null) {
+            ss.getAuthorizer().authorize(write.getPartition(), null,
                     op.getOutputRequiredPrivileges());
+            continue;
           }
         }
 
+        if (write.getTable() != null) {
+          ss.getAuthorizer().authorize(write.getTable(), null,
+                  op.getOutputRequiredPrivileges());
+        }
       }
     }
 
@@ -1289,6 +1288,8 @@ public class Driver implements CommandProcessor {
       Map<TaskResult, TaskRunner> running = new HashMap<TaskResult, TaskRunner>();
 
       DriverContext driverCxt = new DriverContext(runnable, ctx);
+      driverCxt.prepare(plan);
+
       ctx.setHDFSCleanup(true);
 
       SessionState.get().setLastMapRedStatsList(new ArrayList<MapRedStats>());
@@ -1367,6 +1368,8 @@ public class Driver implements CommandProcessor {
             return exitVal;
           }
         }
+
+        driverCxt.finished(tskRun);
 
         if (SessionState.get() != null) {
           SessionState.get().getHiveHistory().setTaskProperty(queryId, tsk.getId(),
@@ -1528,6 +1531,8 @@ public class Driver implements CommandProcessor {
     tsk.initialize(conf, plan, cxt);
     TaskResult tskRes = new TaskResult();
     TaskRunner tskRun = new TaskRunner(tsk, tskRes);
+
+    cxt.prepare(tskRun);
 
     // Launch Task
     if (HiveConf.getBoolVar(conf, HiveConf.ConfVars.EXECPARALLEL) && tsk.isMapRedTask()) {

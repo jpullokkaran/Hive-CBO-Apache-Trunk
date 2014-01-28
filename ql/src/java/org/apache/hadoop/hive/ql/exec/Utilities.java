@@ -70,6 +70,10 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -318,6 +322,7 @@ public final class Utilities {
           }
           byte[] planBytes = Base64.decodeBase64(planString);
           in = new ByteArrayInputStream(planBytes);
+          in = new InflaterInputStream(in);
         } else {
           in = new FileInputStream(localPath.toUri().getPath());
         }
@@ -582,11 +587,12 @@ public final class Utilities {
 
       if (HiveConf.getBoolVar(conf, ConfVars.HIVE_RPC_QUERY_PLAN)) {
         // add it to the conf
-        out = new ByteArrayOutputStream();
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        out = new DeflaterOutputStream(byteOut, new Deflater(Deflater.BEST_SPEED));
         serializePlan(w, out, conf);
         LOG.info("Setting plan: "+planPath.toUri().getPath());
         conf.set(planPath.toUri().getPath(),
-            Base64.encodeBase64String(((ByteArrayOutputStream)out).toByteArray()));
+            Base64.encodeBase64String(byteOut.toByteArray()));
       } else {
         // use the default file system of the conf
         FileSystem fs = planPath.getFileSystem(conf);
@@ -817,8 +823,9 @@ public final class Utilities {
   /**
    * Deserializes the plan.
    * @param in The stream to read from.
+   * @param planClass class of plan
+   * @param conf configuration
    * @return The plan, such as QueryPlan, MapredWork, etc.
-   * @param To know what serialization format plan is in
    */
   public static <T> T deserializePlan(InputStream in, Class<T> planClass, Configuration conf) {
     return deserializePlan(in, planClass, conf, false);
@@ -2397,16 +2404,15 @@ public final class Utilities {
    * then it returns an MD5 hash of statsPrefix followed by path separator, otherwise
    * it returns statsPrefix
    *
-   * @param statsPrefix
-   * @param maxPrefixLength
-   * @return
+   * @param statsPrefix prefix of stats key
+   * @param maxPrefixLength max length of stats key
+   * @return if the length of prefix is longer than max, return MD5 hashed value of the prefix
    */
-  public static String getHashedStatsPrefix(String statsPrefix,
-      int maxPrefixLength, int postfixLength) {
+  public static String getHashedStatsPrefix(String statsPrefix, int maxPrefixLength) {
     // todo: this might return possibly longer prefix than
     // maxPrefixLength (if set) when maxPrefixLength - postfixLength < 17,
     // which would make stat values invalid (especially for 'counter' type)
-    if (maxPrefixLength >= 0 && statsPrefix.length() > maxPrefixLength - postfixLength) {
+    if (maxPrefixLength >= 0 && statsPrefix.length() > maxPrefixLength) {
       try {
         MessageDigest digester = MessageDigest.getInstance("MD5");
         digester.update(statsPrefix.getBytes());
@@ -2908,6 +2914,16 @@ public final class Utilities {
     }
 
     return highestSamplePercentage;
+  }
+
+  /**
+   * On Tez we're not creating dummy files when getting/setting input paths.
+   * We let Tez handle the situation. We're also setting the paths in the AM
+   * so we don't want to depend on scratch dir and context.
+   */
+  public static List<Path> getInputPathsTez(JobConf job, MapWork work) throws Exception {
+    List<Path> paths = getInputPaths(job, work, null, null);
+    return paths;
   }
 
   /**
