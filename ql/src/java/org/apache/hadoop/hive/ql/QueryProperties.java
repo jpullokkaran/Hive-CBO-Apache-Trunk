@@ -49,17 +49,24 @@ public class QueryProperties {
   boolean hasMapGroupBy = false;
   
   private int noOfJoins = 0;
+  private int noOfOuterJoins = 0;
   
   public boolean hasJoin() {
     return (noOfJoins > 0);
   }
 
-  public void incrementJoinCount() {
+  public void incrementJoinCount(boolean noOuterJoin) {
 	noOfJoins++;
+	if (!noOuterJoin)
+		noOfOuterJoins++;
   }
 
   public int getJoinCount() {
 	return noOfJoins;
+  }
+
+  public int getOuterJoinCount() {
+	return noOfOuterJoins;
   }
 
   public boolean hasGroupBy() {

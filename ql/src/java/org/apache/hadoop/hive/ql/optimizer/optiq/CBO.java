@@ -41,7 +41,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
             .asList(OperatorType.DEMUX, OperatorType.FORWARD,
                     OperatorType.LATERALVIEWFORWARD,
                     OperatorType.LATERALVIEWJOIN, OperatorType.MUX,
-                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF);
+                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF, OperatorType.GROUPBY, OperatorType.LIMIT, OperatorType.UNION);
 
     @SuppressWarnings("rawtypes")
     private final Operator m_sinkOp;
@@ -111,6 +111,8 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         cluster.getPlanner().addRule(new HiveSwapJoinRule());
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
         cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
+
+        /*
         cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
         cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.FILTER);
         cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.LIMIT);
@@ -118,6 +120,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
+        */
 //        cluster.getPlanner().addRule(
 //                new ConvertToBucketJoinRule(totalMemForSmallTable));
 //        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
@@ -140,8 +143,12 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 			HiveConf conf, QueryProperties qp) {
 		boolean runOptiq = false;
 
-		if (qp.getJoinCount() < HiveConf.getIntVar(conf,
-				HiveConf.ConfVars.HIVE_CBO_MAX_JOINS_SUPPORTED)) {
+		if ((qp.getJoinCount() > 1)
+				&& (qp.getJoinCount() < HiveConf.getIntVar(conf,
+						HiveConf.ConfVars.HIVE_CBO_MAX_JOINS_SUPPORTED))
+				&& (qp.getOuterJoinCount() == 0) && !qp.hasClusterBy()
+				&& !qp.hasDistributeBy() && !qp.hasOrderBy() && !qp.hasSortBy()
+				&& !qp.hasWindowing()) {
 			final HashSet<Operator> start = new HashSet<Operator>();
 			final HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(
 					m_unsupportedOpTypes);

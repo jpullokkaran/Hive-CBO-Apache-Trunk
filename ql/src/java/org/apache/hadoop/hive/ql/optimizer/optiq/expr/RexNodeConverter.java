@@ -50,6 +50,7 @@ public class RexNodeConverter {
 		int i=0;
 		for(ColumnInfo ci : inpRR.getRowSchema().getSignature() ) {
 			b.put(ci.getInternalName(), i);
+			i++;
 		}
 		internalnameToPosMap = b.build();
 	}
@@ -64,6 +65,7 @@ public class RexNodeConverter {
 		} else {
 			throw new RuntimeException("Unsupported Expression");
 		}
+		//TODO: handle a) ExprNodeNullDesc b) ExprNodeFieldDesc c) ExprNodeColumnListDesc
 	}
 	
 	

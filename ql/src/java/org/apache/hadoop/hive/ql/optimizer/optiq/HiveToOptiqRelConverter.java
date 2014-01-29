@@ -3,6 +3,8 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 import java.math.BigDecimal;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import net.hydromatic.optiq.Schema;
 
@@ -252,6 +254,7 @@ public class HiveToOptiqRelConverter {
       List<ExprNodeDesc> rightCols = ((ReduceSinkDesc) (rightParent.getConf())).getKeyCols();
       RexNode joinPredicate = null;
       JoinRelType joinType = JoinRelType.INNER;
+      int rightColOffSet = leftRel.getRowType().getFieldCount();
 
       // TODO: what about semi join
       switch (jc.getType()) {
@@ -279,7 +282,7 @@ public class HiveToOptiqRelConverter {
         eqExpr.add(convertToOptiqExpr(rightCols.get(i), 
         		(Operator<? extends OperatorDesc>) rightParent.getParentOperators().get(0),
         		rightRel,
-        		leftRel.getRowType().getFieldCount()));
+        		rightColOffSet));
         
         RexNode eqOp = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.equalsOperator,
             eqExpr);
@@ -297,6 +300,42 @@ public class HiveToOptiqRelConverter {
               conjElements);
         }
       }
+      
+      // Translate non-joinkey predicate
+      Set<Entry<Byte, List<ExprNodeDesc>>> filterExprSet = op.getConf().getFilters().entrySet();
+      if (filterExprSet != null && !filterExprSet.isEmpty()) {
+    	  RexNode eqExpr;
+    	  int colOffSet = 0;
+    	  RelNode childRel;
+    	  Operator parentHiveOp;
+    	  int inputId;
+    	  
+    	  for (Entry<Byte, List<ExprNodeDesc>> entry : filterExprSet) {
+    		  inputId = entry.getKey().intValue();
+    		  if (inputId == 0) {
+    			  colOffSet = 0;
+    			  childRel = leftRel;
+    			  parentHiveOp = leftParent;
+    		  }
+    		  else if (inputId == 1) {
+    			  colOffSet = rightColOffSet;
+    			  childRel = rightRel;
+    			  parentHiveOp = rightParent;
+    		  } else {
+    			  throw new RuntimeException("Invalid Join Input");
+    		  }
+    		  
+    		  for (ExprNodeDesc expr : entry.getValue()) {
+    			  eqExpr = convertToOptiqExpr(expr, parentHiveOp, childRel, colOffSet);
+    	          List<RexNode> conjElements = new LinkedList<RexNode>();
+    	          conjElements.add(joinPredicate);
+    	          conjElements.add(eqExpr);
+    	          joinPredicate = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.andOperator,
+    	              conjElements);
+    		  }
+    	  }
+      }
+      
       joinRel = HiveJoinRel.getJoin(m_cluster, leftRel, rightRel, joinPredicate, joinType);
     } else {
       throw new RuntimeException("Right & Left of Join Condition columns are not equal");

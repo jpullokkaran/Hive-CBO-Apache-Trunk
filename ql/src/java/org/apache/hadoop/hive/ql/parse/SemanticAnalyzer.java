@@ -6321,7 +6321,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
       desc.setNullSafes(nullsafes);
     }
-    queryProperties.incrementJoinCount();
+    queryProperties.incrementJoinCount(joinOp.getConf().getNoOuterJoin());
     return putOpInsertMap(joinOp, outputRS);
   }
 
