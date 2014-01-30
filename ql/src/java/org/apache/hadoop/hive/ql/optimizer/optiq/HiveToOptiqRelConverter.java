@@ -105,6 +105,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.eigenbase.rel.JoinRelType;
+import org.eigenbase.rel.ProjectRel;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
@@ -224,7 +225,7 @@ public class HiveToOptiqRelConverter {
     }
 
     return new HiveProjectRel(m_cluster, inputRelNode, optiqColLst, selectOp.getConf()
-        .getOutputColumnNames(), 0);
+        .getOutputColumnNames(), ProjectRel.Flags.Boxed);
   }
 
   private static Operator getNodeThatCanBeTranslatedToOptiq(Operator op) {
