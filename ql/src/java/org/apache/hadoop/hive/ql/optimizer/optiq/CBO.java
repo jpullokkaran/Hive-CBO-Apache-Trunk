@@ -81,7 +81,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 
       //RelOptPlanner planner = cluster.getPlanner();
         RelOptPlanner planner = HiveVolcanoPlanner.createPlanner();
-        planner.addRelTraitDef(RelBucketingTraitDef.INSTANCE);
+        //planner.addRelTraitDef(RelBucketingTraitDef.INSTANCE);
         
         /*
          * recreate cluster, so that it picks up the additional traitDef
@@ -120,18 +120,23 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
         cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
-        */
-//        cluster.getPlanner().addRule(
-//                new ConvertToBucketJoinRule(totalMemForSmallTable));
-//        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
-//        cluster.getPlanner().addRule(
-//                new ConvertToMapJoinRule(totalMemForSmallTable));
+
+        cluster.getPlanner().addRule(
+                new ConvertToBucketJoinRule(totalMemForSmallTable));
+        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
+        cluster.getPlanner().addRule(
+                new ConvertToMapJoinRule(totalMemForSmallTable));
         
         RelTraitSet desiredTraits = 
         		RelTraitSet.createEmpty().
         		plus(HiveRel.CONVENTION).
         		plus(RelCollationTraitDef.INSTANCE.getDefault()).
         		plus(RelBucketingTraitImpl.EMPTY);
+        		*/
+		RelTraitSet desiredTraits = RelTraitSet.createEmpty()
+				.plus(HiveRel.CONVENTION)
+				.plus(RelCollationTraitDef.INSTANCE.getDefault());
+
         final RelNode rootRel = cluster.getPlanner().changeTraits(
                 opTreeInOptiq, desiredTraits);
         cluster.getPlanner().setRoot(rootRel);

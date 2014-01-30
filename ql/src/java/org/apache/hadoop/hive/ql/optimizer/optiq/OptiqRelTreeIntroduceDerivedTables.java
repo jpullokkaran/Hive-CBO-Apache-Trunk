@@ -2,10 +2,18 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import java.util.List;
 
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
+import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.EmptyRel;
+import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.OneRowRelBase;
+import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SetOpRel;
 import org.eigenbase.rel.SingleRel;
@@ -24,7 +32,7 @@ public class OptiqRelTreeIntroduceDerivedTables {
       //TODO: replace with null scan
     } else if (rel instanceof HepRelVertex) {
     //TODO: is this relevant?
-    } else if (rel instanceof JoinRelBase) {
+    } else if (rel instanceof HiveJoinRel) {
       if (!validJoinParent(rel, parent)) {
         introduceDerivedTable(rel, parent);
       }
@@ -37,7 +45,19 @@ public class OptiqRelTreeIntroduceDerivedTables {
     } else if (rel instanceof SetOpRel) {
 
     } else if (rel instanceof SingleRel) {
-
+    	if (rel instanceof FilterRelBase) {
+    	      if (!validFilterParent(rel, parent)) {
+    	          introduceDerivedTable(rel, parent);
+    	        }    		
+    	}else if (rel instanceof HiveLimitRel) {
+  	      if (!validLimitParent(rel, parent)) {
+	          introduceDerivedTable(rel, parent);
+	        }    		    		
+    	}else if (rel instanceof HiveAggregateRel) {
+  	      if (!validGBParent(rel, parent)) {
+	          introduceDerivedTable(rel, parent);
+	        }    		    		
+    	}
     } else if (rel instanceof TableAccessRelBase) {
 
     } else if (rel instanceof TableFunctionRelBase) {
@@ -90,4 +110,35 @@ public class OptiqRelTreeIntroduceDerivedTables {
     return validParent;
   }
 
+  private static boolean validFilterParent(RelNode filterNode, RelNode parent) {
+    boolean validParent = true;
+
+    //TOODO: Verify GB having is not a seperate filter (if so we shouldn't introduce derived table)
+    if (parent instanceof FilterRelBase || parent instanceof JoinRelBase || parent instanceof SetOpRel) {
+        validParent = false;
+      }
+
+    return validParent;
+  }
+  
+  private static boolean validGBParent(RelNode gbNode, RelNode parent) {
+	    boolean validParent = true;
+
+	    //TOODO: Verify GB having is not a seperate filter (if so we shouldn't introduce derived table)
+	    if (parent instanceof JoinRelBase || parent instanceof SetOpRel || parent instanceof AggregateRelBase) {
+	        validParent = false;
+	      }
+
+	    return validParent;
+	  }
+  
+  private static boolean validLimitParent(RelNode gbNode, RelNode parent) {
+	    boolean validParent = true;
+
+	    if (!(parent instanceof ProjectRelBase)) {
+	        validParent = false;
+	      }
+
+	    return validParent;
+	  }
 }

@@ -244,7 +244,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   protected boolean partialscan = false;
 
   private volatile boolean runCBO = true;
-  private volatile boolean disableJoinMerge = true;
+  private volatile boolean disableJoinMerge = false;
 
   private static class Phase1Ctx {
     String dest;
@@ -300,6 +300,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     opParseCtx.clear();
     groupOpToInputTables.clear();
     prunedPartitions.clear();
+    disableJoinMerge = false;
   }
 
   public void initParseCtx(ParseContext pctx) {
@@ -8909,6 +8910,16 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     getMetaData(qb);
     LOG.info("Completed getting MetaData in Semantic Analysis");
 
+    if (runCBO) {
+      if (createVwDesc != null || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED)) {
+        runCBO = false;
+      }
+      
+      if (runCBO) {
+    	  disableJoinMerge = true;
+      }
+    }
+
     // Save the result schema derived from the sink operator produced
     // by genPlan. This has the correct column names, which clients
     // such as JDBC would prefer instead of the c0, c1 we'll end
@@ -8935,15 +8946,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     }
 
     if (runCBO) {
-      if (createVwDesc != null || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED)) {
-        runCBO = false;
-      }
-    }
-
-    if (runCBO) {
       ASTNode newAST = null;
       boolean skipCBOPlan = false;
-      disableJoinMerge = false; //TODO: remove disableJoinMerge in production
+      disableJoinMerge = false; //TODO: remove disableJoinMerge
+      runCBO = false;
 
       try {
     	  ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner,
@@ -8986,13 +8992,14 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           // by genPlan. This has the correct column names, which clients
           // such as JDBC would prefer instead of the c0, c1 we'll end
           // up with later.
+          disableJoinMerge = true;
           sinkOp = genPlan(qb);
+          disableJoinMerge = false;
 
           resultSchema =
               convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
         } catch (Exception e) {
           init();
-          runCBO = false;
           analyzeInternal(ast);
         }
       }

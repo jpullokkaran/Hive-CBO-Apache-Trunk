@@ -57,6 +57,10 @@ public class OptiqTraitsUtil {
     return colsPartOfJoinKeys;
   }
   */
+	private static RelTraitSet getDefaultTraitSet() {
+		return RelTraitSet.createEmpty().plus(HiveRel.CONVENTION)
+				.plus(RelCollationTraitDef.INSTANCE.getDefault());
+	}
 
   private static boolean propgateBucketTrait(HiveRel n, List<Integer> bucketCols,
       List<Integer> bucketSortCols) {
@@ -196,9 +200,12 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getSelectTraitSet(RelOptCluster cluster, List<RexNode> exps,
       RelNode child) {
+	  return getDefaultTraitSet();
+	  /*
     RelTrait childTrait = getPotentialPropagateableTraitFromChild(child);
     childTrait = translateToParent(cluster, exps, childTrait);
     return getCombinedTrait(cluster, childTrait);
+    */
   }
 
   public static RelTraitSet getSortTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
@@ -214,16 +221,22 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getFilterTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode child) {
-    return getSingleRelTraitSet(cluster, traitSet, child);
+	  return getDefaultTraitSet();
+
+    //return getSingleRelTraitSet(cluster, traitSet, child);
   }
 
   public static RelTraitSet getLimitTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode child) {
-    return getSingleRelTraitSet(cluster, traitSet, child);
+	  return getDefaultTraitSet();
+
+    //return getSingleRelTraitSet(cluster, traitSet, child);
   }
 
   public static RelTraitSet getAggregateTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       List<Integer> gbCols, List<AggregateCall> aggCalls, RelNode child) {
+	  return getDefaultTraitSet();
+	  /*
     // TODO: verify that GB will always sort data in ascending order and NULLS direction
     RelCollation collation = getCollation(gbCols, Direction.Ascending, NullDirection.FIRST);
     RelBucketing bucketingtrait = RelBucketingTraitImpl.of(gbCols, collation, 0, 0.0);
@@ -234,12 +247,16 @@ public class OptiqTraitsUtil {
       traitSet = traitSet.plus(bucketingtrait);
       return traitSet;
     }
+    */
   }
 
 
   public static RelTraitSet getTableScanTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelOptHiveTable table,
       RelDataType rowtype) {
+	  return getDefaultTraitSet();
+
+	  /*
     if (traitSet == null) {
       return getCombinedTrait(cluster, table.getBucketTrait(rowtype));
     }
@@ -249,15 +266,18 @@ public class OptiqTraitsUtil {
     		traitSet.add(bTrait);
     	}
       return traitSet;
-    }
+    }*/
   }
 
   public static RelTraitSet getJoinTraitSet(RelOptCluster cluster, RelTraitSet traitSet) {
+	  return getDefaultTraitSet();
+	  /*
     RelTraitSet traitSetFromChild = getCombinedTrait(cluster, null);
     if (traitSet != null) {
       traitSetFromChild.merge(traitSet);
     }
     return traitSetFromChild;
+    */
   }
 
   // TODO: Shuffle join will carry forward the bucketing trait (assumption here is both sides have
@@ -497,6 +517,7 @@ public class OptiqTraitsUtil {
 
   private static RelTraitSet getSingleRelTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode child) {
+	  
     if (traitSet == null) {
       return getCombinedTrait(cluster, getPotentialPropagateableTraitFromChild(child));
     }
