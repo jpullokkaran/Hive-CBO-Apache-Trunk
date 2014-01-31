@@ -36,10 +36,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBaseCompare;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
-import org.eigenbase.rel.JoinRelType;
-import org.eigenbase.rel.ProjectRel;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.TableAccessRelBase;
+import org.eigenbase.rel.*;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptSchema;
 import org.eigenbase.reltype.RelDataType;
@@ -154,7 +151,7 @@ public class HiveToOptiqRelConverter {
     }
 
     return new HiveProjectRel(m_cluster, inputRelNode, optiqColLst, selectOp.getConf()
-        .getOutputColumnNames(), ProjectRel.Flags.Boxed);
+        .getOutputColumnNames(), ProjectRel.Flags.BOXED);
   }
 
   private static Operator getNodeThatCanBeTranslatedToOptiq(Operator op) {
@@ -214,7 +211,7 @@ public class HiveToOptiqRelConverter {
         		rightRel,
         		rightColOffSet));
         
-        RexNode eqOp = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.equalsOperator,
+        RexNode eqOp = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS,
             eqExpr);
         i++;
 
@@ -226,7 +223,7 @@ public class HiveToOptiqRelConverter {
           List<RexNode> conjElements = new LinkedList<RexNode>();
           conjElements.add(joinPredicate);
           conjElements.add(eqOp);
-          joinPredicate = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.andOperator,
+          joinPredicate = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.AND,
               conjElements);
         }
       }
@@ -260,7 +257,7 @@ public class HiveToOptiqRelConverter {
     	          List<RexNode> conjElements = new LinkedList<RexNode>();
     	          conjElements.add(joinPredicate);
     	          conjElements.add(eqExpr);
-    	          joinPredicate = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.andOperator,
+    	          joinPredicate = m_cluster.getRexBuilder().makeCall(SqlStdOperatorTable.AND,
     	              conjElements);
     		  }
     	  }

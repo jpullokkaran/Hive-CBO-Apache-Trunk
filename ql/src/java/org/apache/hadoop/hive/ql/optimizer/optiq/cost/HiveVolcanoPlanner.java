@@ -1,7 +1,6 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.cost;
 
 import net.hydromatic.optiq.jdbc.OptiqPrepare;
-import net.hydromatic.optiq.jdbc.OptiqPrepare.Context;
 import net.hydromatic.optiq.rules.java.JavaRules;
 
 import org.eigenbase.rel.RelCollationTraitDef;
@@ -38,7 +37,7 @@ public class HiveVolcanoPlanner extends VolcanoPlanner {
 
 	public static  RelOptPlanner createPlanner() {
 		final VolcanoPlanner planner = new HiveVolcanoPlanner();
-		planner.addRelTraitDef(ConventionTraitDef.instance);
+		planner.addRelTraitDef(ConventionTraitDef.INSTANCE);
 		if (ENABLE_COLLATION_TRAIT) {
 			planner.addRelTraitDef(RelCollationTraitDef.INSTANCE);
 			planner.registerAbstractRelationalRules();
@@ -57,13 +56,13 @@ public class HiveVolcanoPlanner extends VolcanoPlanner {
 		planner.addRule(JavaRules.ENUMERABLE_VALUES_RULE);
 		planner.addRule(JavaRules.ENUMERABLE_WINDOW_RULE);
 		planner.addRule(JavaRules.ENUMERABLE_ONE_ROW_RULE);
-		planner.addRule(TableAccessRule.instance);
-		planner.addRule(MergeProjectRule.instance);
-		planner.addRule(PushFilterPastProjectRule.instance);
+		planner.addRule(TableAccessRule.INSTANCE);
+		planner.addRule(MergeProjectRule.INSTANCE);
+		planner.addRule(PushFilterPastProjectRule.INSTANCE);
 		planner.addRule(PushFilterPastJoinRule.FILTER_ON_JOIN);
-		planner.addRule(RemoveDistinctAggregateRule.instance);
-		planner.addRule(ReduceAggregatesRule.instance);
-		planner.addRule(SwapJoinRule.instance);
+		planner.addRule(RemoveDistinctAggregateRule.INSTANCE);
+		planner.addRule(ReduceAggregatesRule.INSTANCE);
+		planner.addRule(SwapJoinRule.INSTANCE);
 		planner.addRule(PushJoinThroughJoinRule.RIGHT);
 		planner.addRule(PushJoinThroughJoinRule.LEFT);
 		planner.addRule(PushSortPastProjectRule.INSTANCE);

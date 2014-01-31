@@ -234,7 +234,7 @@ public class OptiqRelExprToHiveASTConverter extends RexVisitorImpl<ASTNode> {
   private Token getCallToken(SqlOperator call) {
     Token callToken = null;
 
-    if (call == SqlStdOperatorTable.equalsOperator) {
+    if (call == SqlStdOperatorTable.EQUALS) {
       callToken = new CommonToken(HiveParser.EQUAL, "=");
     }
 
