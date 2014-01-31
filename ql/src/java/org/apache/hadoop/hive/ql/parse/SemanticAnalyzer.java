@@ -8911,7 +8911,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     LOG.info("Completed getting MetaData in Semantic Analysis");
 
     if (runCBO) {
-      if (createVwDesc != null || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED)) {
+    	boolean tokenTypeIsQuery = ast.getToken().getType() == HiveParser.TOK_QUERY ||
+    			ast.getToken().getType() == HiveParser.TOK_EXPLAIN;
+      if ( !tokenTypeIsQuery ||
+    		  createVwDesc != null || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED) ) {
         runCBO = false;
       }
       
