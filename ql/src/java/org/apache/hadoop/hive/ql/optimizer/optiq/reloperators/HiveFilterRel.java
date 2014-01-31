@@ -19,6 +19,9 @@ import org.eigenbase.rex.RexNode;
 public class HiveFilterRel extends FilterRelBase implements HiveRel {
   private List<Integer> m_bucketingColsTraitToPropagate;
   private List<Integer> m_bucketingSortColsTraitToPropagate;
+
+
+  // REVIEW: need to make this immutable
   private List<Integer> m_sortColsTraitToPropagate;
 
   public HiveFilterRel(RelOptCluster cluster, RelTraitSet traits, RelNode child,
@@ -86,19 +89,19 @@ public class HiveFilterRel extends FilterRelBase implements HiveRel {
 
   @Override
   public boolean propagateSortingTraitUpwardsViaTransformation(List<Integer> sortingCols) {
-    boolean willPropagteSorting = false;
+    boolean willPropagateSorting = false;
 
     if (m_sortColsTraitToPropagate != null) {
       if (sortingCols == null) {
         m_sortColsTraitToPropagate = null;
-      }else {
-      if (OptiqUtil.orderedSubset(m_sortColsTraitToPropagate, sortingCols)) {
-        willPropagteSorting = true;
-      }
+      } else {
+        if (OptiqUtil.orderedSubset(m_sortColsTraitToPropagate, sortingCols)) {
+          willPropagateSorting = true;
+        }
       }
     }
 
-    return willPropagteSorting;
+    return willPropagateSorting;
   }
 
   @Override

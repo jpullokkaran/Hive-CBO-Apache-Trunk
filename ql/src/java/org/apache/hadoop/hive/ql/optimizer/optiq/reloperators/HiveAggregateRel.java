@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import net.hydromatic.optiq.util.BitSets;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
@@ -26,10 +27,10 @@ public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
     public HiveAggregateRel(RelOptCluster cluster, RelTraitSet traitSet,
             RelNode child, BitSet groupSet, List<AggregateCall> aggCalls)
             throws InvalidRelException {
-        super(cluster,
-                OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
-                        OptiqUtil.translateBitSetToProjIndx(groupSet),
-                        aggCalls, child), child, groupSet, aggCalls);
+      super(cluster,
+          OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
+              BitSets.toList(groupSet), aggCalls, child),
+          child, groupSet, aggCalls);
         assert getConvention() instanceof HiveRel;
 
         for (AggregateCall aggCall : aggCalls) {

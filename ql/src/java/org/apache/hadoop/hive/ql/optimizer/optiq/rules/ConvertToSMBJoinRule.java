@@ -23,24 +23,26 @@ public class ConvertToSMBJoinRule extends RelOptRule {
   {
     boolean matchesRule = false;
 
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    HiveRel left = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getLeft());
-    HiveRel right = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getRight());
-    if (j.getJoinAlgorithm() == JoinAlgorithm.NONE) {
-      RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(left.getTraitSet());
-      RelBucketing rightBucketingTrait = OptiqTraitsUtil.getBucketingTrait(right.getTraitSet());
-      if (leftBucketingTrait != null && rightBucketingTrait != null
-          && leftBucketingTrait.noOfBucketsMultipleOfEachOther(rightBucketingTrait)) {
-        JoinPredicateInfo jpi = OptiqUtil.getJoinPredicateInfo(j);
-        if (leftBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromLeftRelation())
-            && rightBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromRightRelation())
-            && (jpi.getNonJoinKeyLeafPredicates() == null || jpi.getNonJoinKeyLeafPredicates()
-                .isEmpty())) {
-          if (leftBucketingTrait.getSortingCols().equals(jpi.getJoinKeysFromLeftRelation())
-              && rightBucketingTrait.getSortingCols().equals(jpi.getJoinKeysFromRightRelation())) {
-            matchesRule = true;
-          }
-        }
+    final HiveJoinRel j = call.rel(0);
+    final HiveRel left = OptiqUtil.getNonSubsetRelNode(j.getLeft());
+    final HiveRel right = OptiqUtil.getNonSubsetRelNode(j.getRight());
+    if (j.getJoinAlgorithm() != JoinAlgorithm.NONE) {
+      return false;
+    }
+    RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(left.getTraitSet());
+    RelBucketing rightBucketingTrait = OptiqTraitsUtil.getBucketingTrait(right.getTraitSet());
+    if (leftBucketingTrait == null
+        || rightBucketingTrait == null
+        || !leftBucketingTrait.noOfBucketsMultipleOfEachOther(rightBucketingTrait)) {
+      return false;
+    }
+    final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+    if (leftBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromLeftRelation())
+        && rightBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromRightRelation())
+        && jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
+      if (leftBucketingTrait.getSortingCols().equals(jpi.getJoinKeysFromLeftRelation())
+          && rightBucketingTrait.getSortingCols().equals(jpi.getJoinKeysFromRightRelation())) {
+        matchesRule = true;
       }
     }
 
@@ -49,11 +51,13 @@ public class ConvertToSMBJoinRule extends RelOptRule {
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    HiveJoinRel newJoin = (HiveJoinRel) j.copy(j.getTraitSet(), j.getInputs());
-    j.setJoinAlgorithm(JoinAlgorithm.SMB_JOIN);
+    HiveJoinRel j = call.rel(0);
+    HiveJoinRel newJoin = j.copy(j.getTraitSet(), j.getCondition(), j.getLeft(), j.getRight(), JoinAlgorithm.SMB_JOIN,
+        HiveJoinRel.MapJoinStreamingRelation.NONE);
     RelTraitSet additionalTraits = OptiqTraitsUtil.getBucketJoinTraitSet(j);
+    // REVIEW: merge result ignored
     j.getTraitSet().merge(additionalTraits);
+    // REVIEW: should be transformTo?
     call.getPlanner().ensureRegistered(newJoin, j);
   }
 }

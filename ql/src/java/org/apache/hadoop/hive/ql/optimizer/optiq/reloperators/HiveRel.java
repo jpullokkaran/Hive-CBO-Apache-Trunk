@@ -62,18 +62,21 @@ public interface HiveRel extends RelNode {
   public boolean propagateBucketingTraitUpwardsViaTransformation(List<Integer> bucketingCols, List<Integer> bucketSortCols);
 
   /**
-   * Propagate requested sorting Trait upwards if possible
+   * Propagates requested sorting Trait upwards if possible.
+   *
+   * @return Whether propagation occurred
    */
   public boolean propagateSortingTraitUpwardsViaTransformation(List<Integer> sortingCols);
 
   /**
-   * Should propagate bucketing trait from child Node?
+   * Returns whether we should propagate bucketing trait from child Node.
+   *
    * @param bucketTraitFromChild TODO
    */
   public boolean shouldPropagateTraitFromChildViaTransformation(RelBucketing bucketTraitFromChild);
 
   /**
-   * Should propagate sorting trait from child Node?
+   * Returns whether should propagate sorting trait from child Node.
    */
   public boolean shouldPropagateTraitFromChildViaTransformation(RelCollation sortTraitFromChild);
 }

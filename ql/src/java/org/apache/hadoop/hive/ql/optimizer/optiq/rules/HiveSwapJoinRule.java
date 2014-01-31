@@ -157,6 +157,7 @@ public class HiveSwapJoinRule extends RelOptRule {
               project,
               swapped.getTraitSet());
 
+    // REVIEW: should be transformTo?
       RelNode rel = call.getPlanner().ensureRegistered(project, newJoin);
       Util.discard(rel);
   }

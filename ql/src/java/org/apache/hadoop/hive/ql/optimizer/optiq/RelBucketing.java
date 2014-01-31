@@ -8,10 +8,16 @@ import org.eigenbase.relopt.RelTrait;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+/**
+ * The bucketing trait.
+ *
+ * @see org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketingTraitDef
+ */
 public interface RelBucketing extends RelTrait {
 
   public Integer getNumberOfBuckets();
 
+  // REVIEW: This is stats. It should not be in a trait.
   public Double getSizeOfLargestBucket();
 
   public ImmutableSet<ImmutableList<Integer>> getPartitionCols();

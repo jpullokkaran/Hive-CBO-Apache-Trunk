@@ -148,8 +148,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 			HiveConf conf, QueryProperties qp) {
 		boolean runOptiq = false;
 
-		if ((qp.getJoinCount() > 1)
-				&& (qp.getJoinCount() < HiveConf.getIntVar(conf,
+		if ((qp.getJoinCount() < HiveConf.getIntVar(conf,
 						HiveConf.ConfVars.HIVE_CBO_MAX_JOINS_SUPPORTED))
 				&& (qp.getOuterJoinCount() == 0) && !qp.hasClusterBy()
 				&& !qp.hasDistributeBy() && !qp.hasOrderBy() && !qp.hasSortBy()

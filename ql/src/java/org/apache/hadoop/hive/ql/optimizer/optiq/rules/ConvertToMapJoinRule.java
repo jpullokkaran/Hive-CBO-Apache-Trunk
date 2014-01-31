@@ -19,27 +19,19 @@ public class ConvertToMapJoinRule extends RelOptRule {
   }
 
   @Override
-  public boolean matches(RelOptRuleCall call)
-  {
-    boolean matchesRule = true;
-
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    if (j.getJoinAlgorithm() != JoinAlgorithm.NONE) {
-      matchesRule = false;
-    }
-
-    return matchesRule;
+  public boolean matches(RelOptRuleCall call) {
+    final HiveJoinRel j = call.rel(0);
+    return j.getJoinAlgorithm() == JoinAlgorithm.NONE;
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    MapJoinStreamingRelation streamingSide = null;
-
-    streamingSide = getStreamingSide(j);
+    final HiveJoinRel j = call.rel(0);
+    final MapJoinStreamingRelation streamingSide = getStreamingSide(j);
     if (streamingSide != null) {
-      HiveJoinRel newJoin = OptiqUtil.introduceBroadcastOperator(j, streamingSide);
-      call.getPlanner().ensureRegistered(newJoin, j);
+      HiveJoinRel newJoin =
+          OptiqUtil.introduceBroadcastOperator(j, streamingSide);
+      call.transformTo(newJoin);
     }
   }
 

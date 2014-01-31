@@ -274,6 +274,7 @@ public class OptiqTraitsUtil {
 	  /*
     RelTraitSet traitSetFromChild = getCombinedTrait(cluster, null);
     if (traitSet != null) {
+      // REVIEW: merge result ignored
       traitSetFromChild.merge(traitSet);
     }
     return traitSetFromChild;
@@ -340,28 +341,34 @@ public class OptiqTraitsUtil {
   // NOTE: For Bucket Join only streaming side Preserves bucketing
   // trait unless the number of buckets of both sides are equal
   private static RelTraitSet getHashJoinTraitSet(HiveJoinRel j, boolean enforceSorting) {
-    RelTrait childTraitTranslatedToParent = null;
-    RelNode streamingChildNode = null;
-    Map<Integer, Integer> ChildToParentProjMap = null;
-    boolean childLeftOfJoin = false;
-    if (j.getMapJoinStreamingSide() == MapJoinStreamingRelation.LEFT_RELATION) {
+    RelNode streamingChildNode;
+    boolean childLeftOfJoin;
+    switch (j.getMapJoinStreamingSide()) {
+    case LEFT_RELATION:
       streamingChildNode = j.getLeft();
       childLeftOfJoin = true;
-    } else if (j.getMapJoinStreamingSide() == MapJoinStreamingRelation.RIGHT_RELATION) {
+      break;
+    case RIGHT_RELATION:
       streamingChildNode = j.getRight();
+      childLeftOfJoin = false;
+      break;
+    default:
+      throw new AssertionError();
     }
 
+    RelTrait childTraitTranslatedToParent = null;
     if (streamingChildNode != null) {
       RelTrait childTrait = getPotentialPropagateableTraitFromChild(streamingChildNode);
 
       if (childTrait != null) {
         if (isBucketingTrait(childTrait)) {
           RelBucketing childBucketingTrait = (RelBucketing) childTrait;
-          ChildToParentProjMap = OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
-          JoinPredicateInfo jpi = OptiqUtil.getJoinPredicateInfo(j);
-          if (jpi.getNonJoinKeyLeafPredicates() == null) {
-            List<Integer> joinKeysOfInterestInChildNode = null;
-            List<Integer> joinKeysOfInterestInJoin = null;
+          final Map<Integer, Integer> childToParentProjMap =
+              OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
+          final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+          if (jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
+            final List<Integer> joinKeysOfInterestInChildNode;
+            final List<Integer> joinKeysOfInterestInJoin;
 
             if (childLeftOfJoin) {
               joinKeysOfInterestInChildNode = jpi.getJoinKeysFromLeftRelation();
@@ -372,8 +379,9 @@ public class OptiqTraitsUtil {
             }
 
             RelBucketing tmp = translateBucketingTraitToParent(
-                childBucketingTrait, ChildToParentProjMap, joinKeysOfInterestInChildNode);
+                childBucketingTrait, childToParentProjMap, joinKeysOfInterestInChildNode);
 
+            // REVIEW: List<Integer>.contains(List<Integer>) is suspicious
             if (tmp.getPartitionCols().contains(joinKeysOfInterestInJoin)
                 && (enforceSorting && tmp.getSortingCols().contains(joinKeysOfInterestInJoin))) {
               childTraitTranslatedToParent = tmp;
@@ -382,10 +390,11 @@ public class OptiqTraitsUtil {
         } else if (isSortingTrait(childTrait)) {
           RelCollation childSortingTrait = (RelCollation) childTrait;
 
-          ChildToParentProjMap = OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
-          JoinPredicateInfo jpi = OptiqUtil.getJoinPredicateInfo(j);
-          if (jpi.getNonJoinKeyLeafPredicates() == null) {
-            List<Integer> joinKeysOfInterestInChildNode = null;
+          Map<Integer, Integer> childToParentProjMap =
+              OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
+          final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+          if (jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
+            final List<Integer> joinKeysOfInterestInChildNode;
 
             if (childLeftOfJoin) {
               joinKeysOfInterestInChildNode = jpi.getJoinKeysFromLeftRelation();
@@ -394,7 +403,7 @@ public class OptiqTraitsUtil {
             }
 
             RelCollation tmp = translateSortingTraitToParent(
-                childSortingTrait, ChildToParentProjMap, joinKeysOfInterestInChildNode);
+                childSortingTrait, childToParentProjMap, joinKeysOfInterestInChildNode);
 
             if (tmp != null) {
               childTraitTranslatedToParent = tmp;
@@ -408,13 +417,7 @@ public class OptiqTraitsUtil {
   }
 
   /**
-   * Union Can not preserve Bucketing or Sorting trait
-   *
-   * @param cluster
-   * @param inputs
-   * @param all
-   * @param child
-   * @return
+   * Union Can not preserve Bucketing or Sorting trait.
    */
   public static RelTraitSet getUnionTraitSet(RelOptCluster cluster,
       List<RelNode> inputs,
@@ -425,10 +428,6 @@ public class OptiqTraitsUtil {
 
   /**
    * Shuffle introduces Bucketing trait, hence can not carry forward anything from child.
-   *
-   * @param irShuffleTraitSet
-   * @param child
-   * @return
    */
   public static RelTraitSet getIRShuffleApplicableTraitSet(RelOptCluster cluster,
       List<Integer> shuffleKeys,
@@ -445,70 +444,50 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getIRBroadcastApplicableTraitSet(RelOptCluster cluster,
       RelTraitSet traitSet, RelNode child) {
-    RelTraitSet traitSetFromchild = null;
     RelTrait childTrait = getPotentialPropagateableTraitFromChild(child);
     if (!isSortingTrait(childTrait)) {
       childTrait = null;
     }
-    traitSetFromchild = getCombinedTrait(cluster, childTrait);
+    RelTraitSet traitSetFromChild = getCombinedTrait(cluster, childTrait);
     if (traitSet != null) {
-      traitSetFromchild.merge(traitSet);
+      // REVIEW: merge result ignored
+      traitSetFromChild.merge(traitSet);
     }
 
-    return traitSetFromchild;
+    return traitSetFromChild;
   }
 
-  public static RelBucketing getBucketingTrait(RelTraitSet traitset) {
-    RelTrait tmpTrait = null;
-    RelBucketing bucketTrait = null;
-    Iterator<RelTrait> traitIterator = traitset.iterator();
-
-    while (traitIterator.hasNext()) {
-      tmpTrait = traitIterator.next();
-      if (isBucketingTrait(tmpTrait)) {
-        bucketTrait = (RelBucketing) tmpTrait;
-        break;
+  public static RelBucketing getBucketingTrait(RelTraitSet traitSet) {
+    for (RelTrait trait : traitSet) {
+      if (isBucketingTrait(trait)) {
+        return (RelBucketing) trait;
       }
     }
 
-    return bucketTrait;
+    return null;
   }
 
-  public static RelCollation getSortTrait(RelTraitSet traitset) {
-    RelTrait tmpTrait = null;
-    RelCollation sortTrait = null;
-    Iterator<RelTrait> traitIterator = traitset.iterator();
-
-    while (traitIterator.hasNext()) {
-      tmpTrait = traitIterator.next();
-      if (isSortingTrait(tmpTrait)) {
-        sortTrait = (RelCollation) tmpTrait;
-        break;
+  public static RelCollation getSortTrait(RelTraitSet traitSet) {
+    for (RelTrait trait : traitSet) {
+      if (isSortingTrait(trait)) {
+        return (RelCollation) trait;
       }
     }
-
-    return sortTrait;
+    return null;
   }
 
   public static boolean isBucketingTrait(RelTrait trait) {
-    if (trait.getTraitDef().getSimpleName().equals(RelBucketingTraitDef.SIMPLE_NAME)) {
-      return true;
-    }
-    return false;
+    return trait.getTraitDef() == RelBucketingTraitDef.INSTANCE;
   }
 
   public static boolean isSortingTrait(RelTrait trait) {
-    if (trait.getTraitDef().getSimpleName().equals("sort")) {
-      return true;
-    }
-    return false;
+    return trait.getTraitDef() == RelCollationTraitDef.INSTANCE;
   }
 
   public static RelTraitSet getHiveTraitSet(RelOptCluster cluster, RelTraitSet traitSet) {
-    RelTraitSet hiveTraitSet = null;
-
-    hiveTraitSet = getCombinedTrait(cluster, null);
+    RelTraitSet hiveTraitSet = getCombinedTrait(cluster, null);
     if (traitSet != null) {
+      // REVIEW: merge result ignored
       hiveTraitSet.merge(traitSet);
     }
 
@@ -549,12 +528,11 @@ public class OptiqTraitsUtil {
   private static RelTrait getPotentialPropagateableTraitFromChild(RelNode child) {
     RelTraitSet childTrait = child.getTraitSet();
     RelTrait propagateableTrait = null;
-    Iterator<RelTrait> itr = childTrait.iterator();
-    RelTrait tmpTrait;
-    while (itr.hasNext()) {
-      tmpTrait = itr.next();
-      if (tmpTrait.getTraitDef().getSimpleName().equals(RelBucketingTraitDef.SIMPLE_NAME)
-          || tmpTrait.getTraitDef().getSimpleName().equals("sort")) {
+    for (RelTrait trait : childTrait) {
+      RelTrait tmpTrait;
+      tmpTrait = trait;
+      if (tmpTrait.getTraitDef() == RelBucketingTraitDef.INSTANCE
+          || tmpTrait.getTraitDef() == RelCollationTraitDef.INSTANCE) {
         propagateableTrait = tmpTrait;
         break;
       }
@@ -582,11 +560,12 @@ public class OptiqTraitsUtil {
     }
   }
 
-  private static RelCollation getCollation(List<Integer> colPosLst, Direction nonNullsortOrder,
+  // REVIEW: Specify same nonNullSortOrder and nullSortOrder for every field?
+  private static RelCollation getCollation(List<Integer> colPosList, Direction nonNullSortOrder,
       NullDirection nullSortOrder) {
     List<RelFieldCollation> filedCollations = new LinkedList<RelFieldCollation>();
-    for (Integer colPos : colPosLst) {
-      filedCollations.add(new RelFieldCollation(colPos, nonNullsortOrder, nullSortOrder));
+    for (Integer colPos : colPosList) {
+      filedCollations.add(new RelFieldCollation(colPos, nonNullSortOrder, nullSortOrder));
     }
     return RelCollationImpl.of(filedCollations);
   }
@@ -602,8 +581,8 @@ public class OptiqTraitsUtil {
   private static RelBucketing translateBucketingTraitToParent(RelBucketing childBucketingTrait,
       Map<Integer, Integer> projMapFromChildToParent, List<Integer> bucketingColsInChild) {
     ImmutableSet<ImmutableList<Integer>> partColsInParent = null;
-    ImmutableSet<ImmutableList<Integer>> sortColsInParent = null;
-    ImmutableSet<RelCollation> collationset = null;
+    ImmutableSet<ImmutableList<Integer>> sortColsInParent;
+    ImmutableSet<RelCollation> collationSet = null;
 
     if (childBucketingTrait.getPartitionCols().contains(bucketingColsInChild)) {
       partColsInParent = OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
@@ -615,10 +594,10 @@ public class OptiqTraitsUtil {
           && childBucketingTrait.getSortingCols().contains(bucketingColsInChild)) {
         sortColsInParent = OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
             childBucketingTrait.getSortingCols(), false);
-        collationset = getCollation(sortColsInParent, childBucketingTrait.getNonNullSortOrder(),
+        collationSet = getCollation(sortColsInParent, childBucketingTrait.getNonNullSortOrder(),
             childBucketingTrait.getNullSortOrder());
       }
-      return RelBucketingTraitImpl.of(partColsInParent, collationset,
+      return RelBucketingTraitImpl.of(partColsInParent, collationSet,
           childBucketingTrait.getNumberOfBuckets(), childBucketingTrait.getSizeOfLargestBucket());
     }
 
@@ -627,12 +606,12 @@ public class OptiqTraitsUtil {
 
   private static RelBucketing translateBucketingTraitToParent(RelBucketing childBucketingTrait,
       Map<Integer, Integer> projMapFromChildToParent) {
-    ImmutableSet<ImmutableList<Integer>> partColsInParent = null;
-    ImmutableSet<ImmutableList<Integer>> sortColsInParent = null;
+    ImmutableSet<ImmutableList<Integer>> sortColsInParent;
     ImmutableSet<RelCollation> collationset = null;
 
-    partColsInParent = OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
-        childBucketingTrait.getPartitionCols(), false);
+    final ImmutableSet<ImmutableList<Integer>> partColsInParent =
+        OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
+            childBucketingTrait.getPartitionCols(), false);
     if (partColsInParent != null && !partColsInParent.isEmpty()) {
       if (childBucketingTrait.getCollation() != null
           && !childBucketingTrait.getCollation().isEmpty()) {
@@ -650,40 +629,40 @@ public class OptiqTraitsUtil {
 
   private static RelCollation translateSortingTraitToParent(RelCollation childCollationTrait,
       Map<Integer, Integer> projMapFromChildToParent) {
-    List<Integer> sortColsInParent = null;
-
-    sortColsInParent = OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
-        getSortingColPos(childCollationTrait), true);
-    if (sortColsInParent != null && !sortColsInParent.isEmpty()) {
-      return getCollation(sortColsInParent,
-          childCollationTrait.getFieldCollations().get(0).direction,
-          childCollationTrait.getFieldCollations().get(0).nullDirection);
+    List<Integer> sortColsInParent =
+        OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
+            getSortingColPos(childCollationTrait), true);
+    if (sortColsInParent.isEmpty()) {
+      // REVIEW: should return the empty bucketing, not null
+      return null;
     }
+    RelFieldCollation fc = childCollationTrait.getFieldCollations().get(0);
+    return getCollation(sortColsInParent, fc.direction, fc.nullDirection);
 
-    return null;
   }
 
-  private static RelCollation translateSortingTraitToParent(RelCollation childCollationTrait,
-      Map<Integer, Integer> projMapFromChildToParent, List<Integer> sortingColsInChild) {
-    List<Integer> sortColsInParent = null;
-
-    sortColsInParent = OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
-        getSortingColPos(childCollationTrait), false);
-    if (sortColsInParent != null && !sortColsInParent.isEmpty()) {
-      return getCollation(sortColsInParent,
-          childCollationTrait.getFieldCollations().get(0).direction,
-          childCollationTrait.getFieldCollations().get(0).nullDirection);
+  private static RelCollation translateSortingTraitToParent(
+      RelCollation childCollationTrait,
+      Map<Integer, Integer> projMapFromChildToParent,
+      List<Integer> sortingColsInChild) {
+    List<Integer> sortColsInParent =
+        OptiqUtil.translateChildColPosToParent(projMapFromChildToParent,
+            getSortingColPos(childCollationTrait), false);
+    if (sortColsInParent.isEmpty()) {
+      // REVIEW: should return the empty collation, not null
+      return null;
     }
-
-    return null;
+    RelFieldCollation fc = childCollationTrait.getFieldCollations().get(0);
+    return getCollation(sortColsInParent, fc.direction, fc.nullDirection);
   }
 
-  private static RelTrait translateToParent(RelOptCluster cluster, List<RexNode> exps,
-      RelTrait childTrait) {
+  private static RelTrait translateToParent(RelOptCluster cluster,
+      List<RexNode> exps, RelTrait childTrait) {
     RelTrait traitInParent = null;
 
     if (childTrait != null) {
-      Map<Integer, Integer> projMapFromChildToParent = OptiqUtil.translateChildColPosToParent(exps);
+      Map<Integer, Integer> projMapFromChildToParent =
+          OptiqUtil.translateChildColPosToParent(exps);
 
       if (isBucketingTrait(childTrait)) {
         traitInParent = translateBucketingTraitToParent((RelBucketing) childTrait,

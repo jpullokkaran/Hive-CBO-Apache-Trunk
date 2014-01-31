@@ -6,6 +6,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.eigenbase.rel.RelCollation;
+import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
@@ -28,10 +29,9 @@ public class PropagateSortTraitUpwardsRule extends RelOptRule {
   }
 
   @Override
-  public boolean matches(RelOptRuleCall call)
-  {
-    HiveRel parentRel = (HiveRel) call.rels[0];
-    RelSubset relSubSet = (RelSubset) call.rels[1];
+  public boolean matches(RelOptRuleCall call) {
+    final HiveRel parentRel = call.rel(0);
+    final RelSubset relSubSet = call.rel(1);
     RelCollation sortTraitFromChild = OptiqTraitsUtil.getSortTrait(relSubSet.getTraitSet());
 
     if (sortTraitFromChild != null
@@ -45,12 +45,13 @@ public class PropagateSortTraitUpwardsRule extends RelOptRule {
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveRel parentRel = (HiveRel) call.rels[0];
-    RelSubset relSubSet = (RelSubset) call.rels[1];
-    RelCollation sortTraitFromChild = OptiqTraitsUtil.getSortTrait(relSubSet.getTraitSet());
+    final HiveRel parentRel = call.rel(0);
+    final RelNode child = call.rel(1);
+    RelCollation sortTraitFromChild = OptiqTraitsUtil.getSortTrait(child.getTraitSet());
 
     HiveRel newParentRel = (HiveRel) parentRel.copy(
         parentRel.getTraitSet().plus(sortTraitFromChild), parentRel.getInputs());
+    // REVIEW: should be transformTo?
     call.getPlanner().ensureRegistered(newParentRel, parentRel);
   }
 }

@@ -27,20 +27,19 @@ public class ConvertToBucketJoinRule extends RelOptRule {
   {
     boolean matchesRule = false;
 
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    HiveRel left = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getLeft());
-    HiveRel right = (HiveRel) OptiqUtil.getNonSubsetRelNode(j.getRight());
+    HiveJoinRel j = call.rel(0);
+    HiveRel left = OptiqUtil.getNonSubsetRelNode(j.getLeft());
+    HiveRel right = OptiqUtil.getNonSubsetRelNode(j.getRight());
     if (j.getJoinAlgorithm() == JoinAlgorithm.NONE) {
       RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(left.getTraitSet());
       RelBucketing rightBucketingTrait = OptiqTraitsUtil.getBucketingTrait(right.getTraitSet());
       if (leftBucketingTrait != null && rightBucketingTrait != null
           && leftBucketingTrait.noOfBucketsMultipleOfEachOther(rightBucketingTrait)) {
-        JoinPredicateInfo jpi = OptiqUtil.getJoinPredicateInfo(j);
+        final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
         if (leftBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromLeftRelation())
             && rightBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromRightRelation())
-            && (jpi.getNonJoinKeyLeafPredicates() == null || jpi.getNonJoinKeyLeafPredicates()
-                .isEmpty())) {
-            matchesRule = true;
+            && jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
+          matchesRule = true;
         }
       }
     }
@@ -50,17 +49,15 @@ public class ConvertToBucketJoinRule extends RelOptRule {
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    MapJoinStreamingRelation streamingSide = null;
-
-    streamingSide = getStreamingSide(j);
+    HiveJoinRel j = call.rel(0);
+    MapJoinStreamingRelation streamingSide = getStreamingSide(j);
     if (streamingSide != null) {
-      HiveJoinRel newJoin = (HiveJoinRel) j.copy(j.getTraitSet(), j.getInputs());
-      j.setJoinAlgorithm(JoinAlgorithm.BUCKET_JOIN);
-      j.setMapJoinStreamingSide(streamingSide);
       RelTraitSet additionalTraits = OptiqTraitsUtil.getBucketJoinTraitSet(j);
-      j.getTraitSet().merge(additionalTraits);
-      call.getPlanner().ensureRegistered(newJoin, j);
+      // REVIEW: merge result ignored
+      RelTraitSet newTraitSet = j.getTraitSet().merge(additionalTraits);
+      HiveJoinRel newJoin = j.copy(newTraitSet, j.getCondition(), j.getLeft(),
+          j.getRight(), JoinAlgorithm.BUCKET_JOIN, streamingSide);
+      call.transformTo(newJoin);
     }
   }
 

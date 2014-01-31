@@ -11,7 +11,8 @@ public class RelBucketingTraitDef extends RelTraitDef<RelBucketing> {
   public static final RelBucketingTraitDef INSTANCE =
       new RelBucketingTraitDef();
 
-  public static final String SIMPLE_NAME = "bucketing";
+  private RelBucketingTraitDef() {
+  }
 
   @Override
   public Class<RelBucketing> getTraitClass() {
@@ -20,7 +21,7 @@ public class RelBucketingTraitDef extends RelTraitDef<RelBucketing> {
 
   @Override
   public String getSimpleName() {
-    return SIMPLE_NAME;
+    return "bucketing";
   }
 
   @Override

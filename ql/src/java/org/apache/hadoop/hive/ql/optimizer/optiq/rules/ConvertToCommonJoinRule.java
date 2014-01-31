@@ -15,25 +15,23 @@ import org.eigenbase.relopt.RelTraitSet;
 public class ConvertToCommonJoinRule extends RelOptRule {
 
   public ConvertToCommonJoinRule() {
-    super(operand(HiveJoinRel.class, operand(HiveRel.class, any()), operand(HiveRel.class, any())));
+    super(operand(HiveJoinRel.class,
+        operand(HiveRel.class, any()),
+        operand(HiveRel.class, any())));
   }
 
   @Override
-  public boolean matches(RelOptRuleCall call)
-  {
-    if (((HiveJoinRel) call.rels[0]).getJoinAlgorithm() == JoinAlgorithm.NONE) {
-      return true;
-    } else {
-      return false;
-    }
+  public boolean matches(RelOptRuleCall call) {
+    final HiveJoinRel join = call.rel(0);
+    return join.getJoinAlgorithm() == JoinAlgorithm.NONE;
   }
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveJoinRel j = (HiveJoinRel) call.rels[0];
-    RelNode leftNode = call.rels[1];
-    RelNode rightNode = call.rels[2];
-    JoinPredicateInfo jpi = OptiqUtil.getJoinPredicateInfo(j);
+    final HiveJoinRel j = call.rel(0);
+    final RelNode leftNode = call.rel(1);
+    final RelNode rightNode = call.rel(2);
+    final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
     RelTraitSet leftTraitSet = leftNode.getTraitSet();
     RelTraitSet rightTraitSet = rightNode.getTraitSet();
     RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(leftTraitSet);
@@ -61,8 +59,8 @@ public class ConvertToCommonJoinRule extends RelOptRule {
       HiveJoinRel newJoin = OptiqUtil.introduceShuffleOperator(j, introduceShuffleAtLeft,
           introduceShuffleAtRight,
           jpi.getJoinKeysFromLeftRelation(), jpi.getJoinKeysFromLeftRelation(), call.getPlanner());
-      newJoin.setJoinAlgorithm(JoinAlgorithm.COMMON_JOIN);
       RelTraitSet shuffleJoinTrait = OptiqTraitsUtil.getShuffleJoinTraitSet(newJoin);
+      // REVIEW: merge result ignored
       newJoin.getTraitSet().merge(shuffleJoinTrait);
       call.getPlanner().ensureRegistered(newJoin, j);
     }

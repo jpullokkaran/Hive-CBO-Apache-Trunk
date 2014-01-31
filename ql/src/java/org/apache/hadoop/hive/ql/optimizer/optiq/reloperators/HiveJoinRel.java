@@ -18,13 +18,11 @@ import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
-import org.eigenbase.reltype.RelDataTypeField;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.sql.SqlOperator;
 
@@ -40,14 +38,14 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     // tables in memory where as BUCKET_JOIN keeps only the b
     public enum JoinAlgorithm {
         NONE, COMMON_JOIN, MAP_JOIN, BUCKET_JOIN, SMB_JOIN
-    };
+    }
 
     public enum MapJoinStreamingRelation {
         NONE, LEFT_RELATION, RIGHT_RELATION
-    };
+    }
 
     private JoinPredicateInfo m_jpi;
-    private JoinAlgorithm m_joinAlgorithm = JoinAlgorithm.NONE;
+    private final JoinAlgorithm m_joinAlgorithm;
     private MapJoinStreamingRelation m_mapJoinStreamingSide = MapJoinStreamingRelation.NONE;
 
     public static HiveJoinRel getJoin(RelOptCluster cluster, RelNode left,
@@ -69,17 +67,18 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
             throws InvalidRelException {
         super(cluster, OptiqTraitsUtil.getJoinTraitSet(cluster, traits), left,
                 right, condition, joinType, variablesStopped);
-        List<RelDataTypeField> sysFieldList = new LinkedList<RelDataTypeField>();
+
         final List<RexNode> leftKeys = new ArrayList<RexNode>();
         final List<RexNode> rightKeys = new ArrayList<RexNode>();
         List<Integer> filterNulls = new LinkedList<Integer>();
-        RexNode remaining = RelOptUtil.splitJoinCondition(sysFieldList, left, right,
+        RexNode remaining = RelOptUtil.splitJoinCondition(getSystemFieldList(), left, right,
                 condition, leftKeys, rightKeys, filterNulls, (List<SqlOperator>) null);
 
         if (remaining != null && !remaining.isAlwaysTrue()) {
             throw new InvalidRelException(
                     "EnumerableJoinRel only supports equi-join");
         }
+      this.m_joinAlgorithm = joinAlgo;
     }
 
     @Override
@@ -87,17 +86,10 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     }
 
     @Override
-    public HiveJoinRel copy(RelTraitSet traitSet, RexNode conditionExpr,
+    public final HiveJoinRel copy(RelTraitSet traitSet, RexNode conditionExpr,
             RelNode left, RelNode right) {
-        try {
-            return new HiveJoinRel(getCluster(), traitSet, left, right,
-                    conditionExpr, joinType, variablesStopped, m_joinAlgorithm,
-                    m_mapJoinStreamingSide);
-        } catch (InvalidRelException e) {
-            // Semantic error not possible. Must be a bug. Convert to
-            // internal error.
-            throw new AssertionError(e);
-        }
+      return copy(traitSet, conditionExpr, left, right, m_joinAlgorithm,
+          m_mapJoinStreamingSide);
     }
 
     public HiveJoinRel copy(RelTraitSet traitSet, RexNode conditionExpr,
@@ -114,27 +106,18 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         }
     }
 
-    public void setJoinAlgorithm(JoinAlgorithm algo) {
-        m_joinAlgorithm = algo;
-    }
-
     public JoinAlgorithm getJoinAlgorithm() {
         return m_joinAlgorithm;
-    }
-
-    public void setMapJoinStreamingSide(MapJoinStreamingRelation streamingSide) {
-        m_mapJoinStreamingSide = streamingSide;
     }
 
     public MapJoinStreamingRelation getMapJoinStreamingSide() {
         return m_mapJoinStreamingSide;
     }
 
-    public void setJoinPredicateInfo(JoinPredicateInfo jpi) {
-        m_jpi = jpi;
-    }
-
-    public JoinPredicateInfo getJoinPredicateInfo() {
+    public synchronized JoinPredicateInfo getJoinPredicateInfo() {
+        if (m_jpi == null) {
+            m_jpi = OptiqUtil.create(this);
+        }
         return m_jpi;
     }
 

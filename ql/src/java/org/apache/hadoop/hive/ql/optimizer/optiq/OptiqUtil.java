@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+import net.hydromatic.optiq.util.BitSets;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveIRBroadCastRel;
@@ -26,18 +28,11 @@ import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.reltype.RelDataType;
-import org.eigenbase.reltype.RelDataTypeFactory;
 import org.eigenbase.reltype.RelDataTypeField;
-import org.eigenbase.rex.RexBuilder;
-import org.eigenbase.rex.RexCall;
 import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexLiteral;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.rex.RexUtil;
-import org.eigenbase.sql.SqlKind;
-import org.eigenbase.sql.SqlOperator;
-import org.eigenbase.sql.fun.SqlStdOperatorTable;
-import org.eigenbase.util.Util;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -66,45 +61,28 @@ public class OptiqUtil {
 		return false;
 	}
 
-	public static JoinPredicateInfo getJoinPredicateInfo(HiveJoinRel j) {
-		JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+  public static JoinPredicateInfo create(HiveJoinRel j) {
+    List<RexNode> leftJoinKeys = new LinkedList<RexNode>();
+    List<RexNode> rightJoinKeys = new LinkedList<RexNode>();
+    List<Integer> filterNulls = new LinkedList<Integer>();
 
-		if (jpi == null) {
-			jpi = new JoinPredicateInfo();
-			RexNode jc = j.getCondition();
+    RexNode remainingNonJoinConjunctivePredicate =
+        RelOptUtil.splitJoinCondition(j.getSystemFieldList(), j.getLeft(),
+            j.getRight(), j.getCondition(), leftJoinKeys, rightJoinKeys,
+            filterNulls, null);
 
-			if (jc != null) {
-				List<RelDataTypeField> sysFieldList = new LinkedList<RelDataTypeField>();
-				List<RexNode> leftJoinKeys = new LinkedList<RexNode>();
-				List<RexNode> rightJoinKeys = new LinkedList<RexNode>();
-				List<Integer> filterNulls = new LinkedList<Integer>();
+    List<Integer> joinKeysFromLeftRelations = getIndexList(leftJoinKeys);
+    List<Integer> joinKeysFromRightRelations = getIndexList(rightJoinKeys);
 
-				RexNode remainingNonJoinConjuctivePredicate = RelOptUtil
-						.splitJoinCondition(sysFieldList, j.getLeft(),
-								j.getRight(), j.getCondition(), leftJoinKeys,
-								rightJoinKeys, filterNulls, null);
+    int leftFieldCount = j.getLeft().getRowType().getFieldCount();
+    return new JoinPredicateInfo(joinKeysFromLeftRelations,
+        joinKeysFromRightRelations, leftFieldCount,
+        RelOptUtil.conjunctions(remainingNonJoinConjunctivePredicate));
+  }
 
-				List<Integer> joinKeysFromLeftRelations = getIndexList(leftJoinKeys);
-				List<Integer> joinKeysFromRightRelations = getIndexList(rightJoinKeys);
-
-				jpi.setJoinKeysFromLeftRelations(joinKeysFromLeftRelations);
-				jpi.setJoinKeysFromRightRelations(joinKeysFromRightRelations);
-				jpi.computeJoinKeysInJoinSchema(j.getLeft().getRowType()
-						.getFieldCount());
-				if (remainingNonJoinConjuctivePredicate != null) {
-					jpi.setNonJoinKeyLeafPredicates(RelOptUtil
-							.conjunctions(remainingNonJoinConjuctivePredicate));
-				}
-			}
-
-			j.setJoinPredicateInfo(jpi);
-		}
-
-		return jpi;
-	}
-
-	// TODO: Is this needed (Could RelSubSet ever be child of a node?)
+  // TODO: Is this needed (Could RelSubSet ever be child of a node?)
 	public static HiveRel getNonSubsetRelNode(RelNode n) {
+    if (false) throw new AssertionError(); // THIS METHOD IS EVIL
 		if (n instanceof RelSubset) {
 			return ((HiveRel) ((RelSubset) n).getBest());
 		} else {
@@ -114,16 +92,17 @@ public class OptiqUtil {
 
 	public static Map<Integer, Integer> translateChildColPosToParent(
 			HiveJoinRel j, boolean translateLeft) {
-		HiveRel childToTranslateFrom = null;
-		int colPosOffSet = 0;
-		Map<Integer, Integer> projMapFromChildToParent = new HashMap<Integer, Integer>();
+		HiveRel childToTranslateFrom;
+		final int colPosOffSet;
 
 		if (translateLeft) {
 			childToTranslateFrom = getNonSubsetRelNode(j.getLeft());
+      colPosOffSet = 0;
 		} else {
 			childToTranslateFrom = getNonSubsetRelNode(j.getRight());
 			colPosOffSet = j.getLeft().getRowType().getFieldCount();
 		}
+    Map<Integer, Integer> projMapFromChildToParent = new HashMap<Integer, Integer>();
 		for (int i = 0; i < childToTranslateFrom.getRowType().getFieldCount(); i++) {
 			projMapFromChildToParent.put(i, i + colPosOffSet);
 		}
@@ -143,14 +122,14 @@ public class OptiqUtil {
 		return projMapFromChildToParent;
 	}
 
+  // Never returns null, but some entries may be null.
 	public static List<Integer> translateChildColPosToParent(
 			Map<Integer, Integer> projMapFromChildToParent,
 			List<Integer> childPosLst, boolean allowForPartialTranslation) {
-		Integer posInParent = null;
 		List<Integer> translatedPos = new LinkedList<Integer>();
 
 		for (Integer childPos : childPosLst) {
-			posInParent = projMapFromChildToParent.get(childPos);
+      Integer posInParent = projMapFromChildToParent.get(childPos);
 			if (posInParent == null) {
 				if (!allowForPartialTranslation) {
 					translatedPos = null;
@@ -164,30 +143,30 @@ public class OptiqUtil {
 		return translatedPos;
 	}
 
+  // REVIEW: Why Set<ImmutableList<Integer> not Set<List<Integer>>?
+  //   Over-specific element type makes it more difficult to use widely
 	public static ImmutableSet<ImmutableList<Integer>> translateChildColPosToParent(
 			Map<Integer, Integer> projMapFromChildToParent,
-			ImmutableSet<ImmutableList<Integer>> childPosLstImmutableSet,
+			ImmutableSet<ImmutableList<Integer>> childPosListImmutableSet,
 			boolean allowForPartialTranslation) {
-		Set<ImmutableList<Integer>> childPosLstMutableSet = new HashSet<ImmutableList<Integer>>();
+		Set<ImmutableList<Integer>> childPosListMutableSet =
+        new HashSet<ImmutableList<Integer>>();
 
-		List<Integer> translatedPos = null;
-		for (List<Integer> childPosLst : childPosLstImmutableSet) {
-			translatedPos = translateChildColPosToParent(
-					projMapFromChildToParent, childPosLst,
+		for (List<Integer> childPosList : childPosListImmutableSet) {
+      List<Integer> translatedPos = translateChildColPosToParent(
+					projMapFromChildToParent, childPosList,
 					allowForPartialTranslation);
 			if (translatedPos != null && !translatedPos.isEmpty()) {
-				childPosLstMutableSet.add(ImmutableList
-						.<Integer> copyOf(translatedPos));
+				childPosListMutableSet.add(ImmutableList.copyOf(translatedPos));
 			}
 		}
 
-		if (!childPosLstMutableSet.isEmpty()) {
-			return ImmutableSet
-					.<ImmutableList<Integer>> copyOf(childPosLstMutableSet);
-		} else {
-			return null;
-		}
-	}
+    if (childPosListMutableSet.isEmpty()) {
+      // REVIEW: Why return null rather than empty set?
+      return null;
+    }
+    return ImmutableSet.copyOf(childPosListMutableSet);
+  }
 
 	// projIndxInParentLst can not contain any Virtual Col
 	public static Pair<List<Integer>, List<Integer>> translateProjIndxToChild(
@@ -196,6 +175,8 @@ public class OptiqUtil {
 			return null;
 		}
 
+    // REVIEW: Why LinkedList? ArrayList (or ImmutableList.Builder) more
+    //   efficient
 		List<Integer> leftChildProj = new LinkedList<Integer>();
 		List<Integer> rightChildProj = new LinkedList<Integer>();
 
@@ -223,25 +204,19 @@ public class OptiqUtil {
 			}
 		} catch (Exception e) {
 			// TODO Log here
-			childProj = null;
+      childProj = null;
+      throw new AssertionError(e);
 		}
 		return childProj;
 	}
 
 	public static List<Integer> translateBitSetToProjIndx(BitSet projBitSet) {
-		List<Integer> projIndxLst = new LinkedList<Integer>();
-
-		for (int i = 0; i < projBitSet.length(); i++) {
-			if (projBitSet.get(i)) {
-				projIndxLst.add(i);
-			}
-		}
-
-		return projIndxLst;
+    return BitSets.toList(projBitSet);
 	}
 
 	private static List<Integer> getIndexList(
 			List<RexNode> lstOfJoinKeysFromChildRel) {
+    todo("move to RelOptUtil");
 		List<Integer> indexLst = new LinkedList<Integer>();
 
 		for (RexNode r : lstOfJoinKeysFromChildRel) {
@@ -256,17 +231,36 @@ public class OptiqUtil {
 		return indexLst;
 	}
 
-	public static class JoinPredicateInfo {
-		private List<RexNode> m_nonJoinKeyLeafPredicates;
-		private List<Integer> m_joinKeysFromLeftRelations;
-		private List<Integer> m_joinKeysFromRightRelations;
-		private final List<Integer> m_joinKeysInJoinNodeSchemaFromLeft = new LinkedList<Integer>();
-		private final List<Integer> m_joinKeysInJoinNodeSchemaFromRight = new LinkedList<Integer>();
+  @Deprecated
+  private static void todo(String s) {
+  }
 
-		private void setNonJoinKeyLeafPredicates(
-				List<RexNode> nonJoiningPredicates) {
-			m_nonJoinKeyLeafPredicates = nonJoiningPredicates;
-		}
+  /** Information about the condition of a
+   * {@link org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel}.
+   *
+   * <p>None of the fields are ever null. */
+  public static class JoinPredicateInfo {
+		private final List<RexNode> m_nonJoinKeyLeafPredicates;
+		private final List<Integer> m_joinKeysFromLeftRelations;
+		private final List<Integer> m_joinKeysFromRightRelations;
+		private final List<Integer> m_joinKeysInJoinNodeSchemaFromLeft;
+		private final List<Integer> m_joinKeysInJoinNodeSchemaFromRight;
+
+    public JoinPredicateInfo(List<Integer> joinKeysFromLeftRelations,
+        List<Integer> joinKeysFromRightRelations, int leftFieldCount,
+        List<RexNode> conjunctions) {
+      this.m_joinKeysFromLeftRelations =
+          ImmutableList.copyOf(joinKeysFromLeftRelations);
+      this.m_joinKeysFromRightRelations =
+          ImmutableList.copyOf(joinKeysFromRightRelations);
+      this.m_joinKeysInJoinNodeSchemaFromLeft = m_joinKeysFromLeftRelations;
+      ImmutableList.Builder<Integer> builder = ImmutableList.builder();
+      for (int k : m_joinKeysFromRightRelations) {
+        builder.add(leftFieldCount + k);
+      }
+      this.m_joinKeysInJoinNodeSchemaFromRight = builder.build();
+      this.m_nonJoinKeyLeafPredicates = ImmutableList.copyOf(conjunctions);
+    }
 
 		public boolean containsVirtualColumns(RelNode rel, Set<Integer> colSet) {
 			boolean containsVC = false;
@@ -282,22 +276,7 @@ public class OptiqUtil {
 			return containsVC;
 		}
 
-		private void computeJoinKeysInJoinSchema(int leftRelFiledCount) {
-			if (m_joinKeysFromLeftRelations != null) {
-				for (Integer k : m_joinKeysFromLeftRelations) {
-					m_joinKeysInJoinNodeSchemaFromLeft.add(k);
-				}
-			}
-
-			if (m_joinKeysFromRightRelations != null) {
-				for (Integer k : m_joinKeysFromRightRelations) {
-					m_joinKeysInJoinNodeSchemaFromRight.add(leftRelFiledCount
-							+ k);
-				}
-			}
-		}
-
-		public List<Integer> getJoinKeysInJoinSchemaFromLeft() {
+    public List<Integer> getJoinKeysInJoinSchemaFromLeft() {
 			return m_joinKeysInJoinNodeSchemaFromLeft;
 		}
 
@@ -305,20 +284,13 @@ public class OptiqUtil {
 			return m_joinKeysInJoinNodeSchemaFromRight;
 		}
 
+    // Never returns null
 		public List<RexNode> getNonJoinKeyLeafPredicates() {
 			return m_nonJoinKeyLeafPredicates;
 		}
 
-		private void setJoinKeysFromLeftRelations(List<Integer> keyLst) {
-			m_joinKeysFromLeftRelations = keyLst;
-		}
-
 		public List<Integer> getJoinKeysFromLeftRelation() {
 			return m_joinKeysFromLeftRelations;
-		}
-
-		private void setJoinKeysFromRightRelations(List<Integer> keyLst) {
-			m_joinKeysFromRightRelations = keyLst;
 		}
 
 		public List<Integer> getJoinKeysFromRightRelation() {
@@ -335,6 +307,7 @@ public class OptiqUtil {
 				.getRight());
 		HiveRel oldRel;
 
+    // REVIEW: should use convert
 		if (introduceShuffleAtLeft) {
 			oldRel =  leftOfNewJoin;
 			leftOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(
@@ -342,6 +315,8 @@ public class OptiqUtil {
 					leftSortKeys, leftOfNewJoin);
 			relOptPlanner.ensureRegistered(leftOfNewJoin, oldRel);
 		}
+
+    // REVIEW: should use convert
 		if (introduceShuffleAtRight) {
 			oldRel =  rightOfNewJoin;
 			rightOfNewJoin = HiveIRShuffleRel.constructHiveIRShuffleRel(
@@ -359,10 +334,8 @@ public class OptiqUtil {
 
 	public static HiveJoinRel introduceBroadcastOperator(HiveJoinRel origJoin,
 			MapJoinStreamingRelation m_streamingSide) {
-		HiveRel leftOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin
-				.getLeft());
-		HiveRel rightOfNewJoin = (HiveRel) getNonSubsetRelNode(origJoin
-				.getRight());
+		HiveRel leftOfNewJoin = getNonSubsetRelNode(origJoin.getLeft());
+		HiveRel rightOfNewJoin = getNonSubsetRelNode(origJoin.getRight());
 
 		if (m_streamingSide == MapJoinStreamingRelation.LEFT_RELATION) {
 			rightOfNewJoin = HiveIRBroadCastRel.constructHiveIRBroadCastRel(

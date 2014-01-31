@@ -6,6 +6,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
+import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
 import org.eigenbase.relopt.RelOptRule;
 import org.eigenbase.relopt.RelOptRuleCall;
@@ -30,8 +31,8 @@ public class PropagateBucketTraitUpwardsRule extends RelOptRule {
   @Override
   public boolean matches(RelOptRuleCall call)
   {
-    HiveRel parentRel = (HiveRel) call.rels[0];
-    RelSubset relSubSet = (RelSubset) call.rels[1];
+    HiveRel parentRel = call.rel(0);
+    RelSubset relSubSet = call.rel(1);
     RelBucketing bucketTraitFromChild = OptiqTraitsUtil.getBucketingTrait(relSubSet.getTraitSet());
 
     if (bucketTraitFromChild != null
@@ -45,12 +46,14 @@ public class PropagateBucketTraitUpwardsRule extends RelOptRule {
 
   @Override
   public void onMatch(RelOptRuleCall call) {
-    HiveRel parentRel = (HiveRel) call.rels[0];
-    RelSubset relSubSet = (RelSubset) call.rels[1];
-    RelBucketing bucketTraitFromChild = OptiqTraitsUtil.getBucketingTrait(relSubSet.getTraitSet());
+    HiveRel parentRel = call.rel(0);
+    RelNode child = call.rel(1);
+    RelBucketing bucketTraitFromChild =
+        OptiqTraitsUtil.getBucketingTrait(child.getTraitSet());
 
     HiveRel newParentRel = (HiveRel) parentRel.copy(
         parentRel.getTraitSet().plus(bucketTraitFromChild), parentRel.getInputs());
+    // REVIEW: should be transformTo?
     call.getPlanner().ensureRegistered(newParentRel, parentRel);
   }
 }
