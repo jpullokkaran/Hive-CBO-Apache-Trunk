@@ -52,7 +52,7 @@ public class RelOptHiveTable extends RelOptAbstractTable {
     m_hiveRowSchema = hiveRowSchema;
     m_hiveConf = hconf;
     
-    m_rowCount = StatsUtils.getNumRows(m_hiveTblMetadata.getDbName(), m_hiveTblMetadata.getTableName());
+    m_rowCount = StatsUtils.getNumRows(m_hiveTblMetadata);
   }
 
   @Override
