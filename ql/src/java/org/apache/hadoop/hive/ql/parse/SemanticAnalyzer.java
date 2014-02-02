@@ -8968,7 +8968,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     	    optm.initialize(conf);
     	    pCtx = optm.optimize();
     	  
-        newAST = CBO.optimize(sinkOp, this, this.conf);
+        newAST = CBO.optimize(sinkOp, this, pCtx);
         if (newAST == null) {
           skipCBOPlan = true;
           LOG.info("CBO failed, skipping CBO");

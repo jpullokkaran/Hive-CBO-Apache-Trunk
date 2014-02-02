@@ -22,7 +22,9 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveSwapJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.PropagateBucketTraitUpwardsRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.PropagateSortTraitUpwardsRule;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
+import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
+import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.eigenbase.rel.RelCollationTraitDef;
 import org.eigenbase.rel.RelNode;
@@ -47,22 +49,24 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
     private final Operator m_sinkOp;
     private final SemanticAnalyzer m_semanticAnalyzer;
     private final HiveConf m_conf;
+    private final ParseContext m_ParseContext;
 
     public CBO(@SuppressWarnings("rawtypes") Operator sinkOp,
-            SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
+            SemanticAnalyzer semanticAnalyzer, ParseContext pCtx) {
         m_sinkOp = sinkOp;
         m_semanticAnalyzer = semanticAnalyzer;
-        m_conf = conf;
+        m_ParseContext = pCtx;
+        m_conf = pCtx.getConf();
     }
 
     public static ASTNode optimize(
             @SuppressWarnings("rawtypes") Operator sinkOp,
-            SemanticAnalyzer semanticAnalyzer, HiveConf conf) {
+            SemanticAnalyzer semanticAnalyzer, ParseContext pCtx) {
         ASTNode optiqOptimizedAST = null;
-        
+        HiveConf conf = pCtx.getConf();
         if (shouldRunOptiqOptimizer(sinkOp, conf, semanticAnalyzer.getQueryProperties())) {
             RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
-                    semanticAnalyzer, conf));
+                    semanticAnalyzer, pCtx));
 
             // return
             // OptiqOpToHiveASTConverter.convertOpTree(optimizedOptiqPlan);
@@ -74,6 +78,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public RelNode apply(RelOptCluster cluster, RelOptSchema relOptSchema,
             SchemaPlus schema) {
         Long totalMemForSmallTable = m_conf
@@ -99,8 +104,9 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         		new CachingRelMetadataProvider(cluster.getMetadataProvider(), planner));
 
         
-        RelNode opTreeInOptiq = HiveToOptiqRelConverter.convertOpDAG(cluster,
-                relOptSchema, schema, m_sinkOp, m_semanticAnalyzer, m_conf);
+        RelNode opTreeInOptiq =  RelNodeConverter.convert(m_sinkOp,
+    			cluster, relOptSchema,
+    			m_semanticAnalyzer, m_ParseContext);
         
         /*
          * The starting tree

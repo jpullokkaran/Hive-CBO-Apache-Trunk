@@ -4,9 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.schema.TypeConverter;
-import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
@@ -25,34 +23,16 @@ import com.google.common.collect.ImmutableMap;
 public class RexNodeConverter {
 	
 	RelOptCluster m_cluster;
-	RowResolver inpRR;
 	RelDataType inpDataType;
-	ImmutableMap<String, Integer> internalnameToPosMap;
+	ImmutableMap<String, Integer> nameToPosMap;
 	int offset;
 	
-	public static RexNode convert(ExprNodeDesc expr, 
-			RelOptCluster cluster, RowResolver inpRR, RelDataType inpDataType, int offset)  {
-		RexNodeConverter converter = new RexNodeConverter(cluster, inpRR, inpDataType, offset);
-		return converter.convert(expr);
-	}
-	
-	public static RexNode convert(ExprNodeDesc expr, 
-			RelOptCluster cluster, RowResolver inpRR, RelDataType inpDataType)  {
-		return convert(expr, cluster, inpRR, inpDataType, 0);
-	}
-	
-	protected RexNodeConverter(RelOptCluster m_cluster, RowResolver inpRR, RelDataType inpDataType, int offset) {
+	public RexNodeConverter(RelOptCluster m_cluster, RelDataType inpDataType, 
+			ImmutableMap<String, Integer> nameToPosMap, int offset) {
 		this.m_cluster = m_cluster;
-		this.inpRR = inpRR;
 		this.inpDataType = inpDataType;
+		this.nameToPosMap = nameToPosMap;
 		this.offset = offset;
-		ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
-		int i=0;
-		for(ColumnInfo ci : inpRR.getRowSchema().getSignature() ) {
-			b.put(ci.getInternalName(), i);
-			i++;
-		}
-		internalnameToPosMap = b.build();
 	}
 
 	public RexNode convert(ExprNodeDesc expr) {
@@ -80,7 +60,7 @@ public class RexNodeConverter {
 	}
 	
 	protected RexNode convert(ExprNodeColumnDesc col) {
-		int pos = internalnameToPosMap.get(col.getColumn());
+		int pos = nameToPosMap.get(col.getColumn());
 		return m_cluster.getRexBuilder().makeInputRef(inpDataType.getFieldList().get(pos).getType(), pos + offset);
 	}
 	
