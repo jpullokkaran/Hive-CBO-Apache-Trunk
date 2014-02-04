@@ -91,8 +91,8 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         /*
          * recreate cluster, so that it picks up the additional traitDef
          */
-        RelOptQuery query = new RelOptQuery(planner);
-        RexBuilder rexBuilder = cluster.getRexBuilder();
+        final RelOptQuery query = new RelOptQuery(planner);
+        final RexBuilder rexBuilder = cluster.getRexBuilder();
         cluster =
             query.createCluster(rexBuilder.getTypeFactory(), rexBuilder);
         
@@ -113,24 +113,24 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
          */
         System.out.println(RelOptUtil.toString(opTreeInOptiq, SqlExplainLevel.ALL_ATTRIBUTES));
 
-        cluster.getPlanner().clearRules();
-        cluster.getPlanner().addRule(new HiveSwapJoinRule());
-        cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.LEFT);
-        cluster.getPlanner().addRule(HivePushJoinThroughJoinRule.RIGHT);
+        planner.clearRules();
+        planner.addRule(new HiveSwapJoinRule());
+        planner.addRule(HivePushJoinThroughJoinRule.LEFT);
+        planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
 
         /*
-        cluster.getPlanner().addRule(new ConvertToCommonJoinRule());
-        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.FILTER);
-        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.LIMIT);
-        cluster.getPlanner().addRule(PropagateBucketTraitUpwardsRule.PROJECT);
-        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.FILTER);
-        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.LIMIT);
-        cluster.getPlanner().addRule(PropagateSortTraitUpwardsRule.PROJECT);
+        planner.addRule(new ConvertToCommonJoinRule());
+        planner.addRule(PropagateBucketTraitUpwardsRule.FILTER);
+        planner.addRule(PropagateBucketTraitUpwardsRule.LIMIT);
+        planner.addRule(PropagateBucketTraitUpwardsRule.PROJECT);
+        planner.addRule(PropagateSortTraitUpwardsRule.FILTER);
+        planner.addRule(PropagateSortTraitUpwardsRule.LIMIT);
+        planner.addRule(PropagateSortTraitUpwardsRule.PROJECT);
 
-        cluster.getPlanner().addRule(
+        planner.addRule(
                 new ConvertToBucketJoinRule(totalMemForSmallTable));
-        cluster.getPlanner().addRule(new ConvertToSMBJoinRule());
-        cluster.getPlanner().addRule(
+        planner.addRule(new ConvertToSMBJoinRule());
+        planner.addRule(
                 new ConvertToMapJoinRule(totalMemForSmallTable));
         
         RelTraitSet desiredTraits = 
@@ -143,11 +143,14 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 				.plus(HiveRel.CONVENTION)
 				.plus(RelCollationTraitDef.INSTANCE.getDefault());
 
-        final RelNode rootRel = cluster.getPlanner().changeTraits(
+        RelNode rootRel = opTreeInOptiq;
+        if (!rootRel.getTraitSet().equals(desiredTraits)) {
+            rootRel = planner.changeTraits(
                 opTreeInOptiq, desiredTraits);
-        cluster.getPlanner().setRoot(rootRel);
+        }
+        planner.setRoot(rootRel);
 
-        return cluster.getPlanner().findBestExp();
+        return planner.findBestExp();
     }
 
 	private static boolean shouldRunOptiqOptimizer(Operator sinkOp,
