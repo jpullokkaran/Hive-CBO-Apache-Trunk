@@ -1,7 +1,6 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -12,11 +11,11 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveIRShuffleRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.MapJoinStreamingRelation;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
+
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
@@ -57,10 +56,6 @@ public class OptiqTraitsUtil {
     return colsPartOfJoinKeys;
   }
   */
-	private static RelTraitSet getDefaultTraitSet() {
-		return RelTraitSet.createEmpty().plus(HiveRel.CONVENTION)
-				.plus(RelCollationTraitDef.INSTANCE.getDefault());
-	}
 
   private static boolean propgateBucketTrait(HiveRel n, List<Integer> bucketCols,
       List<Integer> bucketSortCols) {
@@ -200,7 +195,7 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getSelectTraitSet(RelOptCluster cluster, List<RexNode> exps,
       RelNode child) {
-	  return getDefaultTraitSet();
+    return cluster.traitSetOf(HiveRel.CONVENTION);
 	  /*
     RelTrait childTrait = getPotentialPropagateableTraitFromChild(child);
     childTrait = translateToParent(cluster, exps, childTrait);
@@ -221,21 +216,21 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getFilterTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode child) {
-	  return getDefaultTraitSet();
+    return cluster.traitSetOf(HiveRel.CONVENTION);
 
     //return getSingleRelTraitSet(cluster, traitSet, child);
   }
 
   public static RelTraitSet getLimitTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelNode child) {
-	  return getDefaultTraitSet();
+    return cluster.traitSetOf(HiveRel.CONVENTION);
 
     //return getSingleRelTraitSet(cluster, traitSet, child);
   }
 
   public static RelTraitSet getAggregateTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       List<Integer> gbCols, List<AggregateCall> aggCalls, RelNode child) {
-	  return getDefaultTraitSet();
+    return cluster.traitSetOf(HiveRel.CONVENTION);
 	  /*
     // TODO: verify that GB will always sort data in ascending order and NULLS direction
     RelCollation collation = getCollation(gbCols, Direction.Ascending, NullDirection.FIRST);
@@ -254,7 +249,7 @@ public class OptiqTraitsUtil {
   public static RelTraitSet getTableScanTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelOptHiveTable table,
       RelDataType rowtype) {
-	  return getDefaultTraitSet();
+	  return cluster.traitSetOf(HiveRel.CONVENTION);
 
 	  /*
     if (traitSet == null) {
@@ -270,7 +265,7 @@ public class OptiqTraitsUtil {
   }
 
   public static RelTraitSet getJoinTraitSet(RelOptCluster cluster, RelTraitSet traitSet) {
-	  return getDefaultTraitSet();
+    return cluster.traitSetOf(HiveRel.CONVENTION);
 	  /*
     RelTraitSet traitSetFromChild = getCombinedTrait(cluster, null);
     if (traitSet != null) {

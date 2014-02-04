@@ -139,9 +139,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         		plus(RelCollationTraitDef.INSTANCE.getDefault()).
         		plus(RelBucketingTraitImpl.EMPTY);
         		*/
-		RelTraitSet desiredTraits = RelTraitSet.createEmpty()
-				.plus(HiveRel.CONVENTION)
-				.plus(RelCollationTraitDef.INSTANCE.getDefault());
+    		RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
 
         RelNode rootRel = opTreeInOptiq;
         if (!rootRel.getTraitSet().equals(desiredTraits)) {
