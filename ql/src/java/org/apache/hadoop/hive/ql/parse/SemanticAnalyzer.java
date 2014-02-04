@@ -9014,6 +9014,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         } catch (Exception e) {
           init();
           analyzeInternal(ast);
+          return;
         }
       }
     }
