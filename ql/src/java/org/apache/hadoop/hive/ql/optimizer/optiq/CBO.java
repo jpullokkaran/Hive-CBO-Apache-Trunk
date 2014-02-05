@@ -43,7 +43,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
             .asList(OperatorType.DEMUX, OperatorType.FORWARD,
                     OperatorType.LATERALVIEWFORWARD,
                     OperatorType.LATERALVIEWJOIN, OperatorType.MUX,
-                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF, OperatorType.GROUPBY, OperatorType.LIMIT, OperatorType.UNION);
+                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF, OperatorType.GROUPBY, OperatorType.UNION);
 
     @SuppressWarnings("rawtypes")
     private final Operator m_sinkOp;

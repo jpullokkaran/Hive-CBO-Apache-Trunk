@@ -205,13 +205,7 @@ public class OptiqTraitsUtil {
 
   public static RelTraitSet getSortTraitSet(RelOptCluster cluster, RelTraitSet traitSet,
       RelCollation collation) {
-    if (traitSet == null) {
-      return getCombinedTrait(cluster, collation);
-    }
-    else {
-      traitSet.add(collation);
-      return traitSet;
-    }
+    return traitSet.plus(collation);
   }
 
   public static RelTraitSet getFilterTraitSet(RelOptCluster cluster, RelTraitSet traitSet,

@@ -1,5 +1,6 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -13,6 +14,7 @@ import java.util.Stack;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.FilterOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
+import org.apache.hadoop.hive.ql.exec.LimitOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
@@ -31,6 +33,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.schema.TypeConverter;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
@@ -46,6 +49,7 @@ import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.ProjectRel;
+import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
@@ -66,16 +70,19 @@ public class RelNodeConverter {
 
 		Context ctx = new Context(cluster, schema, sA, pCtx);
 
-		Map<Rule, NodeProcessor> rules = new LinkedHashMap<Rule, NodeProcessor>();
-		rules.put(
-				new RuleRegExp("R1", TableScanOperator.getOperatorName() + "%"),
-				new TableScanProcessor());
-		rules.put(new RuleRegExp("R2", FilterOperator.getOperatorName() + "%"),
-				new FilterProcessor());
-		rules.put(new RuleRegExp("R3", SelectOperator.getOperatorName() + "%"),
-				new SelectProcessor());
-		rules.put(new RuleRegExp("R4", JoinOperator.getOperatorName() + "%"),
-				new JoinProcessor());
+		Map<Rule, NodeProcessor> rules = ImmutableMap.<Rule, NodeProcessor>builder()
+        .put(
+            new RuleRegExp("R1", TableScanOperator.getOperatorName() + "%"),
+            new TableScanProcessor())
+        .put(new RuleRegExp("R2", FilterOperator.getOperatorName() + "%"),
+            new FilterProcessor())
+        .put(new RuleRegExp("R3", SelectOperator.getOperatorName() + "%"),
+            new SelectProcessor())
+        .put(new RuleRegExp("R4", JoinOperator.getOperatorName() + "%"),
+            new JoinProcessor())
+        .put(new RuleRegExp("R5", LimitOperator.getOperatorName() + "%"),
+            new LimitProcessor())
+        .build();
 
 		Dispatcher disp = new DefaultRuleDispatcher(new DefaultProcessor(),
 				rules, ctx);
@@ -411,7 +418,32 @@ public class RelNodeConverter {
 		}
 	}
 
-	static class TableScanProcessor implements NodeProcessor {
+  static class LimitProcessor implements NodeProcessor {
+    public Object process(Node nd, Stack<Node> stack,
+        NodeProcessorCtx procCtx, Object... nodeOutputs)
+        throws SemanticException {
+      Context ctx = (Context) procCtx;
+      HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      LimitOperator limitOp = (LimitOperator) nd;
+
+      // in Optiq, a limit is represented as a sort on 0 columns
+      final RexNode offset;
+      if (limitOp.getConf().getLimit() >= 0) {
+        offset = ctx.cluster.getRexBuilder().makeExactLiteral(
+            BigDecimal.valueOf(limitOp.getConf().getLimit()));
+      } else {
+        offset = null;
+      }
+      HiveRel sortRel = new HiveSortRel(ctx.cluster,
+          ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
+          RelCollationImpl.EMPTY, offset, null);
+      ctx.buildColumnMap(limitOp, sortRel);
+      ctx.hiveOpToRelNode.put(limitOp, sortRel);
+      return sortRel;
+    }
+  }
+
+  static class TableScanProcessor implements NodeProcessor {
 		public Object process(Node nd, Stack<Node> stack,
 				NodeProcessorCtx procCtx, Object... nodeOutputs)
 				throws SemanticException {
