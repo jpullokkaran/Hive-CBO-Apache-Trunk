@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.antlr.runtime.CommonToken;
 import org.antlr.runtime.Token;
+import org.apache.hadoop.hive.ql.optimizer.optiq.expr.SqlFunctionConverter;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.eigenbase.rel.RelNode;
@@ -25,7 +26,6 @@ import org.eigenbase.rex.RexVisitor;
 import org.eigenbase.rex.RexVisitorImpl;
 import org.eigenbase.rex.RexWindow;
 import org.eigenbase.sql.SqlOperator;
-import org.eigenbase.sql.fun.SqlStdOperatorTable;
 
 public class OptiqRelExprToHiveASTConverter extends RexVisitorImpl<ASTNode> {
 
@@ -143,23 +143,17 @@ public class OptiqRelExprToHiveASTConverter extends RexVisitorImpl<ASTNode> {
   @Override
   public ASTNode visitCall(RexCall call)
   {
-    ASTNode r;
-
     if (!deep) {
       return null;
     }
 
-    ASTNode astNode = null;
+    SqlOperator op = call.getOperator();
     List<ASTNode> astNodeLst = new LinkedList<ASTNode>();
     for (RexNode operand : call.operands) {
-      astNode = operand.accept(this);
-      astNodeLst.add(astNode);
+      astNodeLst.add(operand.accept(this));
     }
-
-    r = new ASTNode(getCallToken(call.getOperator()));
-    r.addChildren(astNodeLst);
-
-    return r;
+    return SqlFunctionConverter.buildAST(op, astNodeLst);
+    
   }
 
   @Override
@@ -229,16 +223,6 @@ public class OptiqRelExprToHiveASTConverter extends RexVisitorImpl<ASTNode> {
       }
     }
     return false;
-  }
-
-  private Token getCallToken(SqlOperator call) {
-    Token callToken = null;
-
-    if (call == SqlStdOperatorTable.EQUALS) {
-      callToken = new CommonToken(HiveParser.EQUAL, "=");
-    }
-
-    return callToken;
   }
 
   public static ASTNode astExpr(RelNode exprRel, RexNode expr,

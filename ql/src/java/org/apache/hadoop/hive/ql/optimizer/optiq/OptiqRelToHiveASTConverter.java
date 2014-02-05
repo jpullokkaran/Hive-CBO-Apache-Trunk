@@ -14,11 +14,14 @@ import net.hydromatic.optiq.rules.java.JavaRules.EnumerableCalcRel;
 
 import org.antlr.runtime.CommonToken;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
+import org.apache.hadoop.hive.ql.parse.ParseDriver;
 import org.eigenbase.rel.AggregateRel;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.FilterRel;
+import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.ProjectRel;
 import org.eigenbase.rel.ProjectRelBase;
@@ -45,7 +48,7 @@ public class OptiqRelToHiveASTConverter {
     private List<RexNode> m_filterNodeExprs;
     private int m_filterIndx;
     private AggregateRelBase m_groupByNode;
-    private FilterRel m_havingNode;
+    private FilterRelBase m_havingNode;
     private SortRel m_orderByNode;
     private SortRel m_limitNode;
   };
@@ -218,25 +221,34 @@ public class OptiqRelToHiveASTConverter {
     return null;
   }
 
-  private ASTNode getHavingNode(FilterRel havingNode, OptiqNodesForHiveSelectStmt stateInfo) {
+  private ASTNode getHavingNode(FilterRelBase havingNode, OptiqNodesForHiveSelectStmt stateInfo) {
     // TODO
     return null;
   }
 
-  private ASTNode getTableNode(TableAccessRelBase tableRel, OptiqNodesForHiveSelectStmt stateInfo) {
-    // TODO review adding table alias
-    // CommonToken tabName = new CommonToken(HiveParser.TOK_TABNAME,
-    // ((TableAccessRel)m_fromNode).getTable().getQualifiedName().get(0));
-    ASTNode tablRef = new ASTNode(new CommonToken(HiveParser.TOK_TABREF, "TOK_TABREF"));
-    ASTNode tabName = new ASTNode(new CommonToken(HiveParser.TOK_TABNAME, "TOK_TABNAME"));
-    tabName.addChild(new ASTNode(new CommonToken(HiveParser.Identifier, (tableRel).getTable()
-        .getQualifiedName().get(0))));
-    tablRef.addChild(tabName);
+	private ASTNode getTableNode(TableAccessRelBase tableRel,
+			OptiqNodesForHiveSelectStmt stateInfo) {
+		RelOptHiveTable hTbl = (RelOptHiveTable) ((HiveTableScanRel) tableRel)
+				.getTable();
 
-    assemblecolToTabMap(tableRel, stateInfo);
+		ASTNode tablRef = (ASTNode) ParseDriver.adaptor.create(
+				HiveParser.TOK_TABREF, "TOK_TABREF");
+		ASTNode tabNode = (ASTNode) ParseDriver.adaptor.create(
+				HiveParser.TOK_TABNAME, "TOK_TABNAME");
+		ParseDriver.adaptor.addChild(tabNode, ParseDriver.adaptor.create(
+				HiveParser.Identifier, hTbl.getHiveTableMD().getDbName()));
+		ParseDriver.adaptor.addChild(tabNode, ParseDriver.adaptor.create(
+				HiveParser.Identifier, hTbl.getHiveTableMD().getTableName()));
+		ParseDriver.adaptor.addChild(tablRef, tabNode);
+		ParseDriver.adaptor.addChild(
+				tablRef,
+				ParseDriver.adaptor.create(HiveParser.Identifier,
+						hTbl.getName()));
 
-    return tablRef;
-  }
+		assemblecolToTabMap(tableRel, stateInfo);
+
+		return tablRef;
+	}
 
   private ASTNode getJoinchildNode(RelNode joinChild, OptiqNodesForHiveSelectStmt stateInfo) {
     ASTNode joinChildASTNode = null;
@@ -435,9 +447,9 @@ public class OptiqRelToHiveASTConverter {
         {
           hiveSelectStmt.m_orderByNode = (SortRel) relNode;
         }
-      } else if (relNode instanceof FilterRel) {
+      } else if (relNode instanceof FilterRelBase) {
         if (relNode.getInput(0) instanceof AggregateRel) {
-          hiveSelectStmt.m_havingNode = (FilterRel) relNode;
+          hiveSelectStmt.m_havingNode = (FilterRelBase) relNode;
         } else {/*
                  * hiveSelectStmt.m_filterNode = (FilterRel) relNode;
                  */

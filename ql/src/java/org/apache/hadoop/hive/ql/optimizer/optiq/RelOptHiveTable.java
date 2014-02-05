@@ -219,4 +219,8 @@ public class RelOptHiveTable extends RelOptAbstractTable {
       m_sizeOfLargestBucket = 0.0;
     }
   }
+  
+  public Table getHiveTableMD() {
+	  return m_hiveTblMetadata;
+  }
 }
