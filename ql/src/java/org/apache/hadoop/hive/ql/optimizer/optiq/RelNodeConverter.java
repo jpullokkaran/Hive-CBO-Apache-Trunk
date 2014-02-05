@@ -54,7 +54,9 @@ import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.sql.fun.SqlStdOperatorTable;
 
+import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 public class RelNodeConverter {
 
@@ -388,9 +390,20 @@ public class RelNodeConverter {
 				optiqColLst.add(ctx.convertToOptiqExpr(colExpr,
 						inputRelNode));
 			}
+			
+			/*
+			 * Hive treats names that start with '_c' as internalNames; so change the names so we
+			 * don't run into this issue when converting back to Hive AST.
+			 */
+			List<String> oFieldNames = Lists.transform(selectOp.getConf().getOutputColumnNames(),
+					new Function<String, String>() {
+						public String apply( String hName ){
+				            return "_o_" + hName;
+				         }
+			});
 
 			HiveRel selRel = new HiveProjectRel(ctx.cluster, inputRelNode,
-					optiqColLst, selectOp.getConf().getOutputColumnNames(),
+					optiqColLst, oFieldNames,
 					ProjectRel.Flags.BOXED);
 			ctx.buildColumnMap(selectOp, selRel);
 			ctx.hiveOpToRelNode.put(selectOp, selRel);
