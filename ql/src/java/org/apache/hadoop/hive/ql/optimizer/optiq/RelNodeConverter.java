@@ -48,7 +48,6 @@ import org.apache.hadoop.hive.ql.plan.JoinDesc;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.eigenbase.rel.JoinRelType;
-import org.eigenbase.rel.ProjectRel;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
@@ -409,13 +408,11 @@ public class RelNodeConverter {
 				         }
 			});
 
-			HiveRel selRel = new HiveProjectRel(ctx.cluster, inputRelNode,
-					optiqColLst, oFieldNames,
-					ProjectRel.Flags.BOXED);
-			ctx.buildColumnMap(selectOp, selRel);
-			ctx.hiveOpToRelNode.put(selectOp, selRel);
-			return selRel;
-		}
+      HiveRel selRel = HiveProjectRel.create(inputRelNode, optiqColLst, oFieldNames);
+      ctx.buildColumnMap(selectOp, selRel);
+      ctx.hiveOpToRelNode.put(selectOp, selRel);
+      return selRel;
+    }
 	}
 
   static class LimitProcessor implements NodeProcessor {

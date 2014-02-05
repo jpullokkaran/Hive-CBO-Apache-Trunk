@@ -1,6 +1,5 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
-import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -9,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Lists;
 import net.hydromatic.optiq.util.BitSets;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
@@ -360,8 +358,7 @@ public class OptiqUtil {
 			return child;
 		} else {
 			List<RexNode> inputRefs = constructInputRefs(child, posList);
-			return new HiveProjectRel(child.getCluster(), child, inputRefs,
-					null, 0);
+			return HiveProjectRel.create(child, inputRefs, null);
 		}
 	}
 
@@ -374,7 +371,7 @@ public class OptiqUtil {
 				child.getRowType())) {
 			return child;
 		}
-		return new HiveProjectRel(child.getCluster(), child, exps, null, 0);
+		return HiveProjectRel.create(child, exps, null);
 	}
 
 	public static List<RexNode> constructChildInputRefs(HiveRel child) {
@@ -434,7 +431,7 @@ public class OptiqUtil {
 	}
 
 	public static List<Integer> getVirtualCols(List<RexNode> exps) {
-		List<Integer> vCols = new ArrayList<Integer>();
+		ImmutableList.Builder<Integer> vCols = ImmutableList.builder();
 
 		for (int i = 0; i < exps.size(); i++) {
 			if (!(exps.get(i) instanceof RexInputRef)) {
@@ -442,7 +439,7 @@ public class OptiqUtil {
 			}
 		}
 
-		return vCols;
+		return vCols.build();
 	}
 
 	private static boolean getEqvSet(Set<Integer> eqvSet,

@@ -7,7 +7,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
-import org.eigenbase.rel.CalcRel;
+
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelNode;
@@ -147,9 +147,7 @@ public class HiveSwapJoinRule extends RelOptRule {
 //              exps,
 //              newJoin.getRowType().getFieldNames());
       
-      RelNode project = 
-    		  new HiveProjectRel(swapped.getCluster(), swapped, exps, 
-    				  newJoin.getRowType().getFieldNames(), 0);
+      RelNode project = HiveProjectRel.create(swapped, exps, newJoin.getRowType().getFieldNames());
 
       // Make sure extra traits are carried over from the original rel
       project =

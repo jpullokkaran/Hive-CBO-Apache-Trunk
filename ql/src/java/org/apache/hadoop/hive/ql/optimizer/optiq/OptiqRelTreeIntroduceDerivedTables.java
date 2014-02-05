@@ -3,11 +3,9 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.EmptyRel;
 import org.eigenbase.rel.FilterRelBase;
@@ -91,7 +89,8 @@ public class OptiqRelTreeIntroduceDerivedTables {
       throw new RuntimeException("Couldn't find child node in parent's inputs");
     }
 
-    HiveProjectRel select = new HiveProjectRel(rel.getCluster(), rel, rel.getChildExps(), rel.getRowType(), 0, rel.getCollationList());
+    HiveProjectRel select = HiveProjectRel.create(rel.getCluster(), rel, rel.getChildExps(), rel.getRowType(),
+        rel.getCollationList());
     parent.replaceInput(pos, select);
 
   }
