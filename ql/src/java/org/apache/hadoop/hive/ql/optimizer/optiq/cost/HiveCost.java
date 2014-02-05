@@ -1,6 +1,7 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.cost;
 
 import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptCostFactory;
 import org.eigenbase.relopt.RelOptUtil;
 
 // TODO: This should inherit from VolcanoCost and should just override isLE method.
@@ -47,50 +48,50 @@ public class HiveCost implements RelOptCost {
         }
       };
 
+  public static final RelOptCostFactory FACTORY = new Factory();
+
   // ~ Instance fields --------------------------------------------------------
 
-  double dCpu;
-  double dIo;
-  double dRows;
+  final double cpu;
+  final double io;
+  final double rowCount;
 
   // ~ Constructors -----------------------------------------------------------
 
-  HiveCost(
-      double dRows,
-      double dCpu,
-      double dIo)
-  {
-    set(dRows, dCpu, dIo);
+  HiveCost(double rowCount, double cpu, double io) {
+    assert rowCount >= 0d;
+    assert cpu >= 0d;
+    assert io >= 0d;
+    this.rowCount = rowCount;
+    this.cpu = cpu;
+    this.io = io;
   }
 
   // ~ Methods ----------------------------------------------------------------
 
   public double getCpu()
   {
-    return dCpu;
+    return cpu;
   }
 
   public boolean isInfinite()
   {
-    return (this == INFINITY) || (this.dRows == Double.POSITIVE_INFINITY)
-        || (this.dCpu == Double.POSITIVE_INFINITY)
-        || (this.dIo == Double.POSITIVE_INFINITY);
+    return (this == INFINITY) || (this.rowCount == Double.POSITIVE_INFINITY)
+        || (this.cpu == Double.POSITIVE_INFINITY)
+        || (this.io == Double.POSITIVE_INFINITY);
   }
 
   public double getIo()
   {
-    return dIo;
+    return io;
   }
 
-  // TODO: If two cost is equal, could we do any better than comparing cardinality (may be some
-  // other heuristics to break the tie)
+  // TODO: If two cost is equal, could we do any better than comparing
+  // cardinality (may be some other heuristics to break the tie)
   public boolean isLe(RelOptCost other) {
-    if (((this.dCpu + this.dIo) < (other.getCpu() + other.getIo()))
-        || ((this.dCpu + this.dIo) == (other.getCpu() + other.getIo()) && this.dRows <= other.getRows())) {
-      return true;
-    } else {
-      return false;
-    }
+    return (this.cpu + this.io < other.getCpu() + other.getIo())
+        || (this.cpu + this.io == other.getCpu() + other.getIo()
+            && this.rowCount <= other.getRows());
   }
 
   public boolean isLt(RelOptCost other)
@@ -100,20 +101,20 @@ public class HiveCost implements RelOptCost {
 
   public double getRows()
   {
-    return dRows;
+    return rowCount;
   }
 
   public boolean equals(RelOptCost other)
   {
     //TODO: should we consider cardinality as well?
     return (this == other)
-        || ((this.dCpu + this.dIo) ==  (other.getCpu() + other.getIo()));
+        || ((this.cpu + this.io) ==  (other.getCpu() + other.getIo()));
   }
 
   public boolean isEqWithEpsilon(RelOptCost other)
   {
     return (this == other)
-        || (Math.abs((this.dCpu + this.dIo) - (other.getCpu() + other.getIo())) < RelOptUtil.EPSILON);
+        || (Math.abs((this.cpu + this.io) - (other.getCpu() + other.getIo())) < RelOptUtil.EPSILON);
   }
 
   public RelOptCost minus(RelOptCost other)
@@ -123,9 +124,9 @@ public class HiveCost implements RelOptCost {
     }
 
     return new HiveCost(
-        this.dRows - other.getRows(),
-        this.dCpu - other.getCpu(),
-        this.dIo - other.getIo());
+        this.rowCount - other.getRows(),
+        this.cpu - other.getCpu(),
+        this.io - other.getIo());
   }
 
   public RelOptCost multiplyBy(double factor)
@@ -133,7 +134,7 @@ public class HiveCost implements RelOptCost {
     if (this == INFINITY) {
       return this;
     }
-    return new HiveCost(dRows * factor, dCpu * factor, dIo * factor);
+    return new HiveCost(rowCount * factor, cpu * factor, io * factor);
   }
 
   public double divideBy(RelOptCost cost)
@@ -142,28 +143,28 @@ public class HiveCost implements RelOptCost {
     // which are non-zero and finite.
     double d = 1;
     double n = 0;
-    if ((this.dRows != 0)
-        && !Double.isInfinite(this.dRows)
+    if ((this.rowCount != 0)
+        && !Double.isInfinite(this.rowCount)
         && (cost.getRows() != 0)
         && !Double.isInfinite(cost.getRows()))
     {
-      d *= this.dRows / cost.getRows();
+      d *= this.rowCount / cost.getRows();
       ++n;
     }
-    if ((this.dCpu != 0)
-        && !Double.isInfinite(this.dCpu)
+    if ((this.cpu != 0)
+        && !Double.isInfinite(this.cpu)
         && (cost.getCpu() != 0)
         && !Double.isInfinite(cost.getCpu()))
     {
-      d *= this.dCpu / cost.getCpu();
+      d *= this.cpu / cost.getCpu();
       ++n;
     }
-    if ((this.dIo != 0)
-        && !Double.isInfinite(this.dIo)
+    if ((this.io != 0)
+        && !Double.isInfinite(this.io)
         && (cost.getIo() != 0)
         && !Double.isInfinite(cost.getIo()))
     {
-      d *= this.dIo / cost.getIo();
+      d *= this.io / cost.getIo();
       ++n;
     }
     if (n == 0) {
@@ -178,24 +179,37 @@ public class HiveCost implements RelOptCost {
       return INFINITY;
     }
     return new HiveCost(
-        this.dRows + other.getRows(),
-        this.dCpu + other.getCpu(),
-        this.dIo + other.getIo());
-  }
-
-  public void set(
-      double dRows,
-      double dCpu,
-      double dIo)
-  {
-    this.dRows = dRows;
-    this.dCpu = dCpu;
-    this.dIo = dIo;
+        this.rowCount + other.getRows(),
+        this.cpu + other.getCpu(),
+        this.io + other.getIo());
   }
 
   @Override
-  public String toString()
-  {
-    return "{" + dRows + " rows, " + dCpu + " cpu, " + dIo + " io}";
+  public String toString() {
+    return "{" + rowCount + " rows, " + cpu + " cpu, " + io + " io}";
+  }
+
+  private static class Factory implements RelOptCostFactory {
+    private Factory() {}
+
+    public RelOptCost makeCost(double rowCount, double cpu, double io) {
+      return new HiveCost(rowCount, cpu, io);
+    }
+
+    public RelOptCost makeHugeCost() {
+      return HUGE;
+    }
+
+    public HiveCost makeInfiniteCost() {
+      return INFINITY;
+    }
+
+    public HiveCost makeTinyCost() {
+      return TINY;
+    }
+
+    public HiveCost makeZeroCost() {
+      return ZERO;
+    }
   }
 }

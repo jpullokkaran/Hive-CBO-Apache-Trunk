@@ -4,8 +4,6 @@ import net.hydromatic.optiq.jdbc.OptiqPrepare;
 import net.hydromatic.optiq.rules.java.JavaRules;
 
 import org.eigenbase.rel.RelCollationTraitDef;
-import org.eigenbase.rel.RelNode;
-import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.rel.rules.MergeProjectRule;
 import org.eigenbase.rel.rules.PushFilterPastJoinRule;
 import org.eigenbase.rel.rules.PushFilterPastProjectRule;
@@ -15,27 +13,27 @@ import org.eigenbase.rel.rules.ReduceAggregatesRule;
 import org.eigenbase.rel.rules.RemoveDistinctAggregateRule;
 import org.eigenbase.rel.rules.SwapJoinRule;
 import org.eigenbase.rel.rules.TableAccessRule;
-import org.eigenbase.relopt.Convention;
 import org.eigenbase.relopt.ConventionTraitDef;
-import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
-import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.relopt.volcano.VolcanoPlanner;
 
-
-/*
- * hb: have to go down this path because choice was made to define HiveCost.
- * So references in VolcanoPlanner to VolcanoCost have to be overridden.
+/**
+ * Refinement of {@link org.eigenbase.relopt.volcano.VolcanoPlanner} for Hive.
+ *
+ * <p>It uses uses
+ * {@link org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost} as its
+ * cost model.
  */
 public class HiveVolcanoPlanner extends VolcanoPlanner {
-	
-	/*
-	 * Copied from
-	 */
 	private static final boolean ENABLE_COLLATION_TRAIT = true;
 
-	public static  RelOptPlanner createPlanner() {
+  /** Creates a HiveVolcanoPlanner. */
+  public HiveVolcanoPlanner() {
+    super(HiveCost.FACTORY);
+  }
+
+  public static  RelOptPlanner createPlanner() {
 		final VolcanoPlanner planner = new HiveVolcanoPlanner();
 		planner.addRelTraitDef(ConventionTraitDef.INSTANCE);
 		if (ENABLE_COLLATION_TRAIT) {
@@ -69,54 +67,4 @@ public class HiveVolcanoPlanner extends VolcanoPlanner {
 		OptiqPrepare.Dummy.getSparkHandler().registerRules(planner);
 		return planner;
 	}
-
-	public RelOptCost getCost(RelNode rel)
-    {
-        assert rel != null : "pre-condition: rel != null";
-        if (rel instanceof RelSubset) {
-            return super.getCost(rel);
-        }
-        if (rel.getTraitSet().getTrait(0) == Convention.NONE) {
-            return makeInfiniteCost();
-        }
-        RelOptCost cost = RelMetadataQuery.getNonCumulativeCost(rel);
-        if (!HiveCost.ZERO.isLt(cost)) {
-            // cost must be positive, so nudge it
-            cost = makeTinyCost();
-        }
-        for (RelNode input : rel.getInputs()) {
-            cost = cost.plus(getCost(input));
-        }
-        return cost;
-    }
-	
-	// implement Planner
-    public RelOptCost makeCost(
-        double dRows,
-        double dCpu,
-        double dIo)
-    {
-        return new HiveCost(dRows, dCpu, dIo);
-    }
-
-    public RelOptCost makeHugeCost()
-    {
-        return HiveCost.HUGE;
-    }
-
-    public RelOptCost makeInfiniteCost()
-    {
-        return HiveCost.INFINITY;
-    }
-
-    public RelOptCost makeTinyCost()
-    {
-        return HiveCost.TINY;
-    }
-
-    public RelOptCost makeZeroCost()
-    {
-        return HiveCost.ZERO;
-    }
-	
 }
