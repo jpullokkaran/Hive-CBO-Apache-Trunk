@@ -216,6 +216,10 @@ public class RelNodeConverter {
 			return pos;
 		}
 		
+		void propagatePosMap(RelNode node, RelNode parent) {
+			opPositionMap.put(node, opPositionMap.get(parent));
+		}
+		
 		RexNode convertToOptiqExpr(final ExprNodeDesc expr,
 				final RelNode optiqOP) {
 			return convertToOptiqExpr(expr, optiqOP, 0);
@@ -374,7 +378,7 @@ public class RelNodeConverter {
 			HiveRel filtRel = new HiveFilterRel(ctx.cluster,
 					ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
 					convertedFilterExpr);
-			ctx.buildColumnMap(filterOp, filtRel);
+			ctx.propagatePosMap(filtRel, input);
 			ctx.hiveOpToRelNode.put(filterOp, filtRel);
 			return filtRel;
 		}
@@ -434,7 +438,7 @@ public class RelNodeConverter {
       HiveRel sortRel = new HiveSortRel(ctx.cluster,
           ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
           RelCollationImpl.EMPTY, offset, null);
-      ctx.buildColumnMap(limitOp, sortRel);
+      ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(limitOp, sortRel);
       return sortRel;
     }

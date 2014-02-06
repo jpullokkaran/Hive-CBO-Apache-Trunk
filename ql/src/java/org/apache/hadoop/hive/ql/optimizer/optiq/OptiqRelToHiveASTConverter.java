@@ -45,8 +45,7 @@ public class OptiqRelToHiveASTConverter {
     // Transient schema to assemble the final one (m_colTabMap)
     private final Map<RelNode, Map<String, Pair<String, String>>> m_opToColTabMap = new HashMap<RelNode, Map<String, Pair<String, String>>>();
     private Map<String, Pair<String, String>> m_colTabMap;
-    private List<RexNode> m_filterNodeExprs;
-    private int m_filterIndx;
+    private FilterRelBase m_filterNode;
     private AggregateRelBase m_groupByNode;
     private FilterRelBase m_havingNode;
     private SortRel m_orderByNode;
@@ -74,9 +73,8 @@ public class OptiqRelToHiveASTConverter {
     // Convert select stmt blocks to ASTNode
     fromASTNode = getFromNode(optiqNodesForSelectStmt.m_fromNode, optiqNodesForSelectStmt);
     setupColToTabMap(optiqNodesForSelectStmt);
-    if (optiqNodesForSelectStmt.m_filterNodeExprs != null) {
-      filterASTNode = getFilterNode(optiqNodesForSelectStmt.m_filterNodeExprs,
-          optiqNodesForSelectStmt.m_filterNodeExprs.get(optiqNodesForSelectStmt.m_filterIndx),
+    if (optiqNodesForSelectStmt.m_filterNode != null) {
+    	      filterASTNode = getFilterNode(optiqNodesForSelectStmt.m_filterNode.getCondition(),
           optiqNodesForSelectStmt);
     }
     tmpDstASTNode = getTmpFileDestination();
@@ -171,41 +169,51 @@ public class OptiqRelToHiveASTConverter {
     return dotNode;
   }
 
-  private ASTNode getSelectNode(SingleRel selectNode, OptiqNodesForHiveSelectStmt stateInfo) {
-    ASTNode selectASTNode = null;
-    // List<RexNode> projectionsInRex = selectNode.getChildExps();
-    RelDataType outputType = null;
-    if (selectNode instanceof EnumerableCalcRel) {
-      outputType = ((EnumerableCalcRel) selectNode).getProgram().getOutputRowType();
-    } else {
-      outputType = selectNode.getRowType();
-    }
-    List<ASTNode> projectionsInAST = new LinkedList<ASTNode>();
+	private ASTNode getSelectNode(SingleRel selectNode,
+	    OptiqNodesForHiveSelectStmt stateInfo) {
+		ASTNode selectASTNode = null;
+		// List<RexNode> projectionsInRex = selectNode.getChildExps();
+		RelDataType outputType = null;
+		if (selectNode instanceof EnumerableCalcRel) {
+			outputType = ((EnumerableCalcRel) selectNode).getProgram()
+			    .getOutputRowType();
+		} else {
+			outputType = selectNode.getRowType();
+		}
+		List<ASTNode> projectionsInAST = new LinkedList<ASTNode>();
 
-    if (selectNode.isDistinct()) {
-      selectASTNode = new ASTNode(new CommonToken(HiveParser.TOK_SELECTDI, "TOK_SELECTDI"));
-    } else {
-      selectASTNode = new ASTNode(new CommonToken(HiveParser.TOK_SELECT, "TOK_SELECT"));
-    }
+		if (selectNode.isDistinct()) {
+			selectASTNode = new ASTNode(new CommonToken(HiveParser.TOK_SELECTDI,
+			    "TOK_SELECTDI"));
+		} else {
+			selectASTNode = new ASTNode(new CommonToken(HiveParser.TOK_SELECT,
+			    "TOK_SELECT"));
+		}
 
-    int i = 0;
-    for (String fieldName : outputType.getFieldNames()) {
-      // TODO handle expressions
-      projectionsInAST.add(getSelectProjection(selectNode.getInput(0).getRowType().getFieldNames()
-          .get(i), fieldName, stateInfo));
-      i++;
-    }
-    selectASTNode.addChildren(projectionsInAST);
+		int i = 0;
+		for (RexNode r : selectNode.getChildExps()) {
+			ASTNode selectExpr = OptiqRelExprToHiveASTConverter.astExpr(
+			    stateInfo.m_fromNode, r, stateInfo.m_colTabMap);
+			String oAlias = outputType.getFieldNames().get(i);
+			ASTNode selAST = new ASTNode(new CommonToken(HiveParser.TOK_SELEXPR,
+			    "TOK_SELEXPR"));
+			selAST.addChild(selectExpr);
+			selAST.addChild((ASTNode) ParseDriver.adaptor.create(
+			    HiveParser.Identifier, oAlias));
+			projectionsInAST.add(selAST);
+		}
 
-    return selectASTNode;
-  }
+		selectASTNode.addChildren(projectionsInAST);
 
-  private ASTNode getFilterNode(List<RexNode> filterNodeExprs, RexNode filter,
+		return selectASTNode;
+	}
+
+  private ASTNode getFilterNode(RexNode filterCond,
       OptiqNodesForHiveSelectStmt stateInfo) {
     // TODO: Include SubQuery
     ASTNode filterASTNode = new ASTNode(new CommonToken(HiveParser.TOK_WHERE, "TOK_WHERE"));
     ASTNode condnASTNode = OptiqRelExprToHiveASTConverter.astExpr(stateInfo.m_fromNode,
-        filterNodeExprs, filter, stateInfo.m_colTabMap);
+    		filterCond, stateInfo.m_colTabMap);
     filterASTNode.addChild(condnASTNode);
 
     return filterASTNode;
@@ -450,9 +458,8 @@ public class OptiqRelToHiveASTConverter {
       } else if (relNode instanceof FilterRelBase) {
         if (relNode.getInput(0) instanceof AggregateRel) {
           hiveSelectStmt.m_havingNode = (FilterRelBase) relNode;
-        } else {/*
-                 * hiveSelectStmt.m_filterNode = (FilterRel) relNode;
-                 */
+        } else {
+        	hiveSelectStmt.m_filterNode = (FilterRelBase) relNode;
         }
       } else if (relNode instanceof AggregateRelBase) {
         hiveSelectStmt.m_groupByNode = (AggregateRelBase) relNode;
