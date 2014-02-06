@@ -9,6 +9,8 @@ import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.apache.hadoop.hive.ql.parse.ParseDriver;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.eigenbase.sql.SqlFunction;
 import org.eigenbase.sql.SqlFunctionCategory;
 import org.eigenbase.sql.SqlKind;
@@ -29,7 +31,7 @@ public class SqlFunctionConverter {
   }
 
   public static SqlOperator getOptiqOperator(GenericUDF hiveUDF) {
-    return hiveToOptiq.get(hiveUDF.getClass().getName());
+    return hiveToOptiq.get(getName(hiveUDF));
   }
   
   public static ASTNode buildAST(SqlOperator op, List<ASTNode> children) {
@@ -46,6 +48,14 @@ public class SqlFunctionConverter {
 		  ParseDriver.adaptor.addChild(node, c);
 	  }
 	  return node;
+  }
+  
+  private static String getName(GenericUDF hiveUDF) {
+	  if ( hiveUDF instanceof GenericUDFBridge ) {
+	  	return ((GenericUDFBridge)hiveUDF).getUdfName();
+	  } else {
+	  	return hiveUDF.getClass().getName();
+	  }
   }
 
   private static class Builder {
@@ -144,6 +154,16 @@ public class SqlFunctionConverter {
       numericFunction("not");
       registerFunction("!", SqlStdOperatorTable.NOT, hToken(HiveParser.KW_NOT, "not"));
       numericFunction("between");
+      
+      // implicit convert methods
+      numericFunction(serdeConstants.BOOLEAN_TYPE_NAME);
+      numericFunction(serdeConstants.TINYINT_TYPE_NAME);
+      numericFunction(serdeConstants.SMALLINT_TYPE_NAME);
+      numericFunction(serdeConstants.INT_TYPE_NAME);
+      numericFunction(serdeConstants.BIGINT_TYPE_NAME);
+      numericFunction(serdeConstants.FLOAT_TYPE_NAME);
+      numericFunction(serdeConstants.DOUBLE_TYPE_NAME);
+      stringFunction(serdeConstants.STRING_TYPE_NAME);
     }
 
     private void stringFunction(String name) {
@@ -166,7 +186,9 @@ public class SqlFunctionConverter {
     private void registerFunction(String name, SqlOperator optiqFn, HiveToken hiveToken) {
       FunctionInfo hFn = FunctionRegistry.getFunctionInfo(name);
       operatorMap.put(name, optiqFn);
-      hiveToOptiq.put(hFn.getGenericUDF().getClass().getName(), optiqFn);
+      
+      String hFnName = getName(hFn.getGenericUDF());
+      hiveToOptiq.put(hFnName, optiqFn);
       if ( hiveToken != null ) {
     	  optiqToHiveToken.put(optiqFn, hiveToken);
       }
