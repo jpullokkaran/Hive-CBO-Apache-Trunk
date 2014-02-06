@@ -21,6 +21,11 @@ import org.eigenbase.rel.ValuesRelBase;
 import org.eigenbase.rel.rules.MultiJoinRel;
 import org.eigenbase.relopt.hep.HepRelVertex;
 import org.eigenbase.relopt.volcano.RelSubset;
+import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexNode;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 
 public class OptiqRelTreeIntroduceDerivedTables {
 
@@ -72,7 +77,7 @@ public class OptiqRelTreeIntroduceDerivedTables {
     }
   }
 
-  private static void introduceDerivedTable(RelNode rel, RelNode parent) {
+  private static void introduceDerivedTable(final RelNode rel, RelNode parent) {
     int i = 0;
     int pos = -1;
     List<RelNode> childList = parent.getInputs();
@@ -88,8 +93,16 @@ public class OptiqRelTreeIntroduceDerivedTables {
     if (pos == -1) {
       throw new RuntimeException("Couldn't find child node in parent's inputs");
     }
-
-    HiveProjectRel select = HiveProjectRel.create(rel.getCluster(), rel, rel.getChildExps(), rel.getRowType(),
+    
+    
+    List<RexNode> projectList = Lists.transform(rel.getRowType().getFieldList(),
+				new Function<RelDataTypeField, RexNode>() {
+					public RexNode apply( RelDataTypeField field ){
+			            return rel.getCluster().getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+			         }
+		});
+    
+    HiveProjectRel select = HiveProjectRel.create(rel.getCluster(), rel, projectList, rel.getRowType(),
         rel.getCollationList());
     parent.replaceInput(pos, select);
 
