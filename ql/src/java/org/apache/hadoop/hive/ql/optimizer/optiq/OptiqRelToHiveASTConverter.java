@@ -194,7 +194,7 @@ public class OptiqRelToHiveASTConverter {
 		for (RexNode r : selectNode.getChildExps()) {
 			ASTNode selectExpr = OptiqRelExprToHiveASTConverter.astExpr(
 			    stateInfo.m_fromNode, r, stateInfo.m_colTabMap);
-			String oAlias = outputType.getFieldNames().get(i);
+			String oAlias = outputType.getFieldNames().get(i++);
 			ASTNode selAST = new ASTNode(new CommonToken(HiveParser.TOK_SELEXPR,
 			    "TOK_SELEXPR"));
 			selAST.addChild(selectExpr);

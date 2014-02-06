@@ -51,5 +51,11 @@ where  r1.i + r2.i + r3.i = (65536) * 3
 select r1.i, r2.i, r3.i, r4.i
 from over10k r1 join over5k r2 join over500 r3 join over2k r4 
 on r1.f = r2.f and r1.d = r3.d and r2.s = r4.s and round(r1.f) = round(r4.f)
-where r1.i + r2.i + r3.i + r4.i < (65536 + 10) * 4
+where r1.i + r2.i + r3.i + r4.i = (65536) * 4
+;
+
+-- mixed types in join cond, filter
+select  r1.i, r2.i, r2.d + 65659 
+from over10k r1 join over5k r2  on r1.i = round(r2.d + 65600) 
+where r2.i > r2.d + 65659
 ;
