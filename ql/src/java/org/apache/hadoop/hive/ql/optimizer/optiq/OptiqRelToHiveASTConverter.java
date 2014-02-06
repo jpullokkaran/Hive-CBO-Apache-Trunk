@@ -156,7 +156,7 @@ public class OptiqRelToHiveASTConverter {
 
   public static ASTNode getTableDotColumnName(Pair<String, String> colTabPair) {
     if (colTabPair == null) {
-      throw new RuntimeException("Table.Coulumn Pair can't be NULL");
+      throw new RuntimeException("Table.Column Pair can't be NULL");
     }
 
     ASTNode dotNode = new ASTNode(new CommonToken(HiveParser.DOT, "."));

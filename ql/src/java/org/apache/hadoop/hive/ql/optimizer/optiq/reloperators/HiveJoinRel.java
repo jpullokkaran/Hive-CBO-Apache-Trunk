@@ -24,7 +24,6 @@ import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexNode;
-import org.eigenbase.sql.SqlOperator;
 
 //TODO: Should we convert MultiJoin to be a child of HiveJoinRelBase
 public class HiveJoinRel extends JoinRelBase implements HiveRel {
@@ -72,9 +71,9 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         final List<RexNode> rightKeys = new ArrayList<RexNode>();
         List<Integer> filterNulls = new LinkedList<Integer>();
         RexNode remaining = RelOptUtil.splitJoinCondition(getSystemFieldList(), left, right,
-                condition, leftKeys, rightKeys, filterNulls, (List<SqlOperator>) null);
+            condition, leftKeys, rightKeys, filterNulls, null);
 
-        if (remaining != null && !remaining.isAlwaysTrue()) {
+        if (!remaining.isAlwaysTrue()) {
             throw new InvalidRelException(
                     "EnumerableJoinRel only supports equi-join");
         }

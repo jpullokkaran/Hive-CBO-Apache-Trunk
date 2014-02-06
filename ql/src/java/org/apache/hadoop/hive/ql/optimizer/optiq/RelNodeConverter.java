@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -13,6 +14,7 @@ import java.util.Stack;
 
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.FilterOperator;
+import org.apache.hadoop.hive.ql.exec.GroupByOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
 import org.apache.hadoop.hive.ql.exec.LimitOperator;
 import org.apache.hadoop.hive.ql.exec.Operator;
@@ -29,6 +31,7 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.lib.Rule;
 import org.apache.hadoop.hive.ql.lib.RuleRegExp;
 import org.apache.hadoop.hive.ql.optimizer.optiq.expr.RexNodeConverter;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
@@ -41,12 +44,16 @@ import org.apache.hadoop.hive.ql.parse.QBJoinTree;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
+import org.apache.hadoop.hive.ql.plan.AggregationDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc;
 import org.apache.hadoop.hive.ql.plan.JoinDesc;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
+import org.eigenbase.rel.AggregateCall;
+import org.eigenbase.rel.Aggregation;
+import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
@@ -54,8 +61,13 @@ import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptSchema;
 import org.eigenbase.reltype.RelDataType;
+import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.sql.fun.SqlStdOperatorTable;
+import org.eigenbase.sql.type.SqlTypeName;
+import org.eigenbase.util.CompositeList;
+import org.eigenbase.util.Util;
 
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
@@ -81,6 +93,8 @@ public class RelNodeConverter {
             new JoinProcessor())
         .put(new RuleRegExp("R5", LimitOperator.getOperatorName() + "%"),
             new LimitProcessor())
+        .put(new RuleRegExp("R6", GroupByOperator.getOperatorName() + "%"),
+            new GroupByProcessor())
         .build();
 
 		Dispatcher disp = new DefaultRuleDispatcher(new DefaultProcessor(),
@@ -228,6 +242,9 @@ public class RelNodeConverter {
 		RexNode convertToOptiqExpr(final ExprNodeDesc expr,
 				final RelNode optiqOP, int offset) {
 			ImmutableMap<String, Integer> posMap = opPositionMap.get(optiqOP);
+      if (optiqOP == null) {
+        Util.discard(0);
+      }
 			RexNodeConverter c = new RexNodeConverter(cluster,
 					optiqOP.getRowType(), posMap, offset);
 			return c.convert(expr);
@@ -417,7 +434,7 @@ public class RelNodeConverter {
       ctx.hiveOpToRelNode.put(selectOp, selRel);
       return selRel;
     }
-	}
+  }
 
   static class LimitProcessor implements NodeProcessor {
     public Object process(Node nd, Stack<Node> stack,
@@ -441,6 +458,97 @@ public class RelNodeConverter {
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(limitOp, sortRel);
       return sortRel;
+    }
+  }
+
+  static class GroupByProcessor implements NodeProcessor {
+    private static final Map<String, Aggregation> AGG_MAP =
+        ImmutableMap.of(
+            "count", (Aggregation) SqlStdOperatorTable.COUNT,
+            "sum", SqlStdOperatorTable.SUM,
+            "min", SqlStdOperatorTable.MIN,
+            "max", SqlStdOperatorTable.MAX,
+            "avg", SqlStdOperatorTable.AVG);
+
+    public Object process(Node nd, Stack<Node> stack,
+        NodeProcessorCtx procCtx, Object... nodeOutputs)
+        throws SemanticException {
+      Context ctx = (Context) procCtx;
+
+      HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      GroupByOperator groupByOp = (GroupByOperator) nd;
+
+      // GroupBy is represented by two operators, one map side and one reduce
+      // side. We only translate the map-side one.
+      if (groupByOp.getParentOperators().get(0) instanceof ReduceSinkOperator) {
+        ctx.hiveOpToRelNode.put(groupByOp, input);
+        return input;
+      }
+
+      final List<RexNode> extraExprs = Lists.newArrayList();
+      final BitSet groupSet = new BitSet();
+      for (ExprNodeDesc key : groupByOp.getConf().getKeys()) {
+        int index = convertExpr(ctx, input, key, extraExprs);
+        groupSet.set(index);
+      }
+      List<AggregateCall> aggregateCalls = Lists.newArrayList();
+      for (AggregationDesc agg : groupByOp.getConf().getAggregators()) {
+        aggregateCalls.add(convertAgg(ctx, agg, input, extraExprs));
+      }
+
+      if (!extraExprs.isEmpty()) {
+        //noinspection unchecked
+        input = HiveProjectRel.create(input,
+            CompositeList.of(
+                Lists.transform(
+                    input.getRowType().getFieldList(),
+                    new Function<RelDataTypeField, RexNode>() {
+                      public RexNode apply(RelDataTypeField input) {
+                        return new RexInputRef(input.getIndex(),
+                            input.getType());
+                      }
+                    }),
+                extraExprs),
+            null);
+      }
+      try {
+        HiveRel aggregateRel = new HiveAggregateRel(ctx.cluster,
+            ctx.cluster.traitSetOf(HiveRel.CONVENTION), input, groupSet, aggregateCalls);
+        ctx.buildColumnMap(groupByOp, aggregateRel);
+        ctx.hiveOpToRelNode.put(groupByOp, aggregateRel);
+        return aggregateRel;
+      } catch (InvalidRelException e) {
+        throw new AssertionError(e); // not possible
+      }
+    }
+
+    private AggregateCall convertAgg(Context ctx, AggregationDesc agg,
+        RelNode input, List<RexNode> extraExprs) {
+      final Aggregation aggregation = AGG_MAP.get(agg.getGenericUDAFName());
+      if (aggregation == null) {
+        throw new AssertionError("agg not found: " + agg.getGenericUDAFName());
+      }
+
+      List<Integer> argList = new ArrayList<Integer>();
+      for (ExprNodeDesc expr : agg.getParameters()) {
+        int index = convertExpr(ctx, input, expr, extraExprs);
+        argList.add(index);
+      }
+      RelDataType type = ctx.cluster.getTypeFactory().createSqlType(SqlTypeName.INTEGER); // TODO:
+      return new AggregateCall(aggregation, agg.getDistinct(), argList, type, null);
+    }
+
+    private int convertExpr(Context ctx, RelNode input,
+        ExprNodeDesc expr, List<RexNode> extraExprs) {
+      final RexNode rex = ctx.convertToOptiqExpr(expr, input);
+      final int index;
+      if (rex instanceof RexInputRef) {
+        index = ((RexInputRef) rex).getIndex();
+      } else {
+        index = input.getRowType().getFieldCount() + extraExprs.size();
+        extraExprs.add(rex);
+      }
+      return index;
     }
   }
 

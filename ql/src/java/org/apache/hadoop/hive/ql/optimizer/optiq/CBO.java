@@ -1,8 +1,9 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+
+import com.google.common.collect.ImmutableList;
 
 import net.hydromatic.optiq.SchemaPlus;
 import net.hydromatic.optiq.tools.Frameworks;
@@ -13,20 +14,12 @@ import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToBucketJoinRule;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToCommonJoinRule;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToMapJoinRule;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.ConvertToSMBJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePushJoinThroughJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveSwapJoinRule;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.PropagateBucketTraitUpwardsRule;
-import org.apache.hadoop.hive.ql.optimizer.optiq.rules.PropagateSortTraitUpwardsRule;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
-import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
-import org.eigenbase.rel.RelCollationTraitDef;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
 import org.eigenbase.relopt.RelOptCluster;
@@ -39,11 +32,16 @@ import org.eigenbase.rex.RexBuilder;
 import org.eigenbase.sql.SqlExplainLevel;
 
 public class CBO implements Frameworks.PlannerAction<RelNode> {
-    private static final List<OperatorType> m_unsupportedOpTypes = Arrays
-            .asList(OperatorType.DEMUX, OperatorType.FORWARD,
-                    OperatorType.LATERALVIEWFORWARD,
-                    OperatorType.LATERALVIEWJOIN, OperatorType.MUX,
-                    OperatorType.PTF, OperatorType.SCRIPT, OperatorType.UDTF, OperatorType.GROUPBY, OperatorType.UNION);
+    private static final List<OperatorType> m_unsupportedOpTypes = ImmutableList.of(
+        OperatorType.DEMUX,
+        OperatorType.FORWARD,
+        OperatorType.LATERALVIEWFORWARD,
+        OperatorType.LATERALVIEWJOIN,
+        OperatorType.MUX,
+        OperatorType.PTF,
+        OperatorType.SCRIPT,
+        OperatorType.UDTF,
+        OperatorType.UNION);
 
     @SuppressWarnings("rawtypes")
     private final Operator m_sinkOp;

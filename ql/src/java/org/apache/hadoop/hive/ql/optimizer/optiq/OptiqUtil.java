@@ -34,18 +34,11 @@ import org.eigenbase.rex.RexUtil;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import org.eigenbase.util.Util;
 
 public class OptiqUtil {
 	public static <T> boolean orderedSubset(List<T> list1, List<T> list2) {
-		List<T> lstToCompare = list1;
-		if (list1.size() > list2.size()) {
-			lstToCompare = list1.subList(0, list2.size());
-		}
-		if (lstToCompare.equals(list2)) {
-			return true;
-		}
-
-		return false;
+    return Util.startsWith(list1, list2);
 	}
 
 	public static <T> boolean orderedSubset(
