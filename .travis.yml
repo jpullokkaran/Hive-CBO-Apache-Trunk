@@ -1,0 +1,7 @@
+language: java
+jdk:
+  - oraclejdk7
+branches:
+  only:
+    - master
+script: mvn -Phadoop-1 -DskipTests package
