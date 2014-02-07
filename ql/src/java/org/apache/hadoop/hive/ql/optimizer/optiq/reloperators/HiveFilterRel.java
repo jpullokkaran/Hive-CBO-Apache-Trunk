@@ -5,7 +5,7 @@ import java.util.List;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
-import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.RelCollation;
@@ -44,7 +44,7 @@ public class HiveFilterRel extends FilterRelBase implements HiveRel {
 
   @Override
   public RelOptCost computeSelfCost(RelOptPlanner planner) {
-  	return HiveCostUtil.computeCost(this);
+    return HiveCost.FACTORY.makeZeroCost();
   }
 
   @Override

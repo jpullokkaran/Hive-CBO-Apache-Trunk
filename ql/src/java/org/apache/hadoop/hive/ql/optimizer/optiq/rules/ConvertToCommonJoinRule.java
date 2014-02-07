@@ -2,7 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.rules;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfo;
+import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfoOld;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
@@ -31,7 +31,7 @@ public class ConvertToCommonJoinRule extends RelOptRule {
     final HiveJoinRel j = call.rel(0);
     final RelNode leftNode = call.rel(1);
     final RelNode rightNode = call.rel(2);
-    final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+    final JoinPredicateInfoOld jpi = j.getJoinPredicateInfoOld();
     RelTraitSet leftTraitSet = leftNode.getTraitSet();
     RelTraitSet rightTraitSet = rightNode.getTraitSet();
     RelBucketing leftBucketingTrait = OptiqTraitsUtil.getBucketingTrait(leftTraitSet);

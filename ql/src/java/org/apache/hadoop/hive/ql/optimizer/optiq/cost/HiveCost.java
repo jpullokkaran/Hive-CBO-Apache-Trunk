@@ -89,32 +89,40 @@ public class HiveCost implements RelOptCost {
   // TODO: If two cost is equal, could we do any better than comparing
   // cardinality (may be some other heuristics to break the tie)
   public boolean isLe(RelOptCost other) {
-    return (this.cpu + this.io < other.getCpu() + other.getIo())
-        || (this.cpu + this.io == other.getCpu() + other.getIo()
-            && this.rowCount <= other.getRows());
+    return this == other || this.rowCount <= other.getRows();
+    /*
+     * if (((this.dCpu + this.dIo) < (other.getCpu() + other.getIo())) ||
+     * ((this.dCpu + this.dIo) == (other.getCpu() + other.getIo()) && this.dRows
+     * <= other.getRows())) { return true; } else { return false; }
+     */
   }
 
-  public boolean isLt(RelOptCost other)
-  {
-    return isLe(other) && !equals(other);
+  public boolean isLt(RelOptCost other) {
+    return this.rowCount < other.getRows();
+    /*
+     * return isLe(other) && !equals(other);
+     */
   }
 
-  public double getRows()
-  {
+  public double getRows() {
     return rowCount;
   }
 
-  public boolean equals(RelOptCost other)
-  {
-    //TODO: should we consider cardinality as well?
-    return (this == other)
-        || ((this.cpu + this.io) ==  (other.getCpu() + other.getIo()));
+  public boolean equals(RelOptCost other) {
+    return (this == other) || ((this.rowCount) == (other.getRows()));
+
+    /*
+     * //TODO: should we consider cardinality as well? return (this == other) ||
+     * ((this.dCpu + this.dIo) == (other.getCpu() + other.getIo()));
+     */
   }
 
-  public boolean isEqWithEpsilon(RelOptCost other)
-  {
-    return (this == other)
-        || (Math.abs((this.cpu + this.io) - (other.getCpu() + other.getIo())) < RelOptUtil.EPSILON);
+  public boolean isEqWithEpsilon(RelOptCost other) {
+    return (this == other) || (Math.abs((this.rowCount) - (other.getRows())) < RelOptUtil.EPSILON);
+    /*
+     * return (this == other) || (Math.abs((this.dCpu + this.dIo) -
+     * (other.getCpu() + other.getIo())) < RelOptUtil.EPSILON);
+     */
   }
 
   public RelOptCost minus(RelOptCost other)

@@ -2,7 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.rules;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfo;
+import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfoOld;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
@@ -36,7 +36,7 @@ public class ConvertToSMBJoinRule extends RelOptRule {
         || !leftBucketingTrait.noOfBucketsMultipleOfEachOther(rightBucketingTrait)) {
       return false;
     }
-    final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+    final JoinPredicateInfoOld jpi = j.getJoinPredicateInfoOld();
     if (leftBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromLeftRelation())
         && rightBucketingTrait.getPartitionCols().equals(jpi.getJoinKeysFromRightRelation())
         && jpi.getNonJoinKeyLeafPredicates().isEmpty()) {

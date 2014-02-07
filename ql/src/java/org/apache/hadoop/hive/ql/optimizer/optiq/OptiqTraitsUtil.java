@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfo;
+import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfoOld;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveIRShuffleRel;
@@ -354,7 +354,7 @@ public class OptiqTraitsUtil {
           RelBucketing childBucketingTrait = (RelBucketing) childTrait;
           final Map<Integer, Integer> childToParentProjMap =
               OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
-          final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+          final JoinPredicateInfoOld jpi = j.getJoinPredicateInfoOld();
           if (jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
             final List<Integer> joinKeysOfInterestInChildNode;
             final List<Integer> joinKeysOfInterestInJoin;
@@ -381,7 +381,7 @@ public class OptiqTraitsUtil {
 
           Map<Integer, Integer> childToParentProjMap =
               OptiqUtil.translateChildColPosToParent(j, childLeftOfJoin);
-          final JoinPredicateInfo jpi = j.getJoinPredicateInfo();
+          final JoinPredicateInfoOld jpi = j.getJoinPredicateInfoOld();
           if (jpi.getNonJoinKeyLeafPredicates().isEmpty()) {
             final List<Integer> joinKeysOfInterestInChildNode;
 

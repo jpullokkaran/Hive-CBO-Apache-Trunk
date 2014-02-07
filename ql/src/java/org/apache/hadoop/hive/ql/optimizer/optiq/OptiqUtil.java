@@ -52,7 +52,7 @@ public class OptiqUtil {
 		return false;
 	}
 
-  public static JoinPredicateInfo create(HiveJoinRel j) {
+  public static JoinPredicateInfoOld create(HiveJoinRel j) {
     List<RexNode> leftJoinKeys = new LinkedList<RexNode>();
     List<RexNode> rightJoinKeys = new LinkedList<RexNode>();
     List<Integer> filterNulls = new LinkedList<Integer>();
@@ -66,7 +66,7 @@ public class OptiqUtil {
     List<Integer> joinKeysFromRightRelations = getIndexList(rightJoinKeys);
 
     int leftFieldCount = j.getLeft().getRowType().getFieldCount();
-    return new JoinPredicateInfo(joinKeysFromLeftRelations,
+    return new JoinPredicateInfoOld(joinKeysFromLeftRelations,
         joinKeysFromRightRelations, leftFieldCount,
         RelOptUtil.conjunctions(remainingNonJoinConjunctivePredicate));
   }
@@ -230,14 +230,14 @@ public class OptiqUtil {
    * {@link org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel}.
    *
    * <p>None of the fields are ever null. */
-  public static class JoinPredicateInfo {
+  public static class JoinPredicateInfoOld {
 		private final List<RexNode> m_nonJoinKeyLeafPredicates;
 		private final List<Integer> m_joinKeysFromLeftRelations;
 		private final List<Integer> m_joinKeysFromRightRelations;
 		private final List<Integer> m_joinKeysInJoinNodeSchemaFromLeft;
 		private final List<Integer> m_joinKeysInJoinNodeSchemaFromRight;
 
-    public JoinPredicateInfo(List<Integer> joinKeysFromLeftRelations,
+    public JoinPredicateInfoOld(List<Integer> joinKeysFromLeftRelations,
         List<Integer> joinKeysFromRightRelations, int leftFieldCount,
         List<RexNode> conjunctions) {
       this.m_joinKeysFromLeftRelations =

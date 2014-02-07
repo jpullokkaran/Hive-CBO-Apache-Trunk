@@ -6,12 +6,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil.JoinPredicateInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfo;
+import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil.JoinPredicateInfoOld;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
+import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveOptiqStatsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelBase;
@@ -42,8 +45,9 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     public enum MapJoinStreamingRelation {
         NONE, LEFT_RELATION, RIGHT_RELATION
     }
-
+    
     private JoinPredicateInfo m_jpi;
+    private JoinPredicateInfoOld m_jpiOld;
     private final JoinAlgorithm m_joinAlgorithm;
     private MapJoinStreamingRelation m_mapJoinStreamingSide = MapJoinStreamingRelation.NONE;
 
@@ -113,23 +117,29 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
         return m_mapJoinStreamingSide;
     }
 
-    public synchronized JoinPredicateInfo getJoinPredicateInfo() {
-        if (m_jpi == null) {
-            m_jpi = OptiqUtil.create(this);
-        }
-        return m_jpi;
+  public synchronized JoinPredicateInfo getJoinPredicateInfo() {
+    if (m_jpi == null) {
+      m_jpi = JoinPredicateInfo.constructJoinPredicateInfo(this);
     }
+    return m_jpi;
+  }
+
+  @Deprecated
+  public synchronized JoinPredicateInfoOld getJoinPredicateInfoOld() {
+    if (m_jpiOld == null) {
+      m_jpiOld = OptiqUtil.create(this);
+    }
+    return m_jpiOld;
+  }
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    	return HiveCostUtil.computeCost(this);
+    	return HiveCostUtil.computCardinalityBasedCost(this);
     }
 
     @Override
     public double getRows() {
-        final double leftRowCount = left.getRows();
-        final double rightRowCount = right.getRows();
-        return leftRowCount * rightRowCount;
+      return left.getRows() * right.getRows() * HiveOptiqStatsUtil.computeJoinSelectivity(this);
     }
 
     @Override

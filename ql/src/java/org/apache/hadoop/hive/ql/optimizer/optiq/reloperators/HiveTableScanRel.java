@@ -8,7 +8,7 @@ import java.util.Map;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
-import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.RelCollation;
@@ -76,7 +76,7 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner) {
-    	return HiveCostUtil.computeCost(this);
+      return HiveCost.FACTORY.makeZeroCost();
     }
 
     @Override
