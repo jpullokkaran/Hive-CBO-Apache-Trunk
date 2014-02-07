@@ -142,7 +142,7 @@ public class HivePushJoinThroughJoinRule extends RelOptRule {
         RexUtil.composeConjunction(rexBuilder, newBottomList, false);
     final JoinRelBase newBottomJoin =
         bottomJoin.copy(
-            bottomJoin.getTraitSet(), newBottomCondition, relA, relC);
+            bottomJoin.getTraitSet(), newBottomCondition, relA, relC, topJoin.getJoinType());
 
     // target: | A | C | B |
     // source: | A | B | C |
@@ -162,7 +162,7 @@ public class HivePushJoinThroughJoinRule extends RelOptRule {
     @SuppressWarnings("SuspiciousNameCombination")
     final JoinRelBase newTopJoin =
         topJoin.copy(
-            topJoin.getTraitSet(), newTopCondition, newBottomJoin, relB);
+            topJoin.getTraitSet(), newTopCondition, newBottomJoin, relB, topJoin.getJoinType());
 
     assert !Mappings.isIdentity(topMapping);
     final RelNode newProject = OptiqUtil.createProjectIfNeeded((HiveRel) newTopJoin,
@@ -251,7 +251,7 @@ public class HivePushJoinThroughJoinRule extends RelOptRule {
         RexUtil.composeConjunction(rexBuilder, newBottomList, false);
     final JoinRelBase newBottomJoin =
         bottomJoin.copy(
-            bottomJoin.getTraitSet(), newBottomCondition, relC, relB);
+            bottomJoin.getTraitSet(), newBottomCondition, relC, relB, topJoin.getJoinType());
 
     // target: | C | B | A |
     // source: | A | B | C |
@@ -271,7 +271,7 @@ public class HivePushJoinThroughJoinRule extends RelOptRule {
     @SuppressWarnings("SuspiciousNameCombination")
     final JoinRelBase newTopJoin =
         topJoin.copy(
-            topJoin.getTraitSet(), newTopCondition, newBottomJoin, relA);
+            topJoin.getTraitSet(), newTopCondition, newBottomJoin, relA, topJoin.getJoinType());
 
     final RelNode newProject = OptiqUtil.createProjectIfNeeded((HiveRel) newTopJoin,
         Mappings.asList(topMapping));

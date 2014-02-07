@@ -86,7 +86,7 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
 
     @Override
     public final HiveJoinRel copy(RelTraitSet traitSet, RexNode conditionExpr,
-            RelNode left, RelNode right) {
+            RelNode left, RelNode right, JoinRelType joinType) {
       return copy(traitSet, conditionExpr, left, right, m_joinAlgorithm,
           m_mapJoinStreamingSide);
     }
