@@ -112,7 +112,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         System.out.println(RelOptUtil.toString(opTreeInOptiq, SqlExplainLevel.ALL_ATTRIBUTES));
 
         planner.clearRules();
-        planner.addRule(new HiveSwapJoinRule());
+        planner.addRule(HiveSwapJoinRule.INSTANCE);
         planner.addRule(HivePushJoinThroughJoinRule.LEFT);
         planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
 
