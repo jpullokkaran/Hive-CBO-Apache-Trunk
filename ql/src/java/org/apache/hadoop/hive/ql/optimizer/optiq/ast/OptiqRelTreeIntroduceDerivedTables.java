@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq;
+package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
 
 import java.util.List;
 

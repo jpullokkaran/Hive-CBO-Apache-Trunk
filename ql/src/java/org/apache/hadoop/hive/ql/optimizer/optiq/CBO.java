@@ -12,6 +12,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QueryProperties;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
+import org.apache.hadoop.hive.ql.optimizer.optiq.ast.ASTConverter;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePushJoinThroughJoinRule;
@@ -65,11 +66,7 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         if (shouldRunOptiqOptimizer(sinkOp, conf, semanticAnalyzer.getQueryProperties())) {
             RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
                     semanticAnalyzer, pCtx));
-
-            // return
-            // OptiqOpToHiveASTConverter.convertOpTree(optimizedOptiqPlan);
-            optiqOptimizedAST = OptiqRelToHiveASTConverter
-                    .convertOpTree(optimizedOptiqPlan);
+            optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan);
         }
 
         return optiqOptimizedAST;

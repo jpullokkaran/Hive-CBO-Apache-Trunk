@@ -1,0 +1,328 @@
+package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.hadoop.hive.ql.optimizer.optiq.expr.SqlFunctionConverter;
+import org.apache.hadoop.hive.ql.parse.ASTNode;
+import org.apache.hadoop.hive.ql.parse.HiveParser;
+import org.apache.hadoop.hive.ql.parse.ParseDriver;
+import org.eigenbase.rel.AggregateRelBase;
+import org.eigenbase.rel.FilterRelBase;
+import org.eigenbase.rel.JoinRelBase;
+import org.eigenbase.rel.ProjectRelBase;
+import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.RelVisitor;
+import org.eigenbase.rel.SortRel;
+import org.eigenbase.rel.TableAccessRelBase;
+import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexCall;
+import org.eigenbase.rex.RexInputRef;
+import org.eigenbase.rex.RexLiteral;
+import org.eigenbase.rex.RexNode;
+import org.eigenbase.rex.RexVisitorImpl;
+import org.eigenbase.sql.SqlOperator;
+import org.eigenbase.util.CompositeList;
+
+public class ASTConverter {
+
+	RelNode root;
+	HiveAST hiveAST;
+	RelNode from;
+	FilterRelBase where;
+	AggregateRelBase groupBy;
+	FilterRelBase having;
+	ProjectRelBase select;
+	SortRel order;
+	
+	Schema schema;
+	
+	ASTConverter(RelNode root) {
+		this.root = root;
+		hiveAST = new HiveAST();
+	}
+	
+	public static ASTNode convert(final RelNode relNode) {
+    OptiqRelTreeIntroduceDerivedTables.convertOpTree(relNode, null);
+    ASTConverter c = new ASTConverter(relNode);
+    return c.convert();
+  }
+	
+	public ASTNode convert() {
+		/*
+		 * 1. Walk RelNode Graph; note from, where, gBy.. nodes.
+		 */
+		new QBVisitor().go(root);
+		
+		/*
+		 * 2. convert from node.
+		 */
+		QueryBlockInfo qb = convertSource(from);
+		schema = qb.schema;
+		hiveAST.from = ASTBuilder.construct(HiveParser.TOK_FROM, "TOK_FROM").
+				add(qb.ast).node();
+		
+		/*
+		 * 3. convert filterNode
+		 */
+		if ( where != null ) {
+			
+			ASTNode cond = where.getCondition().accept(new RexVisitor(schema));
+			hiveAST.where = ASTBuilder.where(cond);
+		}
+		
+		/*
+		 * 4. GBy
+		 */
+		if ( groupBy != null ) {
+			
+		}
+		
+		/*
+		 * 5. Having
+		 */
+		if ( having != null ) {
+			
+		}
+		
+		/*
+		 * 6. Project
+		 */
+		int i = 0;
+		ASTBuilder b = select.isDistinct() ?
+				ASTBuilder.construct(HiveParser.TOK_SELECTDI, "TOK_SELECTDI") :
+						ASTBuilder.construct(HiveParser.TOK_SELECT, "TOK_SELECT");
+		
+		for (RexNode r : select.getChildExps()) {
+			ASTNode selectExpr = ASTBuilder.selectExpr(
+					r.accept(new RexVisitor(schema)), select.getRowType().getFieldNames().get(i++));
+			b.add(selectExpr);
+		}
+		hiveAST.select = b.node();
+		
+		
+		/*
+		 * 7. Order
+		 */
+		if ( order != null ) {
+			
+		}
+		
+		return hiveAST.getAST();
+	}
+	
+	private Schema getRowSchema(String tblAlias) {
+		return new Schema(select, tblAlias);
+	}
+	
+	private QueryBlockInfo convertSource(RelNode r) {
+		Schema s;
+		ASTNode ast;
+		
+		if ( r instanceof TableAccessRelBase ) {
+			TableAccessRelBase f = (TableAccessRelBase) r;
+			s = new Schema(f);
+			ast = ASTBuilder.table(f);
+		} else if ( r instanceof JoinRelBase ) {
+			JoinRelBase join = (JoinRelBase) r;
+			QueryBlockInfo left = convertSource(join.getLeft());
+			QueryBlockInfo right = convertSource(join.getRight());
+			s = new Schema(left.schema, right.schema);
+			ASTNode cond = join.getCondition().accept(new RexVisitor(s));
+			ast = ASTBuilder.join(left.ast, right.ast, join.getJoinType(), cond);
+		} else {
+			ASTConverter src = new ASTConverter(r);
+			ASTNode srcAST = src.convert();
+			String sqAlias = ASTConverter.nextAlias();
+			s = src.getRowSchema(sqAlias);
+			ast = ASTBuilder.subQuery(srcAST, sqAlias);
+		}
+		return new QueryBlockInfo(s, ast);
+	}
+		
+	class QBVisitor extends RelVisitor {
+
+    public void handle(FilterRelBase filter, RelNode parent) {
+			if (parent instanceof AggregateRelBase ) {
+				ASTConverter.this.having = filter;
+			} else {
+				ASTConverter.this.where = filter;
+			}
+    }
+
+    public void handle(ProjectRelBase project) {
+			if (ASTConverter.this.select == null ) {
+				ASTConverter.this.select = project;
+			} else {
+				ASTConverter.this.from = project;
+			}
+    }
+
+    @Override
+		public void visit(
+	      RelNode node,
+	      int ordinal,
+	      RelNode parent) {
+    	
+			if ( node instanceof TableAccessRelBase ) {
+				ASTConverter.this.from = node;
+			} else if ( node instanceof FilterRelBase ) {
+				handle((FilterRelBase)node, parent);
+			} else if ( node instanceof ProjectRelBase) {
+				handle((ProjectRelBase)node);
+			} else if ( node instanceof JoinRelBase ) {
+				ASTConverter.this.from = node;
+			} else if ( node instanceof  AggregateRelBase ) {
+				ASTConverter.this.groupBy = (AggregateRelBase) node;
+			} else if ( node instanceof  SortRel ) {
+				ASTConverter.this.order = (SortRel) node;
+			}
+			/*
+			 * once the source node is reached; stop traversal for this QB
+			 */
+			if (ASTConverter.this.from == null ) {
+				node.childrenAccept(this);
+			}
+	  }
+		
+	}
+
+	class RexVisitor extends RexVisitorImpl<ASTNode> {
+
+		private final Schema schema;
+
+		protected RexVisitor(Schema schema) {
+			super(true);
+			this.schema = schema;
+		}
+
+		@Override
+		public ASTNode visitInputRef(RexInputRef inputRef) {
+			ColumnInfo cI = schema.get(inputRef.getIndex());
+			if ( cI.agg != null ) {
+				return (ASTNode) ParseDriver.adaptor.dupTree(cI.agg);
+			}
+			return ASTBuilder.qualifiedName(cI.table, cI.column);
+		}
+
+		@Override
+		public ASTNode visitLiteral(RexLiteral literal) {
+			return ASTBuilder.literal(literal);
+		}
+
+		@Override
+		public ASTNode visitCall(RexCall call) {
+			if (!deep) {
+				return null;
+			}
+
+			SqlOperator op = call.getOperator();
+			List<ASTNode> astNodeLst = new LinkedList<ASTNode>();
+			for (RexNode operand : call.operands) {
+				astNodeLst.add(operand.accept(this));
+			}
+			return SqlFunctionConverter.buildAST(op, astNodeLst);
+		}
+	}
+	
+	static class QueryBlockInfo {
+		Schema schema;
+		ASTNode ast;
+		
+		public QueryBlockInfo(Schema schema, ASTNode ast) {
+	    super();
+	    this.schema = schema;
+	    this.ast = ast;
+    }
+	}
+	
+	/*
+	 * represents the schema exposed by a QueryBlock.
+	 */
+	static class Schema extends ArrayList<ColumnInfo> {
+		
+    private static final long serialVersionUID = 1L;
+
+		Schema(TableAccessRelBase scan) {
+	    String tabName = scan.getTable().getQualifiedName().get(0);
+	    for (RelDataTypeField field : scan.getRowType().getFieldList()) {
+	    	add(new ColumnInfo(tabName, field.getName()));
+	    }
+		}
+		
+		Schema(ProjectRelBase select, String alias) {
+	    for (RelDataTypeField field : select.getRowType().getFieldList()) {
+	    	add(new ColumnInfo(alias, field.getName()));
+	    }
+		}
+				
+		@SuppressWarnings("unchecked")
+    Schema(Schema left, Schema right) {
+			for (ColumnInfo cI : CompositeList.of(left, right) ) {
+	    	add(cI);
+	    }
+		}
+		
+	}
+	
+	/*
+	 * represents Column information exposed by a QueryBlock.
+	 */
+	static class ColumnInfo {
+		String table;
+		String column;
+		ASTNode agg;
+		
+		ColumnInfo(String table, String column) {
+	    super();
+	    this.table = table;
+	    this.column = column;
+    }
+		
+		ColumnInfo(String table, ASTNode agg) {
+	    super();
+	    this.table = table;
+	    this.agg = agg;
+    }
+		
+		ColumnInfo(String alias, ColumnInfo srcCol) {
+	    this.table = alias;
+	    this.column = srcCol.column;
+	    this.agg = srcCol.agg;
+    }
+	}
+	
+	static String nextAlias() {
+		return String.format("$hdt$_%d", derivedTableCounter.getAndIncrement());
+	}
+	
+	private static AtomicLong derivedTableCounter = new AtomicLong(0);
+	
+	static class HiveAST {
+		
+		ASTNode from;
+		ASTNode where;
+		ASTNode groupBy;
+		ASTNode having;
+		ASTNode select;
+		ASTNode order;
+		ASTNode limit;
+		
+		public ASTNode getAST() {
+	    ASTBuilder b = ASTBuilder.construct(HiveParser.TOK_QUERY, "TOK_QUERY").
+	    		add(from).
+	    		add(ASTBuilder.construct(HiveParser.TOK_INSERT, "TOK_INSERT").
+	    				add(ASTBuilder.destNode()).
+	    				add(select).
+	    				add(where).
+	    				add(groupBy).
+	    				add(having).
+	    				add(order).
+	    				add(limit));
+	    return b.node();
+		}
+	}
+	
+}
