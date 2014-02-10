@@ -80,6 +80,7 @@ public class RelOptHiveTable extends RelOptAbstractTable {
       Statistics colStat = m_schemaToStatsMap.get(columnLst);
       
       if (colStat ==  null) {
+    	  //TODO: Pass in partition list
           colStat = StatsUtils.collectStatistics(m_hiveConf, null, m_hiveTblMetadata, m_hiveRowSchema.getSignature(), columnLst);
           if (colStat == null || colStat.getBasicStatsState().equals(State.NONE))
           {

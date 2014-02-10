@@ -81,7 +81,6 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 
       //RelOptPlanner planner = cluster.getPlanner();
         RelOptPlanner planner = HiveVolcanoPlanner.createPlanner();
-        //planner.addRelTraitDef(RelBucketingTraitDef.INSTANCE);
         
         /*
          * recreate cluster, so that it picks up the additional traitDef
@@ -103,38 +102,12 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
     			cluster, relOptSchema,
     			m_semanticAnalyzer, m_ParseContext);
         
-        /*
-         * The starting tree
-         */
-        System.out.println(RelOptUtil.toString(opTreeInOptiq, SqlExplainLevel.ALL_ATTRIBUTES));
-
         planner.clearRules();
         planner.addRule(HiveSwapJoinRule.INSTANCE);
         planner.addRule(HivePushJoinThroughJoinRule.LEFT);
         planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
 
-        /*
-        planner.addRule(new ConvertToCommonJoinRule());
-        planner.addRule(PropagateBucketTraitUpwardsRule.FILTER);
-        planner.addRule(PropagateBucketTraitUpwardsRule.LIMIT);
-        planner.addRule(PropagateBucketTraitUpwardsRule.PROJECT);
-        planner.addRule(PropagateSortTraitUpwardsRule.FILTER);
-        planner.addRule(PropagateSortTraitUpwardsRule.LIMIT);
-        planner.addRule(PropagateSortTraitUpwardsRule.PROJECT);
-
-        planner.addRule(
-                new ConvertToBucketJoinRule(totalMemForSmallTable));
-        planner.addRule(new ConvertToSMBJoinRule());
-        planner.addRule(
-                new ConvertToMapJoinRule(totalMemForSmallTable));
-        
-        RelTraitSet desiredTraits = 
-        		RelTraitSet.createEmpty().
-        		plus(HiveRel.CONVENTION).
-        		plus(RelCollationTraitDef.INSTANCE.getDefault()).
-        		plus(RelBucketingTraitImpl.EMPTY);
-        		*/
-    		RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
+        RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
 
         RelNode rootRel = opTreeInOptiq;
         if (!rootRel.getTraitSet().equals(desiredTraits)) {
