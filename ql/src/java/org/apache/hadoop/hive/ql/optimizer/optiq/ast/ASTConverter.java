@@ -1,14 +1,18 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+
+import net.hydromatic.optiq.util.BitSets;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.expr.SqlFunctionConverter;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.apache.hadoop.hive.ql.parse.ParseDriver;
+import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.JoinRelBase;
@@ -24,7 +28,10 @@ import org.eigenbase.rex.RexLiteral;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.rex.RexVisitorImpl;
 import org.eigenbase.sql.SqlOperator;
+import org.eigenbase.sql.type.BasicSqlType;
+import org.eigenbase.sql.type.SqlTypeName;
 import org.eigenbase.util.CompositeList;
+import org.eigenbase.util.IntList;
 
 public class ASTConverter {
 
@@ -77,7 +84,14 @@ public class ASTConverter {
 		 * 4. GBy
 		 */
 		if ( groupBy != null ) {
-			
+			ASTBuilder b = ASTBuilder.construct(HiveParser.TOK_GROUPBY, "TOK_GROUPBY");
+			IntList keys = BitSets.toList(groupBy.getGroupSet());
+	    for(int i: keys) {
+	    	RexInputRef iRef = new RexInputRef(i, new BasicSqlType(SqlTypeName.ANY));
+    		b.add(iRef.accept(new RexVisitor(schema)));
+	    }
+	    hiveAST.groupBy = b.node();
+			schema = new Schema(schema, groupBy);
 		}
 		
 		/*
@@ -189,7 +203,7 @@ public class ASTConverter {
 		
 	}
 
-	class RexVisitor extends RexVisitorImpl<ASTNode> {
+	static class RexVisitor extends RexVisitorImpl<ASTNode> {
 
 		private final Schema schema;
 
@@ -262,6 +276,29 @@ public class ASTConverter {
     Schema(Schema left, Schema right) {
 			for (ColumnInfo cI : CompositeList.of(left, right) ) {
 	    	add(cI);
+	    }
+		}
+		
+		Schema(Schema src, AggregateRelBase gBy) {
+	    IntList keys = BitSets.toList(gBy.getGroupSet());
+	    for(int i: keys) {
+	    	ColumnInfo cI = src.get(i);
+	    	add(cI);
+	    }
+	    List<AggregateCall> aggs = gBy.getAggCallList();
+	    for(AggregateCall agg : aggs) {
+	    	int argCount = agg.getArgList().size();
+	    	ASTBuilder b = agg.isDistinct() ? 
+	    			ASTBuilder.construct(HiveParser.TOK_FUNCTIONDI, "TOK_FUNCTIONDI") :
+	    				argCount == 0 ?
+	    						ASTBuilder.construct(HiveParser.TOK_FUNCTIONSTAR, "TOK_FUNCTIONSTAR") :
+	    							ASTBuilder.construct(HiveParser.TOK_FUNCTION, "TOK_FUNCTION");
+	    	b.add(HiveParser.Identifier, agg.getAggregation().getName());
+	    	for(int i : agg.getArgList()) {
+	    		RexInputRef iRef = new RexInputRef(i, new BasicSqlType(SqlTypeName.ANY));
+	    		b.add(iRef.accept(new RexVisitor(src)));
+	    	}
+	    	add(new ColumnInfo(null, b.node()));
 	    }
 		}
 		

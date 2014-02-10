@@ -477,6 +477,8 @@ public class RelNodeConverter {
 
       HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
       GroupByOperator groupByOp = (GroupByOperator) nd;
+      RowResolver rr = ctx.sA.getRowResolver(groupByOp);
+      ArrayList<ColumnInfo> signature = rr.getRowSchema().getSignature();
 
       // GroupBy is represented by two operators, one map side and one reduce
       // side. We only translate the map-side one.
@@ -492,8 +494,9 @@ public class RelNodeConverter {
         groupSet.set(index);
       }
       List<AggregateCall> aggregateCalls = Lists.newArrayList();
+      int i = groupByOp.getConf().getKeys().size();
       for (AggregationDesc agg : groupByOp.getConf().getAggregators()) {
-        aggregateCalls.add(convertAgg(ctx, agg, input, extraExprs));
+        aggregateCalls.add(convertAgg(ctx, agg, input, signature.get(i++), extraExprs));
       }
 
       if (!extraExprs.isEmpty()) {
@@ -523,18 +526,30 @@ public class RelNodeConverter {
     }
 
     private AggregateCall convertAgg(Context ctx, AggregationDesc agg,
-        RelNode input, List<RexNode> extraExprs) {
+        RelNode input, ColumnInfo cI, List<RexNode> extraExprs) {
       final Aggregation aggregation = AGG_MAP.get(agg.getGenericUDAFName());
       if (aggregation == null) {
         throw new AssertionError("agg not found: " + agg.getGenericUDAFName());
       }
 
       List<Integer> argList = new ArrayList<Integer>();
+      RelDataType type = TypeConverter.convert(cI.getType(), ctx.cluster.getTypeFactory());
+      if ( aggregation.equals(SqlStdOperatorTable.AVG) ) {
+      	type = type.getField("sum", false).getType();
+      }
       for (ExprNodeDesc expr : agg.getParameters()) {
         int index = convertExpr(ctx, input, expr, extraExprs);
         argList.add(index);
       }
-      RelDataType type = ctx.cluster.getTypeFactory().createSqlType(SqlTypeName.INTEGER); // TODO:
+      
+      /*
+       * set the type to the first arg, it there is one; because the RTi set on Aggregation call asssumes
+       * this is the output type.
+       */
+      if ( argList.size() > 0 ) {
+      	RexNode rex = ctx.convertToOptiqExpr(agg.getParameters().get(0), input);
+      	type = rex.getType();
+      }
       return new AggregateCall(aggregation, agg.getDistinct(), argList, type, null);
     }
 

@@ -31,7 +31,7 @@ public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
           OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
               BitSets.toList(groupSet), aggCalls, child),
           child, groupSet, aggCalls);
-        assert getConvention() instanceof HiveRel;
+        //assert getConvention() instanceof HiveRel; fix this: 2/9 hb 
 
         for (AggregateCall aggCall : aggCalls) {
             if (aggCall.isDistinct()) {

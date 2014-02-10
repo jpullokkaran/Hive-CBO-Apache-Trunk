@@ -59,3 +59,8 @@ select  r1.i, r2.i, r2.d + 65659
 from over10k r1 join over5k r2  on r1.i = round(r2.d + 65600) 
 where r2.i > r2.d + 65659
 ;
+
+-- group by
+select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
+from over10k r1   
+where i = 65726 group by i, round(f/2)
