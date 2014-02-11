@@ -445,16 +445,16 @@ public class RelNodeConverter {
       LimitOperator limitOp = (LimitOperator) nd;
 
       // in Optiq, a limit is represented as a sort on 0 columns
-      final RexNode offset;
+      final RexNode fetch;
       if (limitOp.getConf().getLimit() >= 0) {
-        offset = ctx.cluster.getRexBuilder().makeExactLiteral(
+        fetch = ctx.cluster.getRexBuilder().makeExactLiteral(
             BigDecimal.valueOf(limitOp.getConf().getLimit()));
       } else {
-        offset = null;
+        fetch = null;
       }
       HiveRel sortRel = new HiveSortRel(ctx.cluster,
           ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
-          RelCollationImpl.EMPTY, offset, null);
+          RelCollationImpl.EMPTY, null, fetch);
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(limitOp, sortRel);
       return sortRel;

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import net.hydromatic.optiq.util.BitSets;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.expr.SqlFunctionConverter;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
 import org.apache.hadoop.hive.ql.parse.ParseDriver;
@@ -121,6 +122,11 @@ public class ASTConverter {
 		 * 7. Order
 		 */
 		if ( order != null ) {
+			RexNode limitExpr = ((HiveSortRel)order).getFetchExpr();
+			if ( limitExpr != null ) {
+				Object val = ((RexLiteral)limitExpr).getValue2();
+				hiveAST.limit = ASTBuilder.limit(val);
+			}
 			
 		}
 		

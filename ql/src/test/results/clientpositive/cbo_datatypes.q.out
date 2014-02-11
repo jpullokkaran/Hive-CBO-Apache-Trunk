@@ -422,3 +422,26 @@ POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over10k
 #### A masked pattern was here ####
 65726	15.0	4	125.22	63.75	245.52999946594238
+PREHOOK: query: -- limit
+select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
+from over10k r1   
+where i = 65726 
+group by i, round(f/2) 
+limit 5
+PREHOOK: type: QUERY
+PREHOOK: Input: default@over10k
+#### A masked pattern was here ####
+POSTHOOK: query: -- limit
+select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
+from over10k r1   
+where i = 65726 
+group by i, round(f/2) 
+limit 5
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@over10k
+#### A masked pattern was here ####
+65726	0.0	1	47.11	88.0	47.949999973773956
+65726	1.0	1	49.4	91.0	52.31000008583069
+65726	2.0	2	61.989999999999995	63.0	70.83999990463256
+65726	3.0	1	22.68	35.0	29.52000015258789
+65726	4.0	3	38.23	55.333333333333336	62.86000059127807

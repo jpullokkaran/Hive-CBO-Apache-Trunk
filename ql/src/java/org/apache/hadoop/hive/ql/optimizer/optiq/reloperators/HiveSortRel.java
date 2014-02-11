@@ -19,7 +19,7 @@ public class HiveSortRel extends SortRel implements HiveRel {
             RelNode child, RelCollation collation, RexNode offset, RexNode fetch) {
         super(cluster, OptiqTraitsUtil.getSortTraitSet(cluster, traitSet,
                 collation), child, collation, offset, fetch);
-        assert getConvention() instanceof HiveRel;
+        //assert getConvention() instanceof HiveRel;
         assert getConvention() == child.getConvention();
     }
 
@@ -31,6 +31,10 @@ public class HiveSortRel extends SortRel implements HiveRel {
         // different cols
         return new HiveSortRel(getCluster(), traitSet, newInput, newCollation,
                 offset, fetch);
+    }
+    
+    public RexNode getFetchExpr() {
+    	return fetch;
     }
 
     public void implement(Implementor implementor) {

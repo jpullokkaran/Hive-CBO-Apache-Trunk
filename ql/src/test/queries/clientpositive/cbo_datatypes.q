@@ -79,3 +79,11 @@ where i = 65726
 group by i, round(f/2) 
 having count(*) >= 4
 ;
+
+-- limit
+select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
+from over10k r1   
+where i = 65726 
+group by i, round(f/2) 
+limit 5
+;
