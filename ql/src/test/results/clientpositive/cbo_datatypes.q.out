@@ -69,19 +69,21 @@ POSTHOOK: query: create table over5k as select * from over10k where i < 65536 + 
 POSTHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: Input: default@over10k
 POSTHOOK: Output: default@over5k
-PREHOOK: query: analyze table over10k compute statistics
+PREHOOK: query: -- set hive.stats.dbclass=jdbc:derby;
+analyze table over10k compute statistics
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over10k
 PREHOOK: Output: default@over10k
-POSTHOOK: query: analyze table over10k compute statistics
+POSTHOOK: query: -- set hive.stats.dbclass=jdbc:derby;
+analyze table over10k compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over10k
 POSTHOOK: Output: default@over10k
-PREHOOK: query: analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+PREHOOK: query: analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over10k
 #### A masked pattern was here ####
-POSTHOOK: query: analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+POSTHOOK: query: analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over10k
 #### A masked pattern was here ####
@@ -93,11 +95,11 @@ POSTHOOK: query: analyze table over1k compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over1k
 POSTHOOK: Output: default@over1k
-PREHOOK: query: analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+PREHOOK: query: analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over1k
 #### A masked pattern was here ####
-POSTHOOK: query: analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+POSTHOOK: query: analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over1k
 #### A masked pattern was here ####
@@ -109,11 +111,11 @@ POSTHOOK: query: analyze table over500 compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over500
 POSTHOOK: Output: default@over500
-PREHOOK: query: analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+PREHOOK: query: analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over500
 #### A masked pattern was here ####
-POSTHOOK: query: analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+POSTHOOK: query: analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over500
 #### A masked pattern was here ####
@@ -125,11 +127,11 @@ POSTHOOK: query: analyze table over2k compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over2k
 POSTHOOK: Output: default@over2k
-PREHOOK: query: analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+PREHOOK: query: analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over2k
 #### A masked pattern was here ####
-POSTHOOK: query: analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+POSTHOOK: query: analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over2k
 #### A masked pattern was here ####
@@ -141,11 +143,11 @@ POSTHOOK: query: analyze table over5k compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over5k
 POSTHOOK: Output: default@over5k
-PREHOOK: query: analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+PREHOOK: query: analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s
 PREHOOK: type: QUERY
 PREHOOK: Input: default@over5k
 #### A masked pattern was here ####
-POSTHOOK: query: analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin
+POSTHOOK: query: analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@over5k
 #### A masked pattern was here ####
@@ -386,3 +388,18 @@ POSTHOOK: Input: default@over10k
 65726	43.0	2	42.78	81.0	213.41999938964847
 65726	45.0	2	46.85	53.5	225.7300048828125
 65726	49.0	1	40.15	81.0	137.23999633789063
+PREHOOK: query: -- compound join condition
+select t1.i, t1.d, t2.i, t2.d
+from over1k t1 join over1k t2 on ((t1.i+t1.d)/10)=((t2.i+t2.d)/10)
+where t1.i + t2.i = (65536) * 2 and t1.d + t2.d < 3
+PREHOOK: type: QUERY
+PREHOOK: Input: default@over1k
+#### A masked pattern was here ####
+POSTHOOK: query: -- compound join condition
+select t1.i, t1.d, t2.i, t2.d
+from over1k t1 join over1k t2 on ((t1.i+t1.d)/10)=((t2.i+t2.d)/10)
+where t1.i + t2.i = (65536) * 2 and t1.d + t2.d < 3
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@over1k
+#### A masked pattern was here ####
+65536	1.46	65536	1.46

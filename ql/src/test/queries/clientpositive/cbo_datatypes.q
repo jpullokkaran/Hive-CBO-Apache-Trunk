@@ -23,17 +23,17 @@ create table over500 as select * from over10k where i < 65536 + 15;
 create table over2k as select * from over10k where i < 65536 + 60;
 create table over5k as select * from over10k where i < 65536 + 125;
 
-set hive.stats.dbclass=jdbc:derby;
+-- set hive.stats.dbclass=jdbc:derby;
 analyze table over10k compute statistics;
-analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin;
+analyze table over10k compute statistics for columns t,si,i,b,f,d,bo,s;
 analyze table over1k compute statistics;
-analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin;
+analyze table over1k compute statistics for columns t,si,i,b,f,d,bo,s;
 analyze table over500 compute statistics;
-analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin;
+analyze table over500 compute statistics for columns t,si,i,b,f,d,bo,s;
 analyze table over2k compute statistics;
-analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin;
+analyze table over2k compute statistics for columns t,si,i,b,f,d,bo,s;
 analyze table over5k compute statistics;
-analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s,ts,bin;
+analyze table over5k compute statistics for columns t,si,i,b,f,d,bo,s;
 
 set hive.stats.fetch.column.stats=true;
 
@@ -64,3 +64,10 @@ where r2.i > r2.d + 65659
 select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
 from over10k r1   
 where i = 65726 group by i, round(f/2)
+;
+
+-- compound join condition
+select t1.i, t1.d, t2.i, t2.d
+from over1k t1 join over1k t2 on ((t1.i+t1.d)/10)=((t2.i+t2.d)/10)
+where t1.i + t2.i = (65536) * 2 and t1.d + t2.d < 3
+;
