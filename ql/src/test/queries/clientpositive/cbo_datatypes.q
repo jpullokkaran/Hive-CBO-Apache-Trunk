@@ -71,3 +71,11 @@ select t1.i, t1.d, t2.i, t2.d
 from over1k t1 join over1k t2 on ((t1.i+t1.d)/10)=((t2.i+t2.d)/10)
 where t1.i + t2.i = (65536) * 2 and t1.d + t2.d < 3
 ;
+
+-- having
+select r1.i, round(f/2), count(*), sum(d), avg(t), sum (d + f) 
+from over10k r1   
+where i = 65726 
+group by i, round(f/2) 
+having count(*) >= 4
+;

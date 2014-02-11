@@ -80,6 +80,10 @@ class ASTBuilder {
 				add(cond).node();
 	}
 	
+	static ASTNode having(ASTNode cond) {
+		return ASTBuilder.construct(HiveParser.TOK_HAVING, "TOK_HAVING").
+				add(cond).node();
+	}
 	static ASTNode selectExpr(ASTNode expr, String alias) {
 		return ASTBuilder.construct(HiveParser.TOK_SELEXPR, "TOK_SELEXPR")
 		    .add(expr).add(HiveParser.Identifier, alias).node();

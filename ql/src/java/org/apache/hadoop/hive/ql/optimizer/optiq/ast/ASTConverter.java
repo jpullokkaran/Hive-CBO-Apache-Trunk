@@ -75,7 +75,6 @@ public class ASTConverter {
 		 * 3. convert filterNode
 		 */
 		if ( where != null ) {
-			
 			ASTNode cond = where.getCondition().accept(new RexVisitor(schema));
 			hiveAST.where = ASTBuilder.where(cond);
 		}
@@ -98,7 +97,8 @@ public class ASTConverter {
 		 * 5. Having
 		 */
 		if ( having != null ) {
-			
+			ASTNode cond = having.getCondition().accept(new RexVisitor(schema));
+			hiveAST.having = ASTBuilder.having(cond);
 		}
 		
 		/*
@@ -158,8 +158,9 @@ public class ASTConverter {
 		
 	class QBVisitor extends RelVisitor {
 
-    public void handle(FilterRelBase filter, RelNode parent) {
-			if (parent instanceof AggregateRelBase ) {
+    public void handle(FilterRelBase filter) {
+    	RelNode child = filter.getChild();
+			if (child instanceof AggregateRelBase ) {
 				ASTConverter.this.having = filter;
 			} else {
 				ASTConverter.this.where = filter;
@@ -183,7 +184,7 @@ public class ASTConverter {
 			if ( node instanceof TableAccessRelBase ) {
 				ASTConverter.this.from = node;
 			} else if ( node instanceof FilterRelBase ) {
-				handle((FilterRelBase)node, parent);
+				handle((FilterRelBase)node);
 			} else if ( node instanceof ProjectRelBase) {
 				handle((ProjectRelBase)node);
 			} else if ( node instanceof JoinRelBase ) {
