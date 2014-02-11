@@ -51,6 +51,7 @@ import org.apache.hadoop.hive.ql.plan.RoleDDLDesc;
 import org.apache.hadoop.hive.ql.plan.ShowGrantDesc;
 import org.apache.hadoop.hive.ql.security.authorization.Privilege;
 import org.apache.hadoop.hive.ql.security.authorization.PrivilegeRegistry;
+import org.apache.hadoop.hive.ql.security.authorization.PrivilegeType;
 import org.apache.hadoop.hive.ql.session.SessionState;
 /**
  * Default implementation of HiveAuthorizationTaskFactory
@@ -322,7 +323,8 @@ public class HiveAuthorizationTaskFactoryImpl implements HiveAuthorizationTaskFa
       Privilege privObj = PrivilegeRegistry.getPrivilege(privilegeType.getType());
 
       if (privObj == null) {
-        throw new SemanticException("undefined privilege " + privilegeType.getType());
+        throw new SemanticException("Undefined privilege " + PrivilegeType.
+            getPrivTypeByToken(privilegeType.getType()));
       }
       List<String> cols = null;
       if (privilegeDef.getChildCount() > 1) {
@@ -369,5 +371,22 @@ public class HiveAuthorizationTaskFactoryImpl implements HiveAuthorizationTaskFa
   }
   private String toMessage(ErrorMsg message, Object detail) {
     return detail == null ? message.getMsg() : message.getMsg(detail.toString());
+  }
+
+  @Override
+  public Task<? extends Serializable> createSetRoleTask(String roleName,
+      HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs)
+      throws SemanticException {
+    return TaskFactory.get(new DDLWork(inputs, outputs, new RoleDDLDesc(roleName,
+      RoleDDLDesc.RoleOperation.SET_ROLE)), conf);
+  }
+
+  @Override
+  public Task<? extends Serializable> createShowCurrentRoleTask(
+      HashSet<ReadEntity> inputs, HashSet<WriteEntity> outputs, Path resFile)
+      throws SemanticException {
+    RoleDDLDesc ddlDesc = new RoleDDLDesc(null, RoleDDLDesc.RoleOperation.SHOW_CURRENT_ROLE);
+    ddlDesc.setResFile(resFile.toString());
+    return TaskFactory.get(new DDLWork(inputs, outputs, ddlDesc), conf);
   }
 }

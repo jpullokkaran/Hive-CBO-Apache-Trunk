@@ -208,6 +208,8 @@ public class HiveConf extends Configuration {
     TASKLOG_DEBUG_TIMEOUT("hive.exec.tasklog.debug.timeout", 20000),
     OUTPUT_FILE_EXTENSION("hive.output.file.extension", null),
 
+    HIVE_IN_TEST("hive.in.test", false), // internal usage only, true in test mode
+
     // should hive determine whether to run in local mode automatically ?
     LOCALMODEAUTO("hive.exec.mode.local.auto", false),
     // if yes:
@@ -412,6 +414,8 @@ public class HiveConf extends Configuration {
     HIVEADDEDFILES("hive.added.files.path", ""),
     HIVEADDEDJARS("hive.added.jars.path", ""),
     HIVEADDEDARCHIVES("hive.added.archives.path", ""),
+
+    HIVE_CURRENT_DATABASE("hive.current.database", ""), // internal usage only
 
     // for hive script operator
     HIVES_AUTO_PROGRESS_TIMEOUT("hive.auto.progress.timeout", 0),
@@ -658,6 +662,9 @@ public class HiveConf extends Configuration {
     HIVE_STATS_MAP_NUM_ENTRIES("hive.stats.map.num.entries", 10),
     // to accurately compute statistics for GROUPBY map side parallelism needs to be known
     HIVE_STATS_MAP_SIDE_PARALLELISM("hive.stats.map.parallelism", 1),
+    // statistics annotation fetches stats for each partition, which can be expensive. turning
+    // this off will result in basic sizes being fetched from namenode instead
+    HIVE_STATS_FETCH_PARTITION_STATS("hive.stats.fetch.partition.stats", true),
     // statistics annotation fetches column statistics for all required columns which can
     // be very expensive sometimes
     HIVE_STATS_FETCH_COLUMN_STATS("hive.stats.fetch.column.stats", false),
@@ -827,7 +834,7 @@ public class HiveConf extends Configuration {
 
     HIVE_SECURITY_COMMAND_WHITELIST("hive.security.command.whitelist", "set,reset,dfs,add,delete,compile"),
 
-    HIVE_CONF_RESTRICTED_LIST("hive.conf.restricted.list", ""),
+    HIVE_CONF_RESTRICTED_LIST("hive.conf.restricted.list", "hive.security.authenticator.manager,hive.security.authorization.manager"),
 
     // If this is set all move tasks at the end of a multi-insert query will only begin once all
     // outputs are ready
@@ -877,7 +884,7 @@ public class HiveConf extends Configuration {
     HIVE_VECTORIZATION_GROUPBY_CHECKINTERVAL("hive.vectorized.groupby.checkinterval", 100000),
     HIVE_VECTORIZATION_GROUPBY_MAXENTRIES("hive.vectorized.groupby.maxentries", 1000000),
     HIVE_VECTORIZATION_GROUPBY_FLUSH_PERCENT("hive.vectorized.groupby.flush.percent", (float) 0.1),
-    
+
 
     HIVE_TYPE_CHECK_ON_INSERT("hive.typecheck.on.insert", true),
 
@@ -892,7 +899,7 @@ public class HiveConf extends Configuration {
     HIVEEXPLAINDEPENDENCYAPPENDTASKTYPES("hive.explain.dependency.append.tasktype", false),
 
     HIVECOUNTERGROUP("hive.counters.group.name", "HIVE"),
-    
+
     // none, column
     // none is the default(past) behavior. Implies only alphaNumeric and underscore are valid characters in identifiers.
     // column: implies column names can contain any character.
@@ -1507,6 +1514,7 @@ public class HiveConf extends Configuration {
         restrictList.add(entry.trim());
       }
     }
-    restrictList.add(ConfVars.HIVE_CONF_RESTRICTED_LIST.toString());
+    restrictList.add(ConfVars.HIVE_IN_TEST.varname);
+    restrictList.add(ConfVars.HIVE_CONF_RESTRICTED_LIST.varname);
   }
 }
