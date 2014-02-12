@@ -104,6 +104,10 @@ public class HiveOptiqJoinUtil {
     }
 
     public static JoinPredicateInfo constructJoinPredicateInfo(HiveJoinRel j) {
+      return constructJoinPredicateInfo(j, j.getCondition());
+    }
+    
+    public static JoinPredicateInfo constructJoinPredicateInfo(HiveJoinRel j, RexNode predicate) {
       JoinPredicateInfo jpi = null;
       JoinLeafPredicateInfo jlpi = null;
       List<JoinLeafPredicateInfo> equiLPIList = new ArrayList<JoinLeafPredicateInfo>();
@@ -122,7 +126,7 @@ public class HiveOptiqJoinUtil {
 
       // 1. Decompose Join condition to a number of leaf predicates
       // (conjuctive elements)
-      conjuctiveElements = RelOptUtil.conjunctions(j.getCondition());
+      conjuctiveElements = RelOptUtil.conjunctions(predicate);
 
       // 2. Walk through leaf predicates building up JoinLeafPredicateInfo
       for (RexNode ce : conjuctiveElements) {
@@ -257,7 +261,7 @@ public class HiveOptiqJoinUtil {
 
       // 1. Split leaf join predicate to expressions from left, right
       RexNode nonEquiPredicate = RelOptUtil.splitJoinCondition(j.getSystemFieldList(), j.getLeft(),
-          j.getRight(), j.getCondition(), joinKeyExprsFromLeft, joinKeyExprsFromRight, filterNulls,
+          j.getRight(), pe, joinKeyExprsFromLeft, joinKeyExprsFromRight, filterNulls,
           null);
 
       // 2. For left expressions, collect child projection indexes used

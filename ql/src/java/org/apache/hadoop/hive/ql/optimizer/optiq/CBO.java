@@ -23,6 +23,8 @@ import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
+import org.eigenbase.rel.metadata.ChainedRelMetadataProvider;
+import org.eigenbase.rel.metadata.DefaultRelMetadataProvider;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptQuery;
@@ -94,8 +96,13 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         /*
          * wrap MetaDataProvider in a Caching Provider.
          */
+            HiveDefaultRelMetadataProvider defaultProvider =
+                    new HiveDefaultRelMetadataProvider();
+            planner.registerMetadataProviders(defaultProvider);
+            
+
         cluster.setMetadataProvider(
-        		new CachingRelMetadataProvider(cluster.getMetadataProvider(), planner));
+        		new CachingRelMetadataProvider(defaultProvider, planner));
 
         
         RelNode opTreeInOptiq =  RelNodeConverter.convert(m_sinkOp,

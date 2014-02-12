@@ -137,10 +137,12 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     	return HiveCostUtil.computCardinalityBasedCost(this);
     }
 
+   /*
     @Override
     public double getRows() {
       return left.getRows() * right.getRows() * HiveOptiqStatsUtil.computeJoinSelectivity(this);
     }
+    */
 
     @Override
     public double getAvgTupleSize() {

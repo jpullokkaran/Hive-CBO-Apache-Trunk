@@ -44,3 +44,9 @@ explain select * from tbl1 join tbl2 on tbl1.a_int = tbl2.a_int join tbl3 on tbl
 -- Simple 4-way join
 explain select * from tbl1 join tbl2 on tbl1.a_int = tbl2.a_int join tbl3 on tbl1.a_int=tbl3.a_int join tbl4 on tbl1.a_int=tbl4.a_int;
 
+-- 3-way join + filter(<)
+explain select * from tbl1 join (select * from tbl2 where  tbl2.b_int < 100 ) tbl2 on tbl1.a_int = tbl2.a_int join tbl3 on tbl1.a_int=tbl3.a_int;
+
+-- 3-way join + GB
+explain select * from tbl1 join (select a_int, b_int from tbl2 group by a_int, b_int) tbl2 on tbl1.a_int = tbl2.a_int join tbl3 on tbl1.a_int=tbl3.a_int;
+

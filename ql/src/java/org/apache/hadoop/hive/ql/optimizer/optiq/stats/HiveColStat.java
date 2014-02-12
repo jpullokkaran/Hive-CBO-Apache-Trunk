@@ -9,11 +9,11 @@ public class HiveColStat {
         m_ndv = ndv;
     }
     
-    double getAvgSz() {
+    public double getAvgSz() {
         return m_avgSz;
     }
     
-    long getNDV() {
+    public long getNDV() {
         return m_ndv;
     }
 }

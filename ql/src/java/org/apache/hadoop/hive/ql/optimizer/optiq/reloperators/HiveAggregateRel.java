@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Map;
 
 import net.hydromatic.optiq.util.BitSets;
+
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelBucketing;
+import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.OptiqStatsUtil;
 import org.eigenbase.rel.AggregateCall;
@@ -17,8 +19,12 @@ import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptCluster;
+import org.eigenbase.relopt.RelOptCost;
+import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
+import org.eigenbase.rex.RexBuilder;
 
 public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
 
@@ -82,6 +88,17 @@ public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
         }
 
         return colStatLstToReturn;
+    }
+    
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner) {
+      return HiveCost.FACTORY.makeZeroCost();
+    }
+
+    @Override
+    public double getRows() {
+      return RelMetadataQuery.getDistinctRowCount(this, groupSet, getCluster().getRexBuilder()
+        .makeLiteral(true));
     }
 
     @Override
