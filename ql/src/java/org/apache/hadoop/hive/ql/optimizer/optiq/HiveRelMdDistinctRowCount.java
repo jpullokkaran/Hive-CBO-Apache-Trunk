@@ -15,10 +15,12 @@ import org.eigenbase.rex.RexNode;
 import org.eigenbase.util14.NumberUtil;
 
 public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
-  public static final RelMetadataProvider SOURCE =
-      ReflectiveRelMetadataProvider.reflectiveSource(
-          BuiltinMethod.DISTINCT_ROW_COUNT.method,
-          new HiveRelMdDistinctRowCount());
+  public static final RelMetadataProvider SOURCE = ReflectiveRelMetadataProvider.reflectiveSource(
+                                                     BuiltinMethod.DISTINCT_ROW_COUNT.method,
+                                                     new HiveRelMdDistinctRowCount());
+
+  private HiveRelMdDistinctRowCount() {
+  }
 
   // Catch-all rule when none of the others apply.
   public Double getDistinctRowCount(RelNode rel, BitSet groupKey, RexNode predicate) {
@@ -42,12 +44,9 @@ public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
   }
 
   public static Double getDistinctRowCount(RelNode r, int indx) {
-    BitSet chilBitSet = new BitSet();
-    chilBitSet.set(indx);
-    return getDistinctRowCount(r, chilBitSet);
-  }
-
-  public static Double getDistinctRowCount(RelNode r, BitSet chilBitSet) {
-    return RelMetadataQuery.getDistinctRowCount(r, chilBitSet, (RexNode) null);
+    BitSet bitSetOfRqdProj = new BitSet();
+    bitSetOfRqdProj.set(indx);
+    return RelMetadataQuery.getDistinctRowCount(r, bitSetOfRqdProj, r.getCluster().getRexBuilder()
+        .makeLiteral(true));
   }
 }
