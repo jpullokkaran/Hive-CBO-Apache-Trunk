@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import net.hydromatic.optiq.SchemaPlus;
 import net.hydromatic.optiq.tools.Frameworks;
@@ -24,15 +25,13 @@ import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
 import org.eigenbase.rel.metadata.ChainedRelMetadataProvider;
-import org.eigenbase.rel.metadata.DefaultRelMetadataProvider;
+import org.eigenbase.rel.metadata.RelMetadataProvider;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptQuery;
 import org.eigenbase.relopt.RelOptSchema;
-import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexBuilder;
-import org.eigenbase.sql.SqlExplainLevel;
 
 public class CBO implements Frameworks.PlannerAction<RelNode> {
     private static final List<OperatorType> m_unsupportedOpTypes = ImmutableList.of(
@@ -98,11 +97,14 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
          */
             HiveDefaultRelMetadataProvider defaultProvider =
                     new HiveDefaultRelMetadataProvider();
-            planner.registerMetadataProviders(defaultProvider);
-            
+        List<RelMetadataProvider> list = Lists.newArrayList();
+        list.add(defaultProvider);
+        planner.registerMetadataProviders(list);
 
+        RelMetadataProvider chainedProvider =
+            ChainedRelMetadataProvider.of(list);
         cluster.setMetadataProvider(
-        		new CachingRelMetadataProvider(defaultProvider, planner));
+        		new CachingRelMetadataProvider(chainedProvider, planner));
 
         
         RelNode opTreeInOptiq =  RelNodeConverter.convert(m_sinkOp,

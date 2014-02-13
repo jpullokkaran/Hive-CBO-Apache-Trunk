@@ -3,15 +3,23 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 import java.util.BitSet;
 import java.util.List;
 
+import net.hydromatic.optiq.BuiltinMethod;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
 import org.eigenbase.rel.RelNode;
+import org.eigenbase.rel.metadata.ReflectiveRelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMdDistinctRowCount;
+import org.eigenbase.rel.metadata.RelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.util14.NumberUtil;
 
 public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
+  public static final RelMetadataProvider SOURCE =
+      ReflectiveRelMetadataProvider.reflectiveSource(
+          BuiltinMethod.DISTINCT_ROW_COUNT.method,
+          new HiveRelMdDistinctRowCount());
+
   // Catch-all rule when none of the others apply.
   public Double getDistinctRowCount(RelNode rel, BitSet groupKey, RexNode predicate) {
     if (rel instanceof HiveTableScanRel) {
