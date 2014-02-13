@@ -4,6 +4,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel.JoinAlgorithm;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 
+import org.eigenbase.rel.RelFactories;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.rules.SwapJoinRule;
 import org.eigenbase.relopt.RelOptRule;
@@ -14,7 +15,7 @@ import java.util.List;
 
 
 public class HiveSwapJoinRule extends SwapJoinRule {
-  public static final ProjectFactory HIVE_PROJECT_FACTORY =
+  public static final RelFactories.ProjectFactory HIVE_PROJECT_FACTORY =
       new HiveProjectFactory();
 
   public static final HiveSwapJoinRule INSTANCE = new HiveSwapJoinRule();
@@ -29,9 +30,9 @@ public class HiveSwapJoinRule extends SwapJoinRule {
         && call.<HiveJoinRel>rel(0).getJoinAlgorithm() == JoinAlgorithm.NONE;
   }
 
-  /** Implementation of {@link ProjectFactory} that returns
+  /** Implementation of {@link org.eigenbase.rel.RelFactories.ProjectFactory} that returns
    * {@link org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel}. */
-  private static class HiveProjectFactory implements ProjectFactory {
+  private static class HiveProjectFactory implements RelFactories.ProjectFactory {
     @Override
     public RelNode createProject(RelNode input, List<RexNode> exps,
         List<String> fieldNames) {

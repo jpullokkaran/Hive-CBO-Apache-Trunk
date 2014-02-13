@@ -90,15 +90,8 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         final RexBuilder rexBuilder = cluster.getRexBuilder();
         cluster =
             query.createCluster(rexBuilder.getTypeFactory(), rexBuilder);
-        
-        
-        /*
-         * wrap MetaDataProvider in a Caching Provider.
-         */
-            HiveDefaultRelMetadataProvider defaultProvider =
-                    new HiveDefaultRelMetadataProvider();
         List<RelMetadataProvider> list = Lists.newArrayList();
-        list.add(defaultProvider);
+        list.add(HiveDefaultRelMetadataProvider.INSTANCE);
         planner.registerMetadataProviders(list);
 
         RelMetadataProvider chainedProvider =
