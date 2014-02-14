@@ -50,3 +50,13 @@ explain select * from tbl1 join (select * from tbl2 where  tbl2.b_int < 100 ) tb
 -- 3-way join + GB
 explain select * from tbl1 join (select a_int, b_int from tbl2 group by a_int, b_int) tbl2 on tbl1.a_int = tbl2.a_int join tbl3 on tbl1.a_int=tbl3.a_int;
 
+
+-- 4-way join + subQuery
+explain 
+select * 
+from (select * from tbl1 where (tbl1.a_int+tbl1.c_float) > 1) r1 join 
+     (select * from tbl2 where (tbl2.c_float *10) > 1) r2 on r1.a_int=r2.a_int join 
+    tbl3 on r1.a_int=tbl3.a_int join 
+    tbl4 on r1.a_int=tbl4.a_int
+;
+
