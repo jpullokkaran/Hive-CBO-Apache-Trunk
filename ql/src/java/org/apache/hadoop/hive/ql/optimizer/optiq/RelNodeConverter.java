@@ -56,6 +56,7 @@ import org.eigenbase.rel.Aggregation;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelCollationImpl;
+import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
@@ -65,15 +66,21 @@ import org.eigenbase.reltype.RelDataTypeField;
 import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.sql.fun.SqlStdOperatorTable;
-import org.eigenbase.sql.type.SqlTypeName;
 import org.eigenbase.util.CompositeList;
-import org.eigenbase.util.Util;
+import org.eigenbase.util.Pair;
 
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 public class RelNodeConverter {
+  private static final Map<String, Aggregation> AGG_MAP =
+      ImmutableMap.of(
+          "count", (Aggregation) SqlStdOperatorTable.COUNT,
+          "sum", SqlStdOperatorTable.SUM,
+          "min", SqlStdOperatorTable.MIN,
+          "max", SqlStdOperatorTable.MAX,
+          "avg", SqlStdOperatorTable.AVG);
 
 	public static RelNode convert(Operator<? extends OperatorDesc> sinkOp, 
 			RelOptCluster cluster, RelOptSchema schema,
@@ -95,6 +102,8 @@ public class RelNodeConverter {
             new LimitProcessor())
         .put(new RuleRegExp("R6", GroupByOperator.getOperatorName() + "%"),
             new GroupByProcessor())
+        .put(new RuleRegExp("R7", ReduceSinkOperator.getOperatorName() + "%"),
+            new ReduceSinkProcessor())
         .build();
 
 		Dispatcher disp = new DefaultRuleDispatcher(new DefaultProcessor(),
@@ -221,7 +230,7 @@ public class RelNodeConverter {
 			ExprNodeDesc e = jOp.getColumnExprMap().get(ci.getInternalName());
 			String cName = ((ExprNodeColumnDesc)e).getColumn();
 			cName = cName.substring("VALUE.".length());
-			int pos = -1;
+			int pos;
 			if ( inpPosMap.containsKey(cName)) {
 				pos = inpPosMap.get(cName);
 			} else {
@@ -242,9 +251,6 @@ public class RelNodeConverter {
 		RexNode convertToOptiqExpr(final ExprNodeDesc expr,
 				final RelNode optiqOP, int offset) {
 			ImmutableMap<String, Integer> posMap = opPositionMap.get(optiqOP);
-      if (optiqOP == null) {
-        Util.discard(0);
-      }
 			RexNodeConverter c = new RexNodeConverter(cluster,
 					optiqOP.getRowType(), posMap, offset);
 			return c.convert(expr);
@@ -279,7 +285,7 @@ public class RelNodeConverter {
 		 */
 		private HiveJoinRel convertJoinOp(Context ctx, JoinOperator op,
 				JoinCondDesc jc, HiveRel leftRel, HiveRel rightRel) {
-			HiveJoinRel joinRel = null;
+			HiveJoinRel joinRel;
 			Operator<? extends OperatorDesc> leftParent = op
 					.getParentOperators().get(jc.getLeft());
 			Operator<? extends OperatorDesc> rightParent = op
@@ -336,9 +342,9 @@ public class RelNodeConverter {
 				// Translate non-joinkey predicate
 				Set<Entry<Byte, List<ExprNodeDesc>>> filterExprSet = op
 						.getConf().getFilters().entrySet();
-				if (filterExprSet != null && !filterExprSet.isEmpty()) {
+				if (!filterExprSet.isEmpty()) {
 					RexNode eqExpr;
-					int colOffSet = 0;
+					int colOffSet;
 					RelNode childRel;
 					Operator parentHiveOp;
 					int inputId;
@@ -380,7 +386,48 @@ public class RelNodeConverter {
 			return joinRel;
 		}
 	}
-	
+
+  private static int convertExpr(Context ctx, RelNode input,
+      ExprNodeDesc expr, List<RexNode> extraExprs) {
+    final RexNode rex = ctx.convertToOptiqExpr(expr, input);
+    final int index;
+    if (rex instanceof RexInputRef) {
+      index = ((RexInputRef) rex).getIndex();
+    } else {
+      index = input.getRowType().getFieldCount() + extraExprs.size();
+      extraExprs.add(rex);
+    }
+    return index;
+  }
+
+  private static AggregateCall convertAgg(Context ctx, AggregationDesc agg,
+      RelNode input, ColumnInfo cI, List<RexNode> extraExprs) {
+    final Aggregation aggregation = AGG_MAP.get(agg.getGenericUDAFName());
+    if (aggregation == null) {
+      throw new AssertionError("agg not found: " + agg.getGenericUDAFName());
+    }
+
+    List<Integer> argList = new ArrayList<Integer>();
+    RelDataType type = TypeConverter.convert(cI.getType(), ctx.cluster.getTypeFactory());
+    if ( aggregation.equals(SqlStdOperatorTable.AVG) ) {
+      type = type.getField("sum", false).getType();
+    }
+    for (ExprNodeDesc expr : agg.getParameters()) {
+      int index = convertExpr(ctx, input, expr, extraExprs);
+      argList.add(index);
+    }
+
+      /*
+       * set the type to the first arg, it there is one; because the RTi set on Aggregation call
+       * assumes this is the output type.
+       */
+    if ( argList.size() > 0 ) {
+      RexNode rex = ctx.convertToOptiqExpr(agg.getParameters().get(0), input);
+      type = rex.getType();
+    }
+    return new AggregateCall(aggregation, agg.getDistinct(), argList, type, null);
+  }
+
 	static class FilterProcessor implements NodeProcessor {
 		@SuppressWarnings("unchecked")
 		public Object process(Node nd, Stack<Node> stack,
@@ -462,14 +509,6 @@ public class RelNodeConverter {
   }
 
   static class GroupByProcessor implements NodeProcessor {
-    private static final Map<String, Aggregation> AGG_MAP =
-        ImmutableMap.of(
-            "count", (Aggregation) SqlStdOperatorTable.COUNT,
-            "sum", SqlStdOperatorTable.SUM,
-            "min", SqlStdOperatorTable.MIN,
-            "max", SqlStdOperatorTable.MAX,
-            "avg", SqlStdOperatorTable.AVG);
-
     public Object process(Node nd, Stack<Node> stack,
         NodeProcessorCtx procCtx, Object... nodeOutputs)
         throws SemanticException {
@@ -524,46 +563,72 @@ public class RelNodeConverter {
         throw new AssertionError(e); // not possible
       }
     }
+  }
 
-    private AggregateCall convertAgg(Context ctx, AggregationDesc agg,
-        RelNode input, ColumnInfo cI, List<RexNode> extraExprs) {
-      final Aggregation aggregation = AGG_MAP.get(agg.getGenericUDAFName());
-      if (aggregation == null) {
-        throw new AssertionError("agg not found: " + agg.getGenericUDAFName());
+  static class ReduceSinkProcessor implements NodeProcessor {
+    public Object process(Node nd, Stack<Node> stack,
+        NodeProcessorCtx procCtx, Object... nodeOutputs)
+        throws SemanticException {
+      Context ctx = (Context) procCtx;
+      HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      ReduceSinkOperator sinkOp = (ReduceSinkOperator) nd;
+
+      // It is a sort reducer if and only if the number of reducers is 1.
+      final ReduceSinkDesc conf = sinkOp.getConf();
+      if (conf.getNumReducers() != 1) {
+        Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
+        ctx.hiveOpToRelNode.put(op, input);
+        return input;
       }
 
-      List<Integer> argList = new ArrayList<Integer>();
-      RelDataType type = TypeConverter.convert(cI.getType(), ctx.cluster.getTypeFactory());
-      if ( aggregation.equals(SqlStdOperatorTable.AVG) ) {
-      	type = type.getField("sum", false).getType();
+      final String order = conf.getOrder(); // "+-" means "ASC, DESC"
+      assert order.length() == conf.getKeyCols().size();
+
+      final List<RelFieldCollation> fieldCollations = Lists.newArrayList();
+      final List<RexNode> extraExprs = Lists.newArrayList();
+      for (Pair<ExprNodeDesc, Character> pair
+          : Pair.zip(conf.getKeyCols(), Lists.charactersOf(order))) {
+        int index = convertExpr(ctx, input, pair.left, extraExprs);
+        RelFieldCollation.Direction direction = getDirection(pair.right);
+        fieldCollations.add(new RelFieldCollation(index, direction));
       }
-      for (ExprNodeDesc expr : agg.getParameters()) {
-        int index = convertExpr(ctx, input, expr, extraExprs);
-        argList.add(index);
+
+      if (!extraExprs.isEmpty()) {
+        //noinspection unchecked
+        input = HiveProjectRel.create(input,
+            CompositeList.of(
+                Lists.transform(
+                    input.getRowType().getFieldList(),
+                    new Function<RelDataTypeField, RexNode>() {
+                      public RexNode apply(RelDataTypeField input) {
+                        return new RexInputRef(input.getIndex(),
+                            input.getType());
+                      }
+                    }),
+                extraExprs),
+            null);
       }
-      
-      /*
-       * set the type to the first arg, it there is one; because the RTi set on Aggregation call asssumes
-       * this is the output type.
-       */
-      if ( argList.size() > 0 ) {
-      	RexNode rex = ctx.convertToOptiqExpr(agg.getParameters().get(0), input);
-      	type = rex.getType();
-      }
-      return new AggregateCall(aggregation, agg.getDistinct(), argList, type, null);
+
+      HiveRel sortRel = new HiveSortRel(ctx.cluster,
+          ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
+          RelCollationImpl.of(fieldCollations), null, null);
+      ctx.propagatePosMap(sortRel, input);
+      ctx.hiveOpToRelNode.put(sinkOp, sortRel);
+
+      // REVIEW: Do we need to remove the columns we added due to extraExprs?
+
+      return sortRel;
     }
 
-    private int convertExpr(Context ctx, RelNode input,
-        ExprNodeDesc expr, List<RexNode> extraExprs) {
-      final RexNode rex = ctx.convertToOptiqExpr(expr, input);
-      final int index;
-      if (rex instanceof RexInputRef) {
-        index = ((RexInputRef) rex).getIndex();
-      } else {
-        index = input.getRowType().getFieldCount() + extraExprs.size();
-        extraExprs.add(rex);
+    private RelFieldCollation.Direction getDirection(char c) {
+      switch (c) {
+      case '+':
+        return RelFieldCollation.Direction.Ascending;
+      case '-':
+        return RelFieldCollation.Direction.Descending;
+      default:
+        throw new AssertionError("unexpected direction " + c);
       }
-      return index;
     }
   }
 

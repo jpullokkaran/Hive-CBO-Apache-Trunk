@@ -2,8 +2,9 @@ package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import net.hydromatic.optiq.SchemaPlus;
@@ -30,11 +31,13 @@ import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptQuery;
 import org.eigenbase.relopt.RelOptSchema;
+import org.eigenbase.relopt.RelOptUtil;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.rex.RexBuilder;
+import org.eigenbase.sql.SqlExplainLevel;
 
 public class CBO implements Frameworks.PlannerAction<RelNode> {
-    private static final List<OperatorType> m_unsupportedOpTypes = ImmutableList.of(
+    private static final Set<OperatorType> m_unsupportedOpTypes = ImmutableSet.of(
         OperatorType.DEMUX,
         OperatorType.FORWARD,
         OperatorType.LATERALVIEWFORWARD,
@@ -67,6 +70,11 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
         if (shouldRunOptiqOptimizer(sinkOp, conf, semanticAnalyzer.getQueryProperties())) {
             RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CBO(sinkOp,
                     semanticAnalyzer, pCtx));
+            if (false) {
+              System.out.println(
+                  RelOptUtil.dumpPlan("", optimizedOptiqPlan, false,
+                      SqlExplainLevel.DIGEST_ATTRIBUTES));
+            }
             optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan);
         }
 
@@ -128,16 +136,13 @@ public class CBO implements Frameworks.PlannerAction<RelNode> {
 		if ((qp.getJoinCount() < HiveConf.getIntVar(conf,
 						HiveConf.ConfVars.HIVE_CBO_MAX_JOINS_SUPPORTED))
 				&& (qp.getOuterJoinCount() == 0) && !qp.hasClusterBy()
-				&& !qp.hasDistributeBy() && !qp.hasOrderBy() && !qp.hasSortBy()
+				&& !qp.hasDistributeBy() && !qp.hasSortBy()
 				&& !qp.hasWindowing()) {
 			final HashSet<Operator> start = new HashSet<Operator>();
-			final HashSet<OperatorType> opsThatsNotSupported = new HashSet<OperatorType>(
-					m_unsupportedOpTypes);
 
-			start.add(sinkOp);
+      start.add(sinkOp);
 			// TODO: use queryproperties instead of walking the tree
-			if (!OperatorUtils
-					.operatorExists(start, true, opsThatsNotSupported)) {
+			if (!OperatorUtils.operatorExists(start, true, m_unsupportedOpTypes)) {
 				runOptiq = true;
 			}
 		}

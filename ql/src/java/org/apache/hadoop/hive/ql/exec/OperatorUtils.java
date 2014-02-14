@@ -73,7 +73,7 @@ public class OperatorUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	public static boolean operatorExists(final HashSet<Operator> start,
-			final boolean backward, final HashSet<OperatorType> targetOPTypes) {
+			final boolean backward, final Set<OperatorType> targetOPTypes) {
 		HashSet<Operator> nextSetOfOperators = new HashSet<Operator>();
 
 		for (Operator op : start) {
