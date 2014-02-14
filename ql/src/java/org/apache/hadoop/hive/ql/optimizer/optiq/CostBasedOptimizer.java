@@ -16,6 +16,8 @@ import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveMergeProjectRule;
+import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePullUpProjectsAboveJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePushJoinThroughJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveSwapJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.translator.ASTConverter;
@@ -96,6 +98,10 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
     planner.addRule(HiveSwapJoinRule.INSTANCE);
     planner.addRule(HivePushJoinThroughJoinRule.LEFT);
     planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
+    planner.addRule(HivePullUpProjectsAboveJoinRule.BOTH_PROJECT);
+    planner.addRule(HivePullUpProjectsAboveJoinRule.LEFT_PROJECT);
+    planner.addRule(HivePullUpProjectsAboveJoinRule.RIGHT_PROJECT);
+    planner.addRule(HiveMergeProjectRule.INSTANCE);
 
     RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
 
