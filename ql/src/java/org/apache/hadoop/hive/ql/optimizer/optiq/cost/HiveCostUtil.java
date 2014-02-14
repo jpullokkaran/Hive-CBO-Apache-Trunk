@@ -1,7 +1,5 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.cost;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.eigenbase.relopt.RelOptCost;
@@ -23,15 +21,5 @@ public class HiveCostUtil {
 		double cardinality = t.getRows();
 		return new HiveCost(cardinality, 0, hDFSWriteCostInNanoSec
 				* cardinality * 0);
-	}
-
-	public static HiveCost computeCost(HiveFilterRel f) {
-		double cardinality = f.getRows();
-		return new HiveCost(cardinality, cpuCostInNanoSec * cardinality, 0);
-
-	}
-
-	public static HiveCost computeCost(HiveProjectRel s) {
-		return new HiveCost(s.getRows(), 0, 0);
 	}
 }

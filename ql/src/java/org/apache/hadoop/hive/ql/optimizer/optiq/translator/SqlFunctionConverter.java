@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq.expr;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import java.util.*;
 

@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import net.hydromatic.optiq.util.BitSets;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.expr.SqlFunctionConverter;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
@@ -53,7 +52,7 @@ public class ASTConverter {
 	}
 	
 	public static ASTNode convert(final RelNode relNode) {
-    OptiqRelTreeIntroduceDerivedTables.convertOpTree(relNode, null);
+    DerivedTableInjector.convertOpTree(relNode, null);
     ASTConverter c = new ASTConverter(relNode);
     return c.convert();
   }

@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import java.util.List;
 
@@ -27,14 +27,14 @@ import org.eigenbase.rex.RexNode;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
-public class OptiqRelTreeIntroduceDerivedTables {
+public class DerivedTableInjector {
 
   public static void convertOpTree(RelNode rel, RelNode parent) {
 
     if (rel instanceof EmptyRel) {
-      //TODO: replace with null scan
+      // TODO: replace with null scan
     } else if (rel instanceof HepRelVertex) {
-    //TODO: is this relevant?
+      // TODO: is this relevant?
     } else if (rel instanceof HiveJoinRel) {
       if (!validJoinParent(rel, parent)) {
         introduceDerivedTable(rel, parent);
@@ -48,19 +48,19 @@ public class OptiqRelTreeIntroduceDerivedTables {
     } else if (rel instanceof SetOpRel) {
 
     } else if (rel instanceof SingleRel) {
-    	if (rel instanceof FilterRelBase) {
-    	      if (!validFilterParent(rel, parent)) {
-    	          introduceDerivedTable(rel, parent);
-    	        }    		
-    	}else if (rel instanceof HiveLimitRel) {
-  	      if (!validLimitParent(rel, parent)) {
-	          introduceDerivedTable(rel, parent);
-	        }    		    		
-    	}else if (rel instanceof HiveAggregateRel) {
-  	      if (!validGBParent(rel, parent)) {
-	          introduceDerivedTable(rel, parent);
-	        }    		    		
-    	}
+      if (rel instanceof FilterRelBase) {
+        if (!validFilterParent(rel, parent)) {
+          introduceDerivedTable(rel, parent);
+        }
+      } else if (rel instanceof HiveLimitRel) {
+        if (!validLimitParent(rel, parent)) {
+          introduceDerivedTable(rel, parent);
+        }
+      } else if (rel instanceof HiveAggregateRel) {
+        if (!validGBParent(rel, parent)) {
+          introduceDerivedTable(rel, parent);
+        }
+      }
     } else if (rel instanceof TableAccessRelBase) {
 
     } else if (rel instanceof TableFunctionRelBase) {
@@ -93,17 +93,16 @@ public class OptiqRelTreeIntroduceDerivedTables {
     if (pos == -1) {
       throw new RuntimeException("Couldn't find child node in parent's inputs");
     }
-    
-    
+
     List<RexNode> projectList = Lists.transform(rel.getRowType().getFieldList(),
-				new Function<RelDataTypeField, RexNode>() {
-					public RexNode apply( RelDataTypeField field ){
-			            return rel.getCluster().getRexBuilder().makeInputRef(field.getType(), field.getIndex());
-			         }
-		});
-    
-    HiveProjectRel select = HiveProjectRel.create(rel.getCluster(), rel, projectList, rel.getRowType(),
-        rel.getCollationList());
+        new Function<RelDataTypeField, RexNode>() {
+          public RexNode apply(RelDataTypeField field) {
+            return rel.getCluster().getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+          }
+        });
+
+    HiveProjectRel select = HiveProjectRel.create(rel.getCluster(), rel, projectList,
+        rel.getRowType(), rel.getCollationList());
     parent.replaceInput(pos, select);
 
   }
@@ -125,32 +124,36 @@ public class OptiqRelTreeIntroduceDerivedTables {
   private static boolean validFilterParent(RelNode filterNode, RelNode parent) {
     boolean validParent = true;
 
-    //TOODO: Verify GB having is not a seperate filter (if so we shouldn't introduce derived table)
-    if (parent instanceof FilterRelBase || parent instanceof JoinRelBase || parent instanceof SetOpRel) {
-        validParent = false;
-      }
+    // TOODO: Verify GB having is not a seperate filter (if so we shouldn't
+    // introduce derived table)
+    if (parent instanceof FilterRelBase || parent instanceof JoinRelBase
+        || parent instanceof SetOpRel) {
+      validParent = false;
+    }
 
     return validParent;
   }
-  
+
   private static boolean validGBParent(RelNode gbNode, RelNode parent) {
-	    boolean validParent = true;
+    boolean validParent = true;
 
-	    //TOODO: Verify GB having is not a seperate filter (if so we shouldn't introduce derived table)
-	    if (parent instanceof JoinRelBase || parent instanceof SetOpRel || parent instanceof AggregateRelBase) {
-	        validParent = false;
-	      }
+    // TOODO: Verify GB having is not a seperate filter (if so we shouldn't
+    // introduce derived table)
+    if (parent instanceof JoinRelBase || parent instanceof SetOpRel
+        || parent instanceof AggregateRelBase) {
+      validParent = false;
+    }
 
-	    return validParent;
-	  }
-  
+    return validParent;
+  }
+
   private static boolean validLimitParent(RelNode gbNode, RelNode parent) {
-	    boolean validParent = true;
+    boolean validParent = true;
 
-	    if (!(parent instanceof ProjectRelBase)) {
-	        validParent = false;
-	      }
+    if (!(parent instanceof ProjectRelBase)) {
+      validParent = false;
+    }
 
-	    return validParent;
-	  }
+    return validParent;
+  }
 }

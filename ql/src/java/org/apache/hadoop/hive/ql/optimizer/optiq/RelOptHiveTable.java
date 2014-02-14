@@ -34,7 +34,7 @@ public class RelOptHiveTable extends RelOptAbstractTable {
   // metadata. Use
   // m_hiveTblMetadata.getTableName() for table name and
   // m_hiveTblMetadata.getDbName() for db name.
-  protected RelOptHiveTable(RelOptSchema schema, String name, RelDataType rowType,
+  public RelOptHiveTable(RelOptSchema schema, String name, RelDataType rowType,
       Table hiveTblMetadata, RowSchema hiveRowSchema, HiveConf hconf) {
     super(schema, name, rowType);
     m_hiveTblMetadata = hiveTblMetadata;

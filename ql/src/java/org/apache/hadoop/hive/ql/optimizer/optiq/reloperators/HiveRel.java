@@ -6,7 +6,7 @@ import org.eigenbase.relopt.Convention;
 public interface HiveRel extends RelNode {
   void implement(Implementor implementor);
 
-  /** Calling convention for relational operations that occur in MongoDB. */
+  /** Calling convention for relational operations that occur in Hive. */
   final Convention CONVENTION = new Convention.Impl("HIVE", HiveRel.class);
 
   class Implementor {

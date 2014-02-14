@@ -1,6 +1,5 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq;
+package org.apache.hadoop.hive.ql.optimizer.optiq.stats;
 
-import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.relopt.RelOptUtil.InputReferencedVisitor;
@@ -12,14 +11,14 @@ import org.eigenbase.sql.SqlKind;
 
 public class FilterSelectivityEstimator extends RexVisitorImpl<Double> {
   private final RelNode m_childRel;
-  private final double        m_childCardinality;
+  private final double  m_childCardinality;
 
   protected FilterSelectivityEstimator(RelNode childRel) {
     super(true);
     m_childRel = childRel;
     m_childCardinality = RelMetadataQuery.getRowCount(m_childRel);
   }
-  
+
   public Double estimateSelectivity(RexNode predicate) {
     return predicate.accept(this);
   }

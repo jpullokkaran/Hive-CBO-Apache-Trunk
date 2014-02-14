@@ -6,8 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil.JoinPredicateInfo;
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelBase;
@@ -35,7 +34,6 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
     NONE, LEFT_RELATION, RIGHT_RELATION
   }
 
-  private JoinPredicateInfo        m_jpi;
   private final JoinAlgorithm      m_joinAlgorithm;
   private MapJoinStreamingRelation m_mapJoinStreamingSide = MapJoinStreamingRelation.NONE;
 
@@ -54,7 +52,7 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
       RexNode condition, JoinRelType joinType, Set<String> variablesStopped,
       JoinAlgorithm joinAlgo, MapJoinStreamingRelation streamingSideForMapJoin)
       throws InvalidRelException {
-    super(cluster, HiveOptiqTraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition,
+    super(cluster, TraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition,
         joinType, variablesStopped);
 
     final List<RexNode> leftKeys = new ArrayList<RexNode>();
@@ -93,17 +91,6 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
 
   public JoinAlgorithm getJoinAlgorithm() {
     return m_joinAlgorithm;
-  }
-
-  public MapJoinStreamingRelation getMapJoinStreamingSide() {
-    return m_mapJoinStreamingSide;
-  }
-
-  public synchronized JoinPredicateInfo getJoinPredicateInfo() {
-    if (m_jpi == null) {
-      m_jpi = JoinPredicateInfo.constructJoinPredicateInfo(this);
-    }
-    return m_jpi;
   }
 
   @Override

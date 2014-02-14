@@ -1,10 +1,9 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq.expr;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import java.math.BigDecimal;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.schema.TypeConverter;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeConstantDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;

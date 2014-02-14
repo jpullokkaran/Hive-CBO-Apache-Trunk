@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq.ast;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.parse.ASTNode;

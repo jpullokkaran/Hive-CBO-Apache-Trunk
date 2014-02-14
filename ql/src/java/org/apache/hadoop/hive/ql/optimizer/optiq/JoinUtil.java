@@ -27,7 +27,7 @@ import com.google.common.collect.ImmutableSet;
  * 
  * TODO: Move this to Optiq Framework
  */
-public class HiveOptiqJoinUtil {
+public class JoinUtil {
 
   /**
    * JoinPredicateInfo represents Join condition; JoinPredicate Info uses
@@ -106,7 +106,7 @@ public class HiveOptiqJoinUtil {
     public static JoinPredicateInfo constructJoinPredicateInfo(HiveJoinRel j) {
       return constructJoinPredicateInfo(j, j.getCondition());
     }
-    
+
     public static JoinPredicateInfo constructJoinPredicateInfo(HiveJoinRel j, RexNode predicate) {
       JoinPredicateInfo jpi = null;
       JoinLeafPredicateInfo jlpi = null;
@@ -260,9 +260,9 @@ public class HiveOptiqJoinUtil {
       todo("Move this to Optiq");
 
       // 1. Split leaf join predicate to expressions from left, right
+      @SuppressWarnings("unused")
       RexNode nonEquiPredicate = RelOptUtil.splitJoinCondition(j.getSystemFieldList(), j.getLeft(),
-          j.getRight(), pe, joinKeyExprsFromLeft, joinKeyExprsFromRight, filterNulls,
-          null);
+          j.getRight(), pe, joinKeyExprsFromLeft, joinKeyExprsFromRight, filterNulls, null);
 
       // 2. For left expressions, collect child projection indexes used
       InputReferencedVisitor irvLeft = new InputReferencedVisitor();

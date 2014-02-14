@@ -7,7 +7,6 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.eigenbase.rel.rules.SwapJoinRule;
 import org.eigenbase.relopt.RelOptRuleCall;
 
-
 public class HiveSwapJoinRule extends SwapJoinRule {
   public static final HiveSwapJoinRule INSTANCE = new HiveSwapJoinRule();
 
@@ -18,6 +17,6 @@ public class HiveSwapJoinRule extends SwapJoinRule {
   @Override
   public boolean matches(RelOptRuleCall call) {
     return super.matches(call)
-        && call.<HiveJoinRel>rel(0).getJoinAlgorithm() == JoinAlgorithm.NONE;
+        && call.<HiveJoinRel> rel(0).getJoinAlgorithm() == JoinAlgorithm.NONE;
   }
 }

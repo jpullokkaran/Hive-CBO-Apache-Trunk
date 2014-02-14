@@ -2,7 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SingleRel;
@@ -18,7 +18,7 @@ public class HiveLimitRel extends SingleRel implements HiveRel {
 
   HiveLimitRel(RelOptCluster cluster, RelTraitSet traitSet, RelNode child, RexNode offset,
       RexNode fetch) {
-    super(cluster, HiveOptiqTraitsUtil.getLimitTraitSet(cluster, traitSet, child), child);
+    super(cluster, TraitsUtil.getLimitTraitSet(cluster, traitSet, child), child);
     this.offset = offset;
     this.fetch = fetch;
     assert getConvention() instanceof HiveRel;

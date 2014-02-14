@@ -1,6 +1,9 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
 import com.google.common.collect.ImmutableList;
+
+import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveRelMdDistinctRowCount;
+import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveRelMdSelectivity;
 import org.eigenbase.rel.metadata.ChainedRelMetadataProvider;
 import org.eigenbase.rel.metadata.DefaultRelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMetadataProvider;

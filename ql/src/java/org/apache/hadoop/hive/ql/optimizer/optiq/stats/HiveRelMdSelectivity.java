@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq;
+package org.apache.hadoop.hive.ql.optimizer.optiq.stats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -6,8 +6,10 @@ import java.util.Map;
 import java.util.Set;
 
 import net.hydromatic.optiq.BuiltinMethod;
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil.JoinLeafPredicateInfo;
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil.JoinPredicateInfo;
+
+import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil.JoinLeafPredicateInfo;
+import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil.JoinPredicateInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.eigenbase.rel.JoinRelType;
@@ -21,9 +23,9 @@ import org.eigenbase.rex.RexUtil;
 import com.google.common.collect.ImmutableMap;
 
 public class HiveRelMdSelectivity extends RelMdSelectivity {
-  public static final RelMetadataProvider SOURCE =
-      ReflectiveRelMetadataProvider.reflectiveSource(
-          BuiltinMethod.SELECTIVITY.method, new HiveRelMdSelectivity());
+  public static final RelMetadataProvider SOURCE = ReflectiveRelMetadataProvider.reflectiveSource(
+                                                     BuiltinMethod.SELECTIVITY.method,
+                                                     new HiveRelMdSelectivity());
 
   protected HiveRelMdSelectivity() {
     super();

@@ -1,4 +1,4 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq;
+package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.lib.DefaultGraphWalker;

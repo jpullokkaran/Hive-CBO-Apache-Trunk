@@ -12,7 +12,7 @@ import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.rex.RexNode;
 
-public class HiveOptiqTraitsUtil {
+public class TraitsUtil {
 
   public static RelTraitSet getSelectTraitSet(RelOptCluster cluster, List<RexNode> exps,
       RelNode child) {

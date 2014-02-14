@@ -6,7 +6,7 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqUtil;
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.eigenbase.rel.ProjectRelBase;
 import org.eigenbase.rel.RelCollation;
@@ -68,7 +68,7 @@ public class HiveProjectRel extends ProjectRelBase implements HiveRel {
    */
   public static HiveProjectRel create(RelOptCluster cluster, RelNode child, List<RexNode> exps,
       RelDataType rowType, final List<RelCollation> collationList) {
-    RelTraitSet traitSet = HiveOptiqTraitsUtil.getSelectTraitSet(cluster, exps, child);
+    RelTraitSet traitSet = TraitsUtil.getSelectTraitSet(cluster, exps, child);
     return new HiveProjectRel(cluster, traitSet, child, exps, rowType, Flags.BOXED);
   }
 

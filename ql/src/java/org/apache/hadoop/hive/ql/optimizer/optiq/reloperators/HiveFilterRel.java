@@ -2,7 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.RelNode;
@@ -15,7 +15,7 @@ import org.eigenbase.rex.RexNode;
 public class HiveFilterRel extends FilterRelBase implements HiveRel {
 
   public HiveFilterRel(RelOptCluster cluster, RelTraitSet traits, RelNode child, RexNode condition) {
-    super(cluster, HiveOptiqTraitsUtil.getFilterTraitSet(cluster, traits, child), child, condition);
+    super(cluster, TraitsUtil.getFilterTraitSet(cluster, traits, child), child, condition);
   }
 
   @Override

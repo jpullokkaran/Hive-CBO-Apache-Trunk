@@ -95,7 +95,7 @@ import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
 import org.apache.hadoop.hive.ql.optimizer.Optimizer;
 import org.apache.hadoop.hive.ql.optimizer.PreCBOOptimizer;
-import org.apache.hadoop.hive.ql.optimizer.optiq.CBO;
+import org.apache.hadoop.hive.ql.optimizer.optiq.CostBasedOptimizer;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
 import org.apache.hadoop.hive.ql.parse.PTFInvocationSpec.OrderExpression;
@@ -9161,7 +9161,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 				optm.initialize(conf);
 				pCtx = optm.optimize();
 
-				newAST = CBO.optimize(sinkOp, this, pCtx);
+				newAST = CostBasedOptimizer.optimize(sinkOp, this, pCtx);
 				if (newAST == null) {
 					skipCBOPlan = true;
 					LOG.info("CBO failed, skipping CBO");

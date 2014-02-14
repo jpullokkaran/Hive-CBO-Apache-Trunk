@@ -1,15 +1,13 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
-import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
-import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveOptiqStatsUtil;
+import org.apache.hadoop.hive.ql.plan.ColStatistics;
+import org.apache.hadoop.hive.ql.plan.Statistics;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
@@ -27,9 +25,7 @@ import org.eigenbase.reltype.RelDataType;
  * </p>
  */
 public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
-  private final List<HiveColStat>    m_hiveColStat     = new LinkedList<HiveColStat>();
-  private final List<String>         m_colNamesLst     = new LinkedList<String>();
-  private final Map<Integer, String> m_projIdToNameMap = new HashMap<Integer, String>();
+  private final List<ColStatistics> m_hiveColStat = new LinkedList<ColStatistics>();
 
   /**
    * Creates a HiveTableScan.
@@ -45,15 +41,15 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
    */
   public HiveTableScanRel(RelOptCluster cluster, RelTraitSet traitSet, RelOptHiveTable table,
       RelDataType rowtype) {
-    super(cluster, HiveOptiqTraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
+    super(cluster, TraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
     assert getConvention() == HiveRel.CONVENTION;
-    int i = 0;
+
+    List<String> colNamesLst = new LinkedList<String>();
     for (String colName : rowtype.getFieldNames()) {
-      m_projIdToNameMap.put(i, colName);
-      m_colNamesLst.add(colName);
+      colNamesLst.add(colName);
     }
 
-    m_hiveColStat.addAll(HiveOptiqStatsUtil.computeTableRelColStat(table, m_colNamesLst));
+    m_hiveColStat.addAll(computeTableRelColStat(table, colNamesLst));
   }
 
   @Override
@@ -81,9 +77,9 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
     return ((RelOptHiveTable) table).getRowCount();
   }
 
-  public List<HiveColStat> getColStat(List<Integer> projIndxLst) {
+  public List<ColStatistics> getColStat(List<Integer> projIndxLst) {
     if (projIndxLst != null) {
-      List<HiveColStat> hiveColStatLst = new LinkedList<HiveColStat>();
+      List<ColStatistics> hiveColStatLst = new LinkedList<ColStatistics>();
       for (Integer i : projIndxLst) {
         hiveColStatLst.add(m_hiveColStat.get(i));
       }
@@ -91,5 +87,15 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
     } else {
       return m_hiveColStat;
     }
+  }
+
+  private static List<ColStatistics> computeTableRelColStat(RelOptHiveTable hiveTbl,
+      List<String> colNamesLst) {
+
+    Statistics stats = hiveTbl.getColumnStats(colNamesLst);
+    if (stats.getColumnStats().size() != colNamesLst.size())
+      throw new RuntimeException("Incomplete Col stats");
+
+    return stats.getColumnStats();
   }
 }

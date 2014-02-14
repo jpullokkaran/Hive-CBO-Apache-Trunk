@@ -1,11 +1,13 @@
-package org.apache.hadoop.hive.ql.optimizer.optiq;
+package org.apache.hadoop.hive.ql.optimizer.optiq.stats;
 
 import java.util.BitSet;
 import java.util.List;
 
 import net.hydromatic.optiq.BuiltinMethod;
+
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
+import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.ReflectiveRelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMdDistinctRowCount;
@@ -34,10 +36,10 @@ public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
 
   private Double getDistinctRowCount(HiveTableScanRel htRel, BitSet groupKey, RexNode predicate) {
     List<Integer> projIndxLst = HiveOptiqUtil.translateBitSetToProjIndx(groupKey);
-    List<HiveColStat> colStats = htRel.getColStat(projIndxLst);
+    List<ColStatistics> colStats = htRel.getColStat(projIndxLst);
     Double noDistinctRows = 1.0;
-    for (HiveColStat cStat : colStats) {
-      noDistinctRows *= cStat.getNDV();
+    for (ColStatistics cStat : colStats) {
+      noDistinctRows *= cStat.getCountDistint();
     }
 
     return Math.min(noDistinctRows, htRel.getRows());
