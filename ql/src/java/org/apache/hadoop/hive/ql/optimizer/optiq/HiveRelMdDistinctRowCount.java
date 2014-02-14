@@ -33,7 +33,7 @@ public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
   }
 
   private Double getDistinctRowCount(HiveTableScanRel htRel, BitSet groupKey, RexNode predicate) {
-    List<Integer> projIndxLst = OptiqUtil.translateBitSetToProjIndx(groupKey);
+    List<Integer> projIndxLst = HiveOptiqUtil.translateBitSetToProjIndx(groupKey);
     List<HiveColStat> colStats = htRel.getColStat(projIndxLst);
     Double noDistinctRows = 1.0;
     for (HiveColStat cStat : colStats) {
