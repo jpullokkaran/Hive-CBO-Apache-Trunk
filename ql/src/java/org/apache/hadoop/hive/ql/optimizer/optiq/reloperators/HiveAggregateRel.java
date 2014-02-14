@@ -5,7 +5,7 @@ import java.util.List;
 
 import net.hydromatic.optiq.util.BitSets;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.AggregateRelBase;
@@ -21,7 +21,7 @@ public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
 
   public HiveAggregateRel(RelOptCluster cluster, RelTraitSet traitSet, RelNode child,
       BitSet groupSet, List<AggregateCall> aggCalls) throws InvalidRelException {
-    super(cluster, OptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
+    super(cluster, HiveOptiqTraitsUtil.getAggregateTraitSet(cluster, traitSet,
         BitSets.toList(groupSet), aggCalls, child), child, groupSet, aggCalls);
     // assert getConvention() instanceof HiveRel; fix this: 2/9 hb
 

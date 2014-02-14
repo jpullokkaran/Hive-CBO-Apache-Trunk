@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqJoinUtil.JoinPredicateInfo;
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCostUtil;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelBase;
@@ -54,7 +54,7 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
       RexNode condition, JoinRelType joinType, Set<String> variablesStopped,
       JoinAlgorithm joinAlgo, MapJoinStreamingRelation streamingSideForMapJoin)
       throws InvalidRelException {
-    super(cluster, OptiqTraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition,
+    super(cluster, HiveOptiqTraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition,
         joinType, variablesStopped);
 
     final List<RexNode> leftKeys = new ArrayList<RexNode>();

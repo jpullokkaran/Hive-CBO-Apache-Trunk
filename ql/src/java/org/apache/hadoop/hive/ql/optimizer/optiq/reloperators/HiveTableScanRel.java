@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.OptiqTraitsUtil;
+import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqTraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.optimizer.optiq.stats.HiveColStat;
@@ -45,7 +45,7 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
    */
   public HiveTableScanRel(RelOptCluster cluster, RelTraitSet traitSet, RelOptHiveTable table,
       RelDataType rowtype) {
-    super(cluster, OptiqTraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
+    super(cluster, HiveOptiqTraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
     assert getConvention() == HiveRel.CONVENTION;
     int i = 0;
     for (String colName : rowtype.getFieldNames()) {
