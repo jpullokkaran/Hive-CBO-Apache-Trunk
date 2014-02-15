@@ -50,6 +50,7 @@ import org.apache.hadoop.hive.ql.plan.JoinCondDesc;
 import org.apache.hadoop.hive.ql.plan.JoinDesc;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
+import org.apache.hadoop.hive.ql.plan.Statistics;
 import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.Aggregation;
 import org.eigenbase.rel.InvalidRelException;
@@ -628,10 +629,14 @@ public class RelNodeConverter {
 			List<String> neededCols = tableScanOp.getNeededColumns();
 			RelDataType rowType = TypeConverter.getType(ctx.cluster, rr,
 					neededCols);
+			Statistics stats = tableScanOp.getStatistics();
+			if (stats.getColumnStats().size() != neededCols.size()) {
+				throw new SemanticException("Incomplete Col stats for table: "
+				    + tableScanOp.getConf().getAlias());
+			}
 			RelOptHiveTable optTable = new RelOptHiveTable(ctx.schema,
 					tableScanOp.getConf().getAlias(), rowType,
-					ctx.sA.getTable(tableScanOp), tableScanOp.getSchema(),
-					ctx.parseCtx.getConf());
+					ctx.sA.getTable(tableScanOp), stats);
 			TableAccessRelBase tableRel = new HiveTableScanRel(ctx.cluster,
 					ctx.cluster.traitSetOf(HiveRel.CONVENTION), optTable,
 					rowType);

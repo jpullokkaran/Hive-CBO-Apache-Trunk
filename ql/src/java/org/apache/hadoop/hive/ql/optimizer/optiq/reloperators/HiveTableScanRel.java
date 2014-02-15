@@ -49,7 +49,7 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
       colNamesLst.add(colName);
     }
 
-    m_hiveColStat.addAll(computeTableRelColStat(table, colNamesLst));
+    m_hiveColStat.addAll(table.getHiveStats().getColumnStats());
   }
 
   @Override
@@ -89,13 +89,4 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
     }
   }
 
-  private static List<ColStatistics> computeTableRelColStat(RelOptHiveTable hiveTbl,
-      List<String> colNamesLst) {
-
-    Statistics stats = hiveTbl.getColumnStats(colNamesLst);
-    if (stats.getColumnStats().size() != colNamesLst.size())
-      throw new RuntimeException("Incomplete Col stats");
-
-    return stats.getColumnStats();
-  }
 }
