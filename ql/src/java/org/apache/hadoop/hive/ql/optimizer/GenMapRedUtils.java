@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.optimizer;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,12 +29,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
+import java.lang.StringBuffer;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.ConditionalTask;
@@ -41,8 +44,8 @@ import org.apache.hadoop.hive.ql.exec.DemuxOperator;
 import org.apache.hadoop.hive.ql.exec.DependencyCollectionTask;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.JoinOperator;
-import org.apache.hadoop.hive.ql.exec.MoveTask;
 import org.apache.hadoop.hive.ql.exec.MapJoinOperator;
+import org.apache.hadoop.hive.ql.exec.MoveTask;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.OperatorFactory;
 import org.apache.hadoop.hive.ql.exec.ReduceSinkOperator;
@@ -60,14 +63,18 @@ import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMRUnionCtx;
 import org.apache.hadoop.hive.ql.optimizer.GenMRProcContext.GenMapRedCtx;
 import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPruner;
 import org.apache.hadoop.hive.ql.optimizer.ppr.PartitionPruner;
+import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec;
 import org.apache.hadoop.hive.ql.parse.OpParseContext;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBJoinTree;
+import org.apache.hadoop.hive.ql.parse.QBParseInfo;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.BaseWork;
@@ -95,7 +102,6 @@ import org.apache.hadoop.hive.ql.plan.TableScanDesc;
 import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.stats.StatsFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.hadoop.mapred.InputFormat;
 
 /**
  * General utility common functions for the Processor to convert operator into
@@ -555,14 +561,18 @@ public final class GenMapRedUtils {
 
     // The table should also be considered a part of inputs, even if the table is a
     // partitioned table and whether any partition is selected or not
+
+    //This read entity is a direct read entity and not an indirect read (that is when
+    // this is being read because it is a dependency of a view).
+    boolean isDirectRead = (parentViewInfo == null);
     PlanUtils.addInput(inputs,
-        new ReadEntity(parseCtx.getTopToTable().get(topOp), parentViewInfo));
+        new ReadEntity(parseCtx.getTopToTable().get(topOp), parentViewInfo, isDirectRead));
 
     for (Partition part : parts) {
       if (part.getTable().isPartitioned()) {
-        PlanUtils.addInput(inputs, new ReadEntity(part, parentViewInfo));
+        PlanUtils.addInput(inputs, new ReadEntity(part, parentViewInfo, isDirectRead));
       } else {
-        PlanUtils.addInput(inputs, new ReadEntity(part.getTable(), parentViewInfo));
+        PlanUtils.addInput(inputs, new ReadEntity(part.getTable(), parentViewInfo, isDirectRead));
       }
 
       // Later the properties have to come from the partition as opposed
@@ -1229,7 +1239,7 @@ public final class GenMapRedUtils {
       // Check if InputFormatClass is valid
       String inputFormatClass = conf.getVar(ConfVars.HIVEMERGEINPUTFORMATBLOCKLEVEL);
       try {
-        Class c = (Class<? extends InputFormat>) Class.forName(inputFormatClass);
+        Class c = Class.forName(inputFormatClass);
 
         LOG.info("RCFile format- Using block level merge");
         cplan = GenMapRedUtils.createRCFileMergeTask(fsInputDesc, finalName,
@@ -1626,7 +1636,7 @@ public final class GenMapRedUtils {
           // merge for a map-only job
           // or for a map-reduce job
           if (currTask.getWork() instanceof TezWork) {
-            return hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) || 
+            return hconf.getBoolVar(ConfVars.HIVEMERGEMAPFILES) ||
                 hconf.getBoolVar(ConfVars.HIVEMERGEMAPREDFILES);
           } else if (currTask.getWork() instanceof MapredWork) {
             ReduceWork reduceWork = ((MapredWork) currTask.getWork()).getReduceWork();
@@ -1673,9 +1683,9 @@ public final class GenMapRedUtils {
       Context baseCtx = parseCtx.getContext();
   	  // if we are on viewfs we don't want to use /tmp as tmp dir since rename from /tmp/..
       // to final location /user/hive/warehouse/ will fail later, so instead pick tmp dir
-      // on same namespace as tbl dir. 
-      Path tmpDir = dest.toUri().getScheme().equals("viewfs") ? 
-        baseCtx.getExtTmpPathRelTo(dest.toUri()) : 
+      // on same namespace as tbl dir.
+      Path tmpDir = dest.toUri().getScheme().equals("viewfs") ?
+        baseCtx.getExtTmpPathRelTo(dest.toUri()) :
         baseCtx.getExternalTmpPath(dest.toUri());
 
       FileSinkDesc fileSinkDesc = fsOp.getConf();
@@ -1702,6 +1712,48 @@ public final class GenMapRedUtils {
     }
 
     return dest;
+  }
+
+  public static Set<Partition> getConfirmedPartitionsForScan(QBParseInfo parseInfo) {
+    Set<Partition> confirmedPartns = new HashSet<Partition>();
+    tableSpec tblSpec = parseInfo.getTableSpec();
+    if (tblSpec.specType == tableSpec.SpecType.STATIC_PARTITION) {
+      // static partition
+      if (tblSpec.partHandle != null) {
+        confirmedPartns.add(tblSpec.partHandle);
+      } else {
+        // partial partition spec has null partHandle
+        assert parseInfo.isNoScanAnalyzeCommand();
+        confirmedPartns.addAll(tblSpec.partitions);
+      }
+    } else if (tblSpec.specType == tableSpec.SpecType.DYNAMIC_PARTITION) {
+      // dynamic partition
+      confirmedPartns.addAll(tblSpec.partitions);
+    }
+    return confirmedPartns;
+  }
+
+  public static List<Path> getInputPathsForPartialScan(QBParseInfo parseInfo, StringBuffer aggregationKey) 
+    throws SemanticException {
+    List<Path> inputPaths = new ArrayList<Path>();
+    switch (parseInfo.getTableSpec().specType) {
+    case TABLE_ONLY:
+      inputPaths.add(parseInfo.getTableSpec().tableHandle.getPath());
+      break;
+    case STATIC_PARTITION:
+      Partition part = parseInfo.getTableSpec().partHandle;
+      try {
+        aggregationKey.append(Warehouse.makePartPath(part.getSpec()));
+      } catch (MetaException e) {
+        throw new SemanticException(ErrorMsg.ANALYZE_TABLE_PARTIALSCAN_AGGKEY.getMsg(
+            part.getDataLocation().toString() + e.getMessage()));
+      }
+      inputPaths.add(part.getDataLocation());
+      break;
+    default:
+      assert false;
+    }
+    return inputPaths;
   }
 
   private GenMapRedUtils() {

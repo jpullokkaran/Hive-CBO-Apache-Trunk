@@ -124,11 +124,7 @@ public class HiveAuthorizationTaskFactoryImpl implements HiveAuthorizationTaskFa
       }
     }
 
-    String userName = null;
-    if (SessionState.get() != null
-        && SessionState.get().getAuthenticator() != null) {
-      userName = SessionState.get().getAuthenticator().getUserName();
-    }
+    String userName = SessionState.getUserFromAuthenticator();
 
     GrantDesc grantDesc = new GrantDesc(privilegeObj, privilegeDesc,
         principalDesc, userName, PrincipalType.USER, grantOption);
@@ -236,9 +232,10 @@ public class HiveAuthorizationTaskFactoryImpl implements HiveAuthorizationTaskFa
     //check if admin option has been specified
     int rolesStartPos = 1;
     ASTNode wAdminOption = (ASTNode) ast.getChild(1);
+    boolean isAdmin = false;
     if(wAdminOption.getToken().getType() == HiveParser.TOK_GRANT_WITH_ADMIN_OPTION){
       rolesStartPos = 2; //start reading role names from next postion
-      //TODO: use the admin option
+      isAdmin = true;
     }
 
     List<String> roles = new ArrayList<String>();
@@ -246,14 +243,10 @@ public class HiveAuthorizationTaskFactoryImpl implements HiveAuthorizationTaskFa
       roles.add(BaseSemanticAnalyzer.unescapeIdentifier(ast.getChild(i).getText()));
     }
 
-    String roleOwnerName = "";
-    if (SessionState.get() != null
-        && SessionState.get().getAuthenticator() != null) {
-      roleOwnerName = SessionState.get().getAuthenticator().getUserName();
-    }
+    String roleOwnerName = SessionState.getUserFromAuthenticator();
 
     //until change is made to use the admin option. Default to false with V2 authorization
-    boolean isAdmin = SessionState.get().isAuthorizationModeV2() ? false : true;
+
 
     GrantRevokeRoleDDL grantRevokeRoleDDL = new GrantRevokeRoleDDL(isGrant,
         roles, principalDesc, roleOwnerName, PrincipalType.USER, isAdmin);

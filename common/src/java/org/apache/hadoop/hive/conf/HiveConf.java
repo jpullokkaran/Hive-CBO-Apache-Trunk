@@ -94,8 +94,6 @@ public class HiveConf extends Configuration {
       HiveConf.ConfVars.METASTOREPWD,
       HiveConf.ConfVars.METASTORECONNECTURLHOOK,
       HiveConf.ConfVars.METASTORECONNECTURLKEY,
-      HiveConf.ConfVars.METASTOREATTEMPTS,
-      HiveConf.ConfVars.METASTOREINTERVAL,
       HiveConf.ConfVars.METASTOREFORCERELOADCONF,
       HiveConf.ConfVars.METASTORESERVERMINTHREADS,
       HiveConf.ConfVars.METASTORESERVERMAXTHREADS,
@@ -135,7 +133,8 @@ public class HiveConf extends Configuration {
       HiveConf.ConfVars.HMSHANDLERFORCERELOADCONF,
       HiveConf.ConfVars.METASTORE_PARTITION_NAME_WHITELIST_PATTERN,
       HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES,
-      HiveConf.ConfVars.USERS_IN_ADMIN_ROLE
+      HiveConf.ConfVars.USERS_IN_ADMIN_ROLE,
+      HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER
       };
 
   /**
@@ -272,10 +271,6 @@ public class HiveConf extends Configuration {
     // Name of the connection url in the configuration
     METASTORECONNECTURLKEY("javax.jdo.option.ConnectionURL",
         "jdbc:derby:;databaseName=metastore_db;create=true"),
-    // Number of attempts to retry connecting after there is a JDO datastore err
-    METASTOREATTEMPTS("hive.metastore.ds.retry.attempts", 1),
-    // Number of miliseconds to wait between attepting
-    METASTOREINTERVAL("hive.metastore.ds.retry.interval", 1000),
     // Whether to force reloading of the metastore configuration (including
     // the connection URL, before the next metastore query that accesses the
     // datastore. Once reloaded, this value is reset to false. Used for
@@ -526,8 +521,18 @@ public class HiveConf extends Configuration {
     // Define the default ORC stripe size
     HIVE_ORC_DEFAULT_STRIPE_SIZE("hive.exec.orc.default.stripe.size",
         256L * 1024 * 1024),
-
-    HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD("hive.exec.orc.dictionary.key.size.threshold", 0.8f),
+    HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD(
+        "hive.exec.orc.dictionary.key.size.threshold", 0.8f),
+    // Define the default ORC index stride
+    HIVE_ORC_DEFAULT_ROW_INDEX_STRIDE("hive.exec.orc.default.row.index.stride"
+        , 10000),
+    // Define the default ORC buffer size
+    HIVE_ORC_DEFAULT_BUFFER_SIZE("hive.exec.orc.default.buffer.size", 256 * 1024),
+    // Define the default block padding
+    HIVE_ORC_DEFAULT_BLOCK_PADDING("hive.exec.orc.default.block.padding",
+        true),
+    // Define the default compression codec for ORC file
+    HIVE_ORC_DEFAULT_COMPRESS("hive.exec.orc.default.compress", "ZLIB"),
 
     HIVE_ORC_INCLUDE_FILE_FOOTER_IN_SPLITS("hive.orc.splits.include.file.footer", false),
     HIVE_ORC_CACHE_STRIPE_DETAILS_SIZE("hive.orc.cache.stripe.details.size", 10000),
@@ -1261,8 +1266,14 @@ public class HiveConf extends Configuration {
 
     if(this.get("hive.metastore.local", null) != null) {
       l4j.warn("DEPRECATED: Configuration property hive.metastore.local no longer has any " +
-      		"effect. Make sure to provide a valid value for hive.metastore.uris if you are " +
-      		"connecting to a remote metastore.");
+          "effect. Make sure to provide a valid value for hive.metastore.uris if you are " +
+          "connecting to a remote metastore.");
+    }
+
+    if ((this.get("hive.metastore.ds.retry.attempts") != null) ||
+      this.get("hive.metastore.ds.retry.interval") != null) {
+        l4j.warn("DEPRECATED: hive.metastore.ds.retry.* no longer has any effect.  " +
+        "Use hive.hmshandler.retry.* instead");
     }
 
     // if the running class was loaded directly (through eclipse) rather than through a

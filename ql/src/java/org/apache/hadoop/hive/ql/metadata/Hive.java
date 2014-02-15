@@ -49,6 +49,7 @@ import org.apache.hadoop.fs.FsShell;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.HiveStatsUtils;
+import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
 import org.apache.hadoop.hive.common.classification.InterfaceStability.Unstable;
@@ -87,6 +88,7 @@ import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.index.HiveIndexHandler;
 import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPrunerUtils;
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc;
+import org.apache.hadoop.hive.ql.plan.DropTableDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.session.CreateTableAutomaticGrant;
 import org.apache.hadoop.hive.ql.session.SessionState;
@@ -1657,6 +1659,34 @@ private void constructOneLBLocationMap(FileStatus fSta,
     }
   }
 
+  public List<Partition> dropPartitions(String tblName, List<DropTableDesc.PartSpec> partSpecs,
+      boolean deleteData, boolean ignoreProtection, boolean ifExists) throws HiveException {
+    Table t = newTable(tblName);
+    return dropPartitions(
+        t.getDbName(), t.getTableName(), partSpecs, deleteData, ignoreProtection, ifExists);
+  }
+
+  public List<Partition> dropPartitions(String dbName, String tblName,
+      List<DropTableDesc.PartSpec> partSpecs,  boolean deleteData, boolean ignoreProtection,
+      boolean ifExists) throws HiveException {
+    try {
+      Table tbl = getTable(dbName, tblName);
+      List<ObjectPair<Integer, byte[]>> partExprs =
+          new ArrayList<ObjectPair<Integer,byte[]>>(partSpecs.size());
+      for (DropTableDesc.PartSpec partSpec : partSpecs) {
+        partExprs.add(new ObjectPair<Integer, byte[]>(partSpec.getPrefixLength(),
+            Utilities.serializeExpressionToKryo(partSpec.getPartSpec())));
+      }
+      List<org.apache.hadoop.hive.metastore.api.Partition> tParts = getMSC().dropPartitions(
+          dbName, tblName, partExprs, deleteData, ignoreProtection, ifExists);
+      return convertFromMetastore(tbl, tParts, null);
+    } catch (NoSuchObjectException e) {
+      throw new HiveException("Partition or table doesn't exist.", e);
+    } catch (Exception e) {
+      throw new HiveException("Unknown error. Please check logs.", e);
+    }
+  }
+
   public List<String> getPartitionNames(String tblName, short max) throws HiveException {
     Table t = newTable(tblName);
     return getPartitionNames(t.getDbName(), t.getTableName(), max);
@@ -2419,11 +2449,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
   }
 
   private String getUserName() {
-    SessionState ss = SessionState.get();
-    if (ss != null && ss.getAuthenticator() != null) {
-      return ss.getAuthenticator().getUserName();
-    }
-    return null;
+    return SessionState.getUserFromAuthenticator();
   }
 
   private List<String> getGroupNames() {
