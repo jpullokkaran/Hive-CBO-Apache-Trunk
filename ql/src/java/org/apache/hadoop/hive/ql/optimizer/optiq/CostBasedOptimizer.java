@@ -121,11 +121,66 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
 
       start.add(sinkOp);
       // TODO: use queryproperties instead of walking the tree
-      if (!OperatorUtils.operatorExists(start, true, m_unsupportedOpTypes)) {
+      if (!CostBasedOptimizer.operatorExists(start, true, m_unsupportedOpTypes)) {
         runOptiq = true;
       }
     }
 
     return runOptiq;
   }
+  
+  /*
+   * TODO: moved this out of OperatorUtils for now
+   * HIVE-6403 is going to bring in iterateParents: https://reviews.apache.org/r/18137/diff/#index_header
+   * Will just use/enhance that once it is in.
+   * hb 2/15
+   */
+	/**
+	 * Check if operator tree, in the direction specified forward/backward,
+	 * contains any operator specified in the targetOPTypes.
+	 * 
+	 * @param start
+	 *            list of operators to start checking from
+	 * @param backward
+	 *            direction of DAG traversal; if true implies get parent ops for
+	 *            traversal otherwise children will be used
+	 * @param targetOPTypes
+	 *            Set of operator types to look for
+	 * 
+	 * @return true if any of the operator or its parent/children is of the name
+	 *         specified in the targetOPTypes
+	 * 
+	 *         NOTE: 1. This employs breadth first search 2. By using HashSet
+	 *         for "start" we avoid revisiting same operator twice. However it
+	 *         doesn't prevent revisiting the same node more than once for some
+	 *         complex dags.
+	 */
+	@SuppressWarnings("unchecked")
+	public static boolean operatorExists(final HashSet<Operator> start,
+			final boolean backward, final Set<OperatorType> targetOPTypes) {
+		HashSet<Operator> nextSetOfOperators = new HashSet<Operator>();
+
+		for (Operator op : start) {
+			if (targetOPTypes.contains(op.getType())) {
+				return true;
+			}
+
+			if (backward) {
+				if (op.getParentOperators() != null ) {
+					nextSetOfOperators.addAll(op.getParentOperators());
+				}
+			} else {
+				if ( op.getChildOperators() != null ) {
+					nextSetOfOperators.addAll(op.getChildOperators());
+				}
+			}
+		}
+
+		if (!nextSetOfOperators.isEmpty()) {
+			return operatorExists(nextSetOfOperators, backward, targetOPTypes);
+		}
+
+		return false;
+	}
+
 }

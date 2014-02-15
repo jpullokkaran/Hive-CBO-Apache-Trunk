@@ -27,7 +27,6 @@ import java.util.Set;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
-import org.apache.hadoop.hive.ql.plan.api.OperatorType;
 import org.apache.hadoop.mapred.OutputCollector;
 
 public class OperatorUtils {
@@ -50,54 +49,6 @@ public class OperatorUtils {
     }
     return found;
   }
-
-	/**
-	 * Check if operator tree, in the direction specified forward/backward,
-	 * contains any operator specified in the targetOPTypes.
-	 * 
-	 * @param start
-	 *            list of operators to start checking from
-	 * @param backward
-	 *            direction of DAG traversal; if true implies get parent ops for
-	 *            traversal otherwise children will be used
-	 * @param targetOPTypes
-	 *            Set of operator types to look for
-	 * 
-	 * @return true if any of the operator or its parent/children is of the name
-	 *         specified in the targetOPTypes
-	 * 
-	 *         NOTE: 1. This employs breadth first search 2. By using HashSet
-	 *         for "start" we avoid revisiting same operator twice. However it
-	 *         doesn't prevent revisiting the same node more than once for some
-	 *         complex dags.
-	 */
-	@SuppressWarnings("unchecked")
-	public static boolean operatorExists(final HashSet<Operator> start,
-			final boolean backward, final Set<OperatorType> targetOPTypes) {
-		HashSet<Operator> nextSetOfOperators = new HashSet<Operator>();
-
-		for (Operator op : start) {
-			if (targetOPTypes.contains(op.getType())) {
-				return true;
-			}
-
-			if (backward) {
-				if (op.getParentOperators() != null ) {
-					nextSetOfOperators.addAll(op.getParentOperators());
-				}
-			} else {
-				if ( op.getChildOperators() != null ) {
-					nextSetOfOperators.addAll(op.getChildOperators());
-				}
-			}
-		}
-
-		if (!nextSetOfOperators.isEmpty()) {
-			return operatorExists(nextSetOfOperators, backward, targetOPTypes);
-		}
-
-		return false;
-	}
 
   @SuppressWarnings("unchecked")
   private static <T> Set<T> findOperators(Operator<?> start, Class<T> clazz, Set<T> found) {

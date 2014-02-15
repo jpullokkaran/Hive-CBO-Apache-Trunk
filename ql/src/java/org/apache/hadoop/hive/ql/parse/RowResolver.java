@@ -273,21 +273,6 @@ public class RowResolver implements Serializable{
     return -1;
   }
 
-	public int getPositionDiscardingHiddenColumns(String internalName) {
-		int pos = -1;
-
-		for (ColumnInfo var : rowSchema.getSignature()) {
-			if (!var.isHiddenVirtualCol()) {
-				++pos;
-				if (var.getInternalName().equals(internalName)) {
-					return pos;
-				}
-			}
-		}
-
-		return -1;
-	}
-
   public Set<String> getTableNames() {
     return rslvMap.keySet();
   }
