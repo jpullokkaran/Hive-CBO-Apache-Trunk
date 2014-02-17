@@ -7,6 +7,8 @@ create table tbl1(a_int int, b_int int, c_float float, d_float float)  STORED AS
 create table tbl2(a_int int, b_int int, c_float float, d_float float)  STORED AS TEXTFILE;
 create table tbl3(a_int int, b_int int, c_float float, d_float float)  STORED AS TEXTFILE;
 create table tbl4(a_int int, b_int int, c_float float, d_float float)  STORED AS TEXTFILE;
+create table tbl5(a_int int, b_int int, c_float float, d_float float)  STORED AS TEXTFILE;
+create table tbl6(a_int int, b_int int, c_float float, d_float float)  STORED AS TEXTFILE;
 
 INSERT INTO TABLE tbl1  SELECT 1,1,1,1 FROM src limit 10;
 
@@ -22,6 +24,19 @@ INSERT INTO TABLE tbl4  SELECT 2,2,2,2 FROM src limit 3;
 INSERT INTO TABLE tbl4  SELECT 3,3,3,3 FROM src limit 2;
 INSERT INTO TABLE tbl4  SELECT 4,4,4,4 FROM src limit 2;
 
+INSERT INTO TABLE tbl5  SELECT 1,1,1,1 FROM src limit 2;
+INSERT INTO TABLE tbl5  SELECT 2,2,2,2 FROM src limit 2;
+INSERT INTO TABLE tbl5  SELECT 3,3,3,3 FROM src limit 2;
+INSERT INTO TABLE tbl5  SELECT 4,4,4,4 FROM src limit 2;
+INSERT INTO TABLE tbl5  SELECT 5,5,5,5 FROM src limit 2;
+
+INSERT INTO TABLE tbl6  SELECT 1,1,1,1 FROM src limit 2;
+INSERT INTO TABLE tbl6  SELECT 2,2,2,2 FROM src limit 2;
+INSERT INTO TABLE tbl6  SELECT 3,3,3,3 FROM src limit 2;
+INSERT INTO TABLE tbl6  SELECT 4,4,4,4 FROM src limit 2;
+INSERT INTO TABLE tbl6  SELECT 5,5,5,5 FROM src limit 1;
+INSERT INTO TABLE tbl6  SELECT 6,6,6,6 FROM src limit 1;
+
 set hive.stats.dbclass=jdbc:derby;
 analyze table tbl1 compute statistics;
 analyze table tbl1 compute statistics for columns a_int, b_int, c_float, d_float;
@@ -31,6 +46,10 @@ analyze table tbl3 compute statistics;
 analyze table tbl3 compute statistics for columns a_int, b_int, c_float, d_float;
 analyze table tbl4 compute statistics;
 analyze table tbl4 compute statistics for columns a_int, b_int, c_float, d_float;
+analyze table tbl5 compute statistics;
+analyze table tbl5 compute statistics for columns a_int, b_int, c_float, d_float;
+analyze table tbl6 compute statistics;
+analyze table tbl6 compute statistics for columns a_int, b_int, c_float, d_float;
 
 set hive.cbo.enable=true;
 set hive.auto.convert.join=false;
