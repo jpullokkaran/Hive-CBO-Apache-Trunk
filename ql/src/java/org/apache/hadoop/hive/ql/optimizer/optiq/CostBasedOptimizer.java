@@ -13,7 +13,6 @@ import net.hydromatic.optiq.tools.Frameworks;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QueryProperties;
 import org.apache.hadoop.hive.ql.exec.Operator;
-import org.apache.hadoop.hive.ql.exec.OperatorUtils;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveMergeProjectRule;
@@ -98,10 +97,13 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
     planner.addRule(HiveSwapJoinRule.INSTANCE);
     planner.addRule(HivePushJoinThroughJoinRule.LEFT);
     planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
-    planner.addRule(HivePullUpProjectsAboveJoinRule.BOTH_PROJECT);
-    planner.addRule(HivePullUpProjectsAboveJoinRule.LEFT_PROJECT);
-    planner.addRule(HivePullUpProjectsAboveJoinRule.RIGHT_PROJECT);
-    planner.addRule(HiveMergeProjectRule.INSTANCE);
+    if (HiveConf.getBoolVar(m_ParseContext.getConf(),
+        HiveConf.ConfVars.HIVE_CBO_PULLPROJECTABOVEJOIN_RULE)) {
+      planner.addRule(HivePullUpProjectsAboveJoinRule.BOTH_PROJECT);
+      planner.addRule(HivePullUpProjectsAboveJoinRule.LEFT_PROJECT);
+      planner.addRule(HivePullUpProjectsAboveJoinRule.RIGHT_PROJECT);
+      planner.addRule(HiveMergeProjectRule.INSTANCE);
+    }
 
     RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
 
@@ -134,59 +136,60 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
 
     return runOptiq;
   }
-  
+
   /*
-   * TODO: moved this out of OperatorUtils for now
-   * HIVE-6403 is going to bring in iterateParents: https://reviews.apache.org/r/18137/diff/#index_header
-   * Will just use/enhance that once it is in.
-   * hb 2/15
+   * TODO: moved this out of OperatorUtils for now HIVE-6403 is going to bring
+   * in iterateParents: https://reviews.apache.org/r/18137/diff/#index_header
+   * Will just use/enhance that once it is in. hb 2/15
    */
-	/**
-	 * Check if operator tree, in the direction specified forward/backward,
-	 * contains any operator specified in the targetOPTypes.
-	 * 
-	 * @param start
-	 *            list of operators to start checking from
-	 * @param backward
-	 *            direction of DAG traversal; if true implies get parent ops for
-	 *            traversal otherwise children will be used
-	 * @param targetOPTypes
-	 *            Set of operator types to look for
-	 * 
-	 * @return true if any of the operator or its parent/children is of the name
-	 *         specified in the targetOPTypes
-	 * 
-	 *         NOTE: 1. This employs breadth first search 2. By using HashSet
-	 *         for "start" we avoid revisiting same operator twice. However it
-	 *         doesn't prevent revisiting the same node more than once for some
-	 *         complex dags.
-	 */
-	@SuppressWarnings("unchecked")
-	public static boolean operatorExists(final HashSet<Operator> start,
-			final boolean backward, final Set<OperatorType> targetOPTypes) {
-		HashSet<Operator> nextSetOfOperators = new HashSet<Operator>();
+  /**
+   * Check if operator tree, in the direction specified forward/backward,
+   * contains any operator specified in the targetOPTypes.
+   * 
+   * @param start
+   *          list of operators to start checking from
+   * @param backward
+   *          direction of DAG traversal; if true implies get parent ops for
+   *          traversal otherwise children will be used
+   * @param targetOPTypes
+   *          Set of operator types to look for
+   * 
+   * @return true if any of the operator or its parent/children is of the name
+   *         specified in the targetOPTypes
+   * 
+   *         NOTE: 1. This employs breadth first search 2. By using HashSet for
+   *         "start" we avoid revisiting same operator twice. However it doesn't
+   *         prevent revisiting the same node more than once for some complex
+   *         dags.
+   */
+  @SuppressWarnings("unchecked")
+  public static boolean operatorExists(@SuppressWarnings("rawtypes") final HashSet<Operator> start,
+      final boolean backward, final Set<OperatorType> targetOPTypes) {
+    @SuppressWarnings("rawtypes")
+    HashSet<Operator> nextSetOfOperators = new HashSet<Operator>();
 
-		for (Operator op : start) {
-			if (targetOPTypes.contains(op.getType())) {
-				return true;
-			}
+    for (@SuppressWarnings("rawtypes")
+    Operator op : start) {
+      if (targetOPTypes.contains(op.getType())) {
+        return true;
+      }
 
-			if (backward) {
-				if (op.getParentOperators() != null ) {
-					nextSetOfOperators.addAll(op.getParentOperators());
-				}
-			} else {
-				if ( op.getChildOperators() != null ) {
-					nextSetOfOperators.addAll(op.getChildOperators());
-				}
-			}
-		}
+      if (backward) {
+        if (op.getParentOperators() != null) {
+          nextSetOfOperators.addAll(op.getParentOperators());
+        }
+      } else {
+        if (op.getChildOperators() != null) {
+          nextSetOfOperators.addAll(op.getChildOperators());
+        }
+      }
+    }
 
-		if (!nextSetOfOperators.isEmpty()) {
-			return operatorExists(nextSetOfOperators, backward, targetOPTypes);
-		}
+    if (!nextSetOfOperators.isEmpty()) {
+      return operatorExists(nextSetOfOperators, backward, targetOPTypes);
+    }
 
-		return false;
-	}
+    return false;
+  }
 
 }

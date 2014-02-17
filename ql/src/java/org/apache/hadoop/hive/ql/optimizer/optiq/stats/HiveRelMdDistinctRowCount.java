@@ -8,9 +8,11 @@ import net.hydromatic.optiq.BuiltinMethod;
 import org.apache.hadoop.hive.ql.optimizer.optiq.HiveOptiqUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
+import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.ReflectiveRelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMdDistinctRowCount;
+import org.eigenbase.rel.metadata.RelMdUtil;
 import org.eigenbase.rel.metadata.RelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.rex.RexNode;
@@ -25,6 +27,7 @@ public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
   }
 
   // Catch-all rule when none of the others apply.
+  @Override
   public Double getDistinctRowCount(RelNode rel, BitSet groupKey, RexNode predicate) {
     if (rel instanceof HiveTableScanRel) {
       return getDistinctRowCount((HiveTableScanRel) rel, groupKey, predicate);
@@ -50,5 +53,10 @@ public class HiveRelMdDistinctRowCount extends RelMdDistinctRowCount {
     bitSetOfRqdProj.set(indx);
     return RelMetadataQuery.getDistinctRowCount(r, bitSetOfRqdProj, r.getCluster().getRexBuilder()
         .makeLiteral(true));
+  }
+
+  @Override
+  public Double getDistinctRowCount(JoinRelBase rel, BitSet groupKey, RexNode predicate) {
+    return RelMdUtil.getJoinDistinctRowCount(rel, rel.getJoinType(), groupKey, predicate, true);
   }
 }

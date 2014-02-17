@@ -430,8 +430,9 @@ public class HiveConf extends Configuration {
 
     // CBO related
     HIVE_CBO_ENABLED("hive.cbo.enable", false),
-    HIVE_CBO_MAX_JOINS_SUPPORTED("hive.cbo.max.joins.supported", 5),
-    
+    HIVE_CBO_MAX_JOINS_SUPPORTED("hive.cbo.max.joins.supported", 10),
+    HIVE_CBO_PULLPROJECTABOVEJOIN_RULE("hive.cbo.project.pullabovejoin.rule", true),
+
     // hive.mapjoin.bucket.cache.size has been replaced by hive.smbjoin.cache.row,
     // need to remove by hive .13. Also, do not change default (see SMB operator)
     HIVEMAPJOINBUCKETCACHESIZE("hive.mapjoin.bucket.cache.size", 100),
