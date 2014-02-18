@@ -52,8 +52,8 @@ public class HiveJoinRel extends JoinRelBase implements HiveRel {
       RexNode condition, JoinRelType joinType, Set<String> variablesStopped,
       JoinAlgorithm joinAlgo, MapJoinStreamingRelation streamingSideForMapJoin)
       throws InvalidRelException {
-    super(cluster, TraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition,
-        joinType, variablesStopped);
+    super(cluster, TraitsUtil.getJoinTraitSet(cluster, traits), left, right, condition, joinType,
+        variablesStopped);
 
     final List<RexNode> leftKeys = new ArrayList<RexNode>();
     final List<RexNode> rightKeys = new ArrayList<RexNode>();

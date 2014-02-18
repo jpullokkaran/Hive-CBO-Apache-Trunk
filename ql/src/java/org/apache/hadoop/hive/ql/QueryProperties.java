@@ -50,23 +50,23 @@ public class QueryProperties {
   
   private int noOfJoins = 0;
   private int noOfOuterJoins = 0;
-  
+
   public boolean hasJoin() {
     return (noOfJoins > 0);
   }
 
   public void incrementJoinCount(boolean noOuterJoin) {
-	noOfJoins++;
-	if (!noOuterJoin)
-		noOfOuterJoins++;
+    noOfJoins++;
+    if (!noOuterJoin)
+      noOfOuterJoins++;
   }
 
   public int getJoinCount() {
-	return noOfJoins;
+    return noOfJoins;
   }
 
   public int getOuterJoinCount() {
-	return noOfOuterJoins;
+    return noOfOuterJoins;
   }
 
   public boolean hasGroupBy() {

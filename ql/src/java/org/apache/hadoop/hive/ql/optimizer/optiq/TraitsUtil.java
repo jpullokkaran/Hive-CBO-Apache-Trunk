@@ -47,5 +47,4 @@ public class TraitsUtil {
   public static RelTraitSet getJoinTraitSet(RelOptCluster cluster, RelTraitSet traitSet) {
     return cluster.traitSetOf(HiveRel.CONVENTION);
   }
-
 }

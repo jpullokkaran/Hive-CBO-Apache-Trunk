@@ -34,52 +34,52 @@ import org.apache.hadoop.hive.ql.ppd.PredicateTransitivePropagate;
  * do PredicatePushdown, PartitionPruning and Column Pruning before CBO 
  */
 public class PreCBOOptimizer {
-	private ParseContext pctx;
-	private List<Transform> transformations;
+  private ParseContext    pctx;
+  private List<Transform> transformations;
 
-	/**
-	 * Create the list of transformations.
-	 * 
-	 * @param hiveConf
-	 */
-	public void initialize(HiveConf hiveConf) {
-		transformations = new ArrayList<Transform>();
-		// Add the transformation that computes the lineage information.
-		transformations.add(new Generator());
-		transformations.add(new PredicateTransitivePropagate());
-		transformations.add(new PredicatePushDown());
-		transformations.add(new PartitionPruner());
-		transformations.add(new PartitionConditionRemover());
-		transformations.add(new ColumnPruner());
-		transformations.add(new AnnotateWithStatistics());
-	}
+  /**
+   * Create the list of transformations.
+   * 
+   * @param hiveConf
+   */
+  public void initialize(HiveConf hiveConf) {
+    transformations = new ArrayList<Transform>();
+    // Add the transformation that computes the lineage information.
+    transformations.add(new Generator());
+    transformations.add(new PredicateTransitivePropagate());
+    transformations.add(new PredicatePushDown());
+    transformations.add(new PartitionPruner());
+    transformations.add(new PartitionConditionRemover());
+    transformations.add(new ColumnPruner());
+    transformations.add(new AnnotateWithStatistics());
+  }
 
-	/**
-	 * Invoke all the transformations one-by-one, and alter the query plan.
-	 * 
-	 * @return ParseContext
-	 * @throws SemanticException
-	 */
-	public ParseContext optimize() throws SemanticException {
-		for (Transform t : transformations) {
-			pctx = t.transform(pctx);
-		}
-		return pctx;
-	}
+  /**
+   * Invoke all the transformations one-by-one, and alter the query plan.
+   * 
+   * @return ParseContext
+   * @throws SemanticException
+   */
+  public ParseContext optimize() throws SemanticException {
+    for (Transform t : transformations) {
+      pctx = t.transform(pctx);
+    }
+    return pctx;
+  }
 
-	/**
-	 * @return the pctx
-	 */
-	public ParseContext getPctx() {
-		return pctx;
-	}
+  /**
+   * @return the pctx
+   */
+  public ParseContext getPctx() {
+    return pctx;
+  }
 
-	/**
-	 * @param pctx
-	 *            the pctx to set
-	 */
-	public void setPctx(ParseContext pctx) {
-		this.pctx = pctx;
-	}
+  /**
+   * @param pctx
+   *          the pctx to set
+   */
+  public void setPctx(ParseContext pctx) {
+    this.pctx = pctx;
+  }
 
 }

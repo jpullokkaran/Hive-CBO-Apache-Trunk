@@ -21,9 +21,8 @@ public class HiveAggregateRel extends AggregateRelBase implements HiveRel {
 
   public HiveAggregateRel(RelOptCluster cluster, RelTraitSet traitSet, RelNode child,
       BitSet groupSet, List<AggregateCall> aggCalls) throws InvalidRelException {
-    super(cluster, TraitsUtil.getAggregateTraitSet(cluster, traitSet,
-        BitSets.toList(groupSet), aggCalls, child), child, groupSet, aggCalls);
-    // assert getConvention() instanceof HiveRel; fix this: 2/9 hb
+    super(cluster, TraitsUtil.getAggregateTraitSet(cluster, traitSet, BitSets.toList(groupSet),
+        aggCalls, child), child, groupSet, aggCalls);
 
     for (AggregateCall aggCall : aggCalls) {
       if (aggCall.isDistinct()) {

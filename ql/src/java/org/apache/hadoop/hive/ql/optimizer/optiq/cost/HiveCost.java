@@ -8,53 +8,44 @@ import org.eigenbase.relopt.RelOptUtil;
 public class HiveCost implements RelOptCost {
   // ~ Static fields/initializers ---------------------------------------------
 
-  static final HiveCost INFINITY =
-      new HiveCost(
-          Double.POSITIVE_INFINITY,
-          Double.POSITIVE_INFINITY,
-          Double.POSITIVE_INFINITY)
-      {
-        @Override
-        public String toString()
-        {
-          return "{inf}";
-        }
-      };
+  static final HiveCost                 INFINITY = new HiveCost(Double.POSITIVE_INFINITY,
+                                                     Double.POSITIVE_INFINITY,
+                                                     Double.POSITIVE_INFINITY) {
+                                                   @Override
+                                                   public String toString() {
+                                                     return "{inf}";
+                                                   }
+                                                 };
 
-  static final HiveCost HUGE =
-      new HiveCost(Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE) {
-        @Override
-        public String toString()
-        {
-          return "{huge}";
-        }
-      };
+  static final HiveCost                 HUGE     = new HiveCost(Double.MAX_VALUE, Double.MAX_VALUE,
+                                                     Double.MAX_VALUE) {
+                                                   @Override
+                                                   public String toString() {
+                                                     return "{huge}";
+                                                   }
+                                                 };
 
-  static final HiveCost ZERO =
-      new HiveCost(0.0, 0.0, 0.0) {
-        @Override
-        public String toString()
-        {
-          return "{0}";
-        }
-      };
+  static final HiveCost                 ZERO     = new HiveCost(0.0, 0.0, 0.0) {
+                                                   @Override
+                                                   public String toString() {
+                                                     return "{0}";
+                                                   }
+                                                 };
 
-  static final HiveCost TINY =
-      new HiveCost(1.0, 1.0, 0.0) {
-        @Override
-        public String toString()
-        {
-          return "{tiny}";
-        }
-      };
+  static final HiveCost                 TINY     = new HiveCost(1.0, 1.0, 0.0) {
+                                                   @Override
+                                                   public String toString() {
+                                                     return "{tiny}";
+                                                   }
+                                                 };
 
-  public static final RelOptCostFactory FACTORY = new Factory();
+  public static final RelOptCostFactory FACTORY  = new Factory();
 
   // ~ Instance fields --------------------------------------------------------
 
-  final double cpu;
-  final double io;
-  final double rowCount;
+  final double                          cpu;
+  final double                          io;
+  final double                          rowCount;
 
   // ~ Constructors -----------------------------------------------------------
 
@@ -69,20 +60,16 @@ public class HiveCost implements RelOptCost {
 
   // ~ Methods ----------------------------------------------------------------
 
-  public double getCpu()
-  {
+  public double getCpu() {
     return cpu;
   }
 
-  public boolean isInfinite()
-  {
+  public boolean isInfinite() {
     return (this == INFINITY) || (this.rowCount == Double.POSITIVE_INFINITY)
-        || (this.cpu == Double.POSITIVE_INFINITY)
-        || (this.io == Double.POSITIVE_INFINITY);
+        || (this.cpu == Double.POSITIVE_INFINITY) || (this.io == Double.POSITIVE_INFINITY);
   }
 
-  public double getIo()
-  {
+  public double getIo() {
     return io;
   }
 
@@ -125,53 +112,39 @@ public class HiveCost implements RelOptCost {
      */
   }
 
-  public RelOptCost minus(RelOptCost other)
-  {
+  public RelOptCost minus(RelOptCost other) {
     if (this == INFINITY) {
       return this;
     }
 
-    return new HiveCost(
-        this.rowCount - other.getRows(),
-        this.cpu - other.getCpu(),
-        this.io - other.getIo());
+    return new HiveCost(this.rowCount - other.getRows(), this.cpu - other.getCpu(), this.io
+        - other.getIo());
   }
 
-  public RelOptCost multiplyBy(double factor)
-  {
+  public RelOptCost multiplyBy(double factor) {
     if (this == INFINITY) {
       return this;
     }
     return new HiveCost(rowCount * factor, cpu * factor, io * factor);
   }
 
-  public double divideBy(RelOptCost cost)
-  {
+  public double divideBy(RelOptCost cost) {
     // Compute the geometric average of the ratios of all of the factors
     // which are non-zero and finite.
     double d = 1;
     double n = 0;
-    if ((this.rowCount != 0)
-        && !Double.isInfinite(this.rowCount)
-        && (cost.getRows() != 0)
-        && !Double.isInfinite(cost.getRows()))
-    {
+    if ((this.rowCount != 0) && !Double.isInfinite(this.rowCount) && (cost.getRows() != 0)
+        && !Double.isInfinite(cost.getRows())) {
       d *= this.rowCount / cost.getRows();
       ++n;
     }
-    if ((this.cpu != 0)
-        && !Double.isInfinite(this.cpu)
-        && (cost.getCpu() != 0)
-        && !Double.isInfinite(cost.getCpu()))
-    {
+    if ((this.cpu != 0) && !Double.isInfinite(this.cpu) && (cost.getCpu() != 0)
+        && !Double.isInfinite(cost.getCpu())) {
       d *= this.cpu / cost.getCpu();
       ++n;
     }
-    if ((this.io != 0)
-        && !Double.isInfinite(this.io)
-        && (cost.getIo() != 0)
-        && !Double.isInfinite(cost.getIo()))
-    {
+    if ((this.io != 0) && !Double.isInfinite(this.io) && (cost.getIo() != 0)
+        && !Double.isInfinite(cost.getIo())) {
       d *= this.io / cost.getIo();
       ++n;
     }
@@ -181,15 +154,12 @@ public class HiveCost implements RelOptCost {
     return Math.pow(d, 1 / n);
   }
 
-  public RelOptCost plus(RelOptCost other)
-  {
+  public RelOptCost plus(RelOptCost other) {
     if ((this == INFINITY) || (other.isInfinite())) {
       return INFINITY;
     }
-    return new HiveCost(
-        this.rowCount + other.getRows(),
-        this.cpu + other.getCpu(),
-        this.io + other.getIo());
+    return new HiveCost(this.rowCount + other.getRows(), this.cpu + other.getCpu(), this.io
+        + other.getIo());
   }
 
   @Override
@@ -198,7 +168,8 @@ public class HiveCost implements RelOptCost {
   }
 
   private static class Factory implements RelOptCostFactory {
-    private Factory() {}
+    private Factory() {
+    }
 
     public RelOptCost makeCost(double rowCount, double cpu, double io) {
       return new HiveCost(rowCount, cpu, io);

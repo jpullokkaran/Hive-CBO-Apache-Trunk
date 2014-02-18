@@ -74,307 +74,283 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 public class RelNodeConverter {
-  private static final Map<String, Aggregation> AGG_MAP =
-      ImmutableMap.of(
-          "count", (Aggregation) SqlStdOperatorTable.COUNT,
-          "sum", SqlStdOperatorTable.SUM,
-          "min", SqlStdOperatorTable.MIN,
-          "max", SqlStdOperatorTable.MAX,
-          "avg", SqlStdOperatorTable.AVG);
+  private static final Map<String, Aggregation> AGG_MAP = ImmutableMap
+                                                            .of("count",
+                                                                (Aggregation) SqlStdOperatorTable.COUNT,
+                                                                "sum", SqlStdOperatorTable.SUM,
+                                                                "min", SqlStdOperatorTable.MIN,
+                                                                "max", SqlStdOperatorTable.MAX,
+                                                                "avg", SqlStdOperatorTable.AVG);
 
-	public static RelNode convert(Operator<? extends OperatorDesc> sinkOp, 
-			RelOptCluster cluster, RelOptSchema schema,
-			SemanticAnalyzer sA, ParseContext pCtx)  {
+  public static RelNode convert(Operator<? extends OperatorDesc> sinkOp, RelOptCluster cluster,
+      RelOptSchema schema, SemanticAnalyzer sA, ParseContext pCtx) {
 
-		Context ctx = new Context(cluster, schema, sA, pCtx);
+    Context ctx = new Context(cluster, schema, sA, pCtx);
 
-		Map<Rule, NodeProcessor> rules = ImmutableMap.<Rule, NodeProcessor>builder()
-        .put(
-            new RuleRegExp("R1", TableScanOperator.getOperatorName() + "%"),
+    Map<Rule, NodeProcessor> rules = ImmutableMap
+        .<Rule, NodeProcessor> builder()
+        .put(new RuleRegExp("R1", TableScanOperator.getOperatorName() + "%"),
             new TableScanProcessor())
-        .put(new RuleRegExp("R2", FilterOperator.getOperatorName() + "%"),
-            new FilterProcessor())
-        .put(new RuleRegExp("R3", SelectOperator.getOperatorName() + "%"),
-            new SelectProcessor())
-        .put(new RuleRegExp("R4", JoinOperator.getOperatorName() + "%"),
-            new JoinProcessor())
-        .put(new RuleRegExp("R5", LimitOperator.getOperatorName() + "%"),
-            new LimitProcessor())
-        .put(new RuleRegExp("R6", GroupByOperator.getOperatorName() + "%"),
-            new GroupByProcessor())
+        .put(new RuleRegExp("R2", FilterOperator.getOperatorName() + "%"), new FilterProcessor())
+        .put(new RuleRegExp("R3", SelectOperator.getOperatorName() + "%"), new SelectProcessor())
+        .put(new RuleRegExp("R4", JoinOperator.getOperatorName() + "%"), new JoinProcessor())
+        .put(new RuleRegExp("R5", LimitOperator.getOperatorName() + "%"), new LimitProcessor())
+        .put(new RuleRegExp("R6", GroupByOperator.getOperatorName() + "%"), new GroupByProcessor())
         .put(new RuleRegExp("R7", ReduceSinkOperator.getOperatorName() + "%"),
-            new ReduceSinkProcessor())
-        .build();
+            new ReduceSinkProcessor()).build();
 
-		Dispatcher disp = new DefaultRuleDispatcher(new DefaultProcessor(),
-				rules, ctx);
-		GraphWalker egw = new ForwardWalker(disp);
+    Dispatcher disp = new DefaultRuleDispatcher(new DefaultProcessor(), rules, ctx);
+    GraphWalker egw = new ForwardWalker(disp);
 
-		ArrayList<Node> topNodes = new ArrayList<Node>();
-	    topNodes.addAll(pCtx.getTopOps().values());
+    ArrayList<Node> topNodes = new ArrayList<Node>();
+    topNodes.addAll(pCtx.getTopOps().values());
 
-		HashMap<Node, Object> outputMap = new HashMap<Node, Object>();
-		try {
-			egw.startWalking(topNodes, outputMap);
-		} catch (SemanticException se) {
-			// @revisit
-			throw new RuntimeException(se);
-		}
-		return (HiveRel) outputMap.get(sinkOp);
-	}
-	
-	static class Context implements NodeProcessorCtx {
-		RelOptCluster cluster;
-		RelOptSchema schema;
-		SemanticAnalyzer sA;
-		ParseContext parseCtx;
-		/*
-		 * A Map from hive column internalNames to Optiq positions.
-		 * A separate map for each Operator.
-		 */
-		Map<RelNode, ImmutableMap<String, Integer>> opPositionMap;
-		
-		Map<Operator<? extends OperatorDesc>, RelNode> hiveOpToRelNode;
-		
-		public Context(RelOptCluster cluster, RelOptSchema schema,
-				SemanticAnalyzer sA,
-				ParseContext parseCtx) {
-			super();
-			this.cluster = cluster;
-			this.schema = schema;
-			this.sA = sA;
-			this.parseCtx = parseCtx;
-			opPositionMap = new HashMap<RelNode, ImmutableMap<String,Integer>>();
-			hiveOpToRelNode = new HashMap<Operator<? extends OperatorDesc>, RelNode>();
-		}
+    HashMap<Node, Object> outputMap = new HashMap<Node, Object>();
+    try {
+      egw.startWalking(topNodes, outputMap);
+    } catch (SemanticException se) {
+      // @revisit
+      throw new RuntimeException(se);
+    }
+    return (HiveRel) outputMap.get(sinkOp);
+  }
 
-		void buildColumnMap(Operator<? extends OperatorDesc> op, RelNode rNode) {
-			RowSchema rr = op.getSchema();
-			ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
-			int i=0;
-			for(ColumnInfo ci : rr.getSignature() ) {
-				b.put(ci.getInternalName(), i);
-				i++;
-			}
-			opPositionMap.put(rNode, b.build());
-		}
-		
-		/*
-		 * Why special handling for TableScan?
-		 * - the RowResolver coming from hive for TScan still has all the columns,
-		 *   whereas the Optiq type we build is based on the needed columns in the
-		 *   TScanOp.
-		 */
-		void buildColumnMap(TableScanOperator tsOp, RelNode rNode) {
-			RelDataType oType = rNode.getRowType();
-			int i=0;
-			ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
-			for(String fN : oType.getFieldNames()) {
-				b.put(fN, i);
-				i++;
-			}
-			opPositionMap.put(rNode, b.build());
-		}
-		
-		Map<String,Integer> reducerMap(Map<String,Integer> inpMap, ReduceSinkOperator rsOp) {
-			ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
-			Map<String, ExprNodeDesc> colExprMap = rsOp.getColumnExprMap();
-			for(Map.Entry<String, ExprNodeDesc> e : colExprMap.entrySet()) {
-				String inpCol = ((ExprNodeColumnDesc)e.getValue()).getColumn();
-				b.put(e.getKey(), inpMap.get(inpCol));
-			}
-			return b.build();
-		}
-		
-		/*
-		 * The Optiq JoinRel datatype is formed by combining the columns from its input RelNodes.
-		 * Whereas the Hive RowResolver of the JoinOp contains only the columns needed by childOps.
-		 */
-		void buildColumnMap(JoinOperator jOp, HiveJoinRel jRel) throws SemanticException {			
-			RowResolver rr = sA.getRowResolver(jOp);
-			QBJoinTree hTree = parseCtx.getJoinContext().get(jOp);
-			Map<String,Integer> leftMap = opPositionMap.get(jRel.getLeft());
-			Map<String,Integer> rightMap = opPositionMap.get(jRel.getRight());
-			leftMap = reducerMap(leftMap, (ReduceSinkOperator) jOp.getParentOperators().get(0));
-			rightMap = reducerMap(rightMap, (ReduceSinkOperator) jOp.getParentOperators().get(1));
-			int leftColCount = jRel.getLeft().getRowType().getFieldCount();
-			ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
-			for(Map.Entry<String, LinkedHashMap<String, ColumnInfo>> tableEntry : rr.getRslvMap().entrySet()) {
-				String table = tableEntry.getKey();
-				LinkedHashMap<String, ColumnInfo> cols = tableEntry.getValue();
-				Map<String,Integer> posMap = leftMap;
-				int offset = 0;
-				if ( hTree.getRightAliases() != null ) {
-					for(String rAlias : hTree.getRightAliases()) {
-						if ( table.equals(rAlias)) {
-							posMap = rightMap;
-							offset = leftColCount;
-							break;
-						}
-					}
-				}
-				for(Map.Entry<String, ColumnInfo> colEntry : cols.entrySet()) {
-					ColumnInfo ci = colEntry.getValue();
-					ExprNodeDesc e = jOp.getColumnExprMap().get(ci.getInternalName());
-					String cName = ((ExprNodeColumnDesc)e).getColumn();
-					int pos = posMap.get(cName);
-					
-					b.put(ci.getInternalName(), pos+offset);
-				}
-			}
-			opPositionMap.put(jRel, b.build());
-		}
-		
-		void propagatePosMap(RelNode node, RelNode parent) {
-			opPositionMap.put(node, opPositionMap.get(parent));
-		}
-		
-		RexNode convertToOptiqExpr(final ExprNodeDesc expr,
-				final RelNode optiqOP) {
-			return convertToOptiqExpr(expr, optiqOP, 0);
-		}
+  static class Context implements NodeProcessorCtx {
+    RelOptCluster                                  cluster;
+    RelOptSchema                                   schema;
+    SemanticAnalyzer                               sA;
+    ParseContext                                   parseCtx;
+    /*
+     * A Map from hive column internalNames to Optiq positions. A separate map
+     * for each Operator.
+     */
+    Map<RelNode, ImmutableMap<String, Integer>>    opPositionMap;
 
-		RexNode convertToOptiqExpr(final ExprNodeDesc expr,
-				final RelNode optiqOP, int offset) {
-			ImmutableMap<String, Integer> posMap = opPositionMap.get(optiqOP);
-			RexNodeConverter c = new RexNodeConverter(cluster,
-					optiqOP.getRowType(), posMap, offset);
-			return c.convert(expr);
-		}
-		
-		RelNode getParentNode(Operator<? extends OperatorDesc> hiveOp, int i) {
-			Operator<? extends OperatorDesc> p = hiveOp.getParentOperators().get(i);
-			return p == null ? null :hiveOpToRelNode.get(p);
-		}
+    Map<Operator<? extends OperatorDesc>, RelNode> hiveOpToRelNode;
 
-	}
-	
-	static class JoinProcessor implements NodeProcessor {
-		@SuppressWarnings("unchecked")
-		public Object process(Node nd, Stack<Node> stack,
-				NodeProcessorCtx procCtx, Object... nodeOutputs)
-				throws SemanticException {
-			Context ctx = (Context) procCtx;
-			HiveRel left = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
-			HiveRel right = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 1);
-			JoinOperator joinOp = (JoinOperator) nd;
-			JoinCondDesc[] jConds = joinOp.getConf().getConds();
-			assert jConds.length == 1;
-			HiveJoinRel joinRel = convertJoinOp(ctx, joinOp, jConds[0], left, right);
-			ctx.buildColumnMap(joinOp, joinRel);
-			ctx.hiveOpToRelNode.put(joinOp, joinRel);
-			return joinRel;
-		}
+    public Context(RelOptCluster cluster, RelOptSchema schema, SemanticAnalyzer sA,
+        ParseContext parseCtx) {
+      super();
+      this.cluster = cluster;
+      this.schema = schema;
+      this.sA = sA;
+      this.parseCtx = parseCtx;
+      opPositionMap = new HashMap<RelNode, ImmutableMap<String, Integer>>();
+      hiveOpToRelNode = new HashMap<Operator<? extends OperatorDesc>, RelNode>();
+    }
 
-		/*
-		 * @todo: cleanup, for now just copied from HiveToOptiqRelConvereter
-		 */
-		private HiveJoinRel convertJoinOp(Context ctx, JoinOperator op,
-				JoinCondDesc jc, HiveRel leftRel, HiveRel rightRel) {
-			HiveJoinRel joinRel;
-			Operator<? extends OperatorDesc> leftParent = op
-					.getParentOperators().get(jc.getLeft());
-			Operator<? extends OperatorDesc> rightParent = op
-					.getParentOperators().get(jc.getRight());
+    void buildColumnMap(Operator<? extends OperatorDesc> op, RelNode rNode) {
+      RowSchema rr = op.getSchema();
+      ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
+      int i = 0;
+      for (ColumnInfo ci : rr.getSignature()) {
+        b.put(ci.getInternalName(), i);
+        i++;
+      }
+      opPositionMap.put(rNode, b.build());
+    }
 
-			if (leftParent instanceof ReduceSinkOperator
-					&& rightParent instanceof ReduceSinkOperator) {
-				List<ExprNodeDesc> leftCols = ((ReduceSinkDesc) (leftParent
-						.getConf())).getKeyCols();
-				List<ExprNodeDesc> rightCols = ((ReduceSinkDesc) (rightParent
-						.getConf())).getKeyCols();
-				RexNode joinPredicate = null;
-				JoinRelType joinType = JoinRelType.INNER;
-				int rightColOffSet = leftRel.getRowType().getFieldCount();
+    /*
+     * Why special handling for TableScan? - the RowResolver coming from hive
+     * for TScan still has all the columns, whereas the Optiq type we build is
+     * based on the needed columns in the TScanOp.
+     */
+    void buildColumnMap(TableScanOperator tsOp, RelNode rNode) {
+      RelDataType oType = rNode.getRowType();
+      int i = 0;
+      ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
+      for (String fN : oType.getFieldNames()) {
+        b.put(fN, i);
+        i++;
+      }
+      opPositionMap.put(rNode, b.build());
+    }
 
-				// TODO: what about semi join
-				switch (jc.getType()) {
-				case JoinDesc.INNER_JOIN:
-					joinType = JoinRelType.INNER;
-					break;
-				case JoinDesc.LEFT_OUTER_JOIN:
-					joinType = JoinRelType.LEFT;
-					break;
-				case JoinDesc.RIGHT_OUTER_JOIN:
-					joinType = JoinRelType.RIGHT;
-					break;
-				case JoinDesc.FULL_OUTER_JOIN:
-					joinType = JoinRelType.FULL;
-					break;
-				}
+    Map<String, Integer> reducerMap(Map<String, Integer> inpMap, ReduceSinkOperator rsOp) {
+      ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
+      Map<String, ExprNodeDesc> colExprMap = rsOp.getColumnExprMap();
+      for (Map.Entry<String, ExprNodeDesc> e : colExprMap.entrySet()) {
+        String inpCol = ((ExprNodeColumnDesc) e.getValue()).getColumn();
+        b.put(e.getKey(), inpMap.get(inpCol));
+      }
+      return b.build();
+    }
 
-				int i = 0;
-				for (ExprNodeDesc expr : leftCols) {
-					List<RexNode> eqExpr = new LinkedList<RexNode>();
-					eqExpr.add(ctx.convertToOptiqExpr(expr, leftRel, 0));
-					eqExpr.add(ctx.convertToOptiqExpr(rightCols.get(i), rightRel,
-							rightColOffSet));
+    /*
+     * The Optiq JoinRel datatype is formed by combining the columns from its
+     * input RelNodes. Whereas the Hive RowResolver of the JoinOp contains only
+     * the columns needed by childOps.
+     */
+    void buildColumnMap(JoinOperator jOp, HiveJoinRel jRel) throws SemanticException {
+      RowResolver rr = sA.getRowResolver(jOp);
+      QBJoinTree hTree = parseCtx.getJoinContext().get(jOp);
+      Map<String, Integer> leftMap = opPositionMap.get(jRel.getLeft());
+      Map<String, Integer> rightMap = opPositionMap.get(jRel.getRight());
+      leftMap = reducerMap(leftMap, (ReduceSinkOperator) jOp.getParentOperators().get(0));
+      rightMap = reducerMap(rightMap, (ReduceSinkOperator) jOp.getParentOperators().get(1));
+      int leftColCount = jRel.getLeft().getRowType().getFieldCount();
+      ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
+      for (Map.Entry<String, LinkedHashMap<String, ColumnInfo>> tableEntry : rr.getRslvMap()
+          .entrySet()) {
+        String table = tableEntry.getKey();
+        LinkedHashMap<String, ColumnInfo> cols = tableEntry.getValue();
+        Map<String, Integer> posMap = leftMap;
+        int offset = 0;
+        if (hTree.getRightAliases() != null) {
+          for (String rAlias : hTree.getRightAliases()) {
+            if (table.equals(rAlias)) {
+              posMap = rightMap;
+              offset = leftColCount;
+              break;
+            }
+          }
+        }
+        for (Map.Entry<String, ColumnInfo> colEntry : cols.entrySet()) {
+          ColumnInfo ci = colEntry.getValue();
+          ExprNodeDesc e = jOp.getColumnExprMap().get(ci.getInternalName());
+          String cName = ((ExprNodeColumnDesc) e).getColumn();
+          int pos = posMap.get(cName);
 
-					RexNode eqOp = ctx.cluster.getRexBuilder().makeCall(
-							SqlStdOperatorTable.EQUALS, eqExpr);
-					i++;
+          b.put(ci.getInternalName(), pos + offset);
+        }
+      }
+      opPositionMap.put(jRel, b.build());
+    }
 
-					if (joinPredicate == null) {
-						joinPredicate = eqOp;
-					} else {
-						List<RexNode> conjElements = new LinkedList<RexNode>();
-						conjElements.add(joinPredicate);
-						conjElements.add(eqOp);
-						joinPredicate = ctx.cluster.getRexBuilder().makeCall(
-								SqlStdOperatorTable.AND, conjElements);
-					}
-				}
+    void propagatePosMap(RelNode node, RelNode parent) {
+      opPositionMap.put(node, opPositionMap.get(parent));
+    }
 
-				// Translate non-joinkey predicate
-				Set<Entry<Byte, List<ExprNodeDesc>>> filterExprSet = op
-						.getConf().getFilters().entrySet();
-				if (!filterExprSet.isEmpty()) {
-					RexNode eqExpr;
-					int colOffSet;
-					RelNode childRel;
-					Operator parentHiveOp;
-					int inputId;
+    RexNode convertToOptiqExpr(final ExprNodeDesc expr, final RelNode optiqOP) {
+      return convertToOptiqExpr(expr, optiqOP, 0);
+    }
 
-					for (Entry<Byte, List<ExprNodeDesc>> entry : filterExprSet) {
-						inputId = entry.getKey().intValue();
-						if (inputId == 0) {
-							colOffSet = 0;
-							childRel = leftRel;
-							parentHiveOp = leftParent;
-						} else if (inputId == 1) {
-							colOffSet = rightColOffSet;
-							childRel = rightRel;
-							parentHiveOp = rightParent;
-						} else {
-							throw new RuntimeException("Invalid Join Input");
-						}
+    RexNode convertToOptiqExpr(final ExprNodeDesc expr, final RelNode optiqOP, int offset) {
+      ImmutableMap<String, Integer> posMap = opPositionMap.get(optiqOP);
+      RexNodeConverter c = new RexNodeConverter(cluster, optiqOP.getRowType(), posMap, offset);
+      return c.convert(expr);
+    }
 
-						for (ExprNodeDesc expr : entry.getValue()) {
-							eqExpr = ctx.convertToOptiqExpr(expr,
-									childRel, colOffSet);
-							List<RexNode> conjElements = new LinkedList<RexNode>();
-							conjElements.add(joinPredicate);
-							conjElements.add(eqExpr);
-							joinPredicate = ctx.cluster.getRexBuilder()
-									.makeCall(SqlStdOperatorTable.AND,
-											conjElements);
-						}
-					}
-				}
+    RelNode getParentNode(Operator<? extends OperatorDesc> hiveOp, int i) {
+      Operator<? extends OperatorDesc> p = hiveOp.getParentOperators().get(i);
+      return p == null ? null : hiveOpToRelNode.get(p);
+    }
 
-				joinRel = HiveJoinRel.getJoin(ctx.cluster, leftRel, rightRel,
-						joinPredicate, joinType);
-			} else {
-				throw new RuntimeException(
-						"Right & Left of Join Condition columns are not equal");
-			}
-			
-			return joinRel;
-		}
-	}
+  }
 
-  private static int convertExpr(Context ctx, RelNode input,
-      ExprNodeDesc expr, List<RexNode> extraExprs) {
+  static class JoinProcessor implements NodeProcessor {
+    @SuppressWarnings("unchecked")
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      Context ctx = (Context) procCtx;
+      HiveRel left = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      HiveRel right = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 1);
+      JoinOperator joinOp = (JoinOperator) nd;
+      JoinCondDesc[] jConds = joinOp.getConf().getConds();
+      assert jConds.length == 1;
+      HiveJoinRel joinRel = convertJoinOp(ctx, joinOp, jConds[0], left, right);
+      ctx.buildColumnMap(joinOp, joinRel);
+      ctx.hiveOpToRelNode.put(joinOp, joinRel);
+      return joinRel;
+    }
+
+    /*
+     * @todo: cleanup, for now just copied from HiveToOptiqRelConvereter
+     */
+    private HiveJoinRel convertJoinOp(Context ctx, JoinOperator op, JoinCondDesc jc,
+        HiveRel leftRel, HiveRel rightRel) {
+      HiveJoinRel joinRel;
+      Operator<? extends OperatorDesc> leftParent = op.getParentOperators().get(jc.getLeft());
+      Operator<? extends OperatorDesc> rightParent = op.getParentOperators().get(jc.getRight());
+
+      if (leftParent instanceof ReduceSinkOperator && rightParent instanceof ReduceSinkOperator) {
+        List<ExprNodeDesc> leftCols = ((ReduceSinkDesc) (leftParent.getConf())).getKeyCols();
+        List<ExprNodeDesc> rightCols = ((ReduceSinkDesc) (rightParent.getConf())).getKeyCols();
+        RexNode joinPredicate = null;
+        JoinRelType joinType = JoinRelType.INNER;
+        int rightColOffSet = leftRel.getRowType().getFieldCount();
+
+        // TODO: what about semi join
+        switch (jc.getType()) {
+        case JoinDesc.INNER_JOIN:
+          joinType = JoinRelType.INNER;
+          break;
+        case JoinDesc.LEFT_OUTER_JOIN:
+          joinType = JoinRelType.LEFT;
+          break;
+        case JoinDesc.RIGHT_OUTER_JOIN:
+          joinType = JoinRelType.RIGHT;
+          break;
+        case JoinDesc.FULL_OUTER_JOIN:
+          joinType = JoinRelType.FULL;
+          break;
+        }
+
+        int i = 0;
+        for (ExprNodeDesc expr : leftCols) {
+          List<RexNode> eqExpr = new LinkedList<RexNode>();
+          eqExpr.add(ctx.convertToOptiqExpr(expr, leftRel, 0));
+          eqExpr.add(ctx.convertToOptiqExpr(rightCols.get(i), rightRel, rightColOffSet));
+
+          RexNode eqOp = ctx.cluster.getRexBuilder().makeCall(SqlStdOperatorTable.EQUALS, eqExpr);
+          i++;
+
+          if (joinPredicate == null) {
+            joinPredicate = eqOp;
+          } else {
+            List<RexNode> conjElements = new LinkedList<RexNode>();
+            conjElements.add(joinPredicate);
+            conjElements.add(eqOp);
+            joinPredicate = ctx.cluster.getRexBuilder().makeCall(SqlStdOperatorTable.AND,
+                conjElements);
+          }
+        }
+
+        // Translate non-joinkey predicate
+        Set<Entry<Byte, List<ExprNodeDesc>>> filterExprSet = op.getConf().getFilters().entrySet();
+        if (!filterExprSet.isEmpty()) {
+          RexNode eqExpr;
+          int colOffSet;
+          RelNode childRel;
+          Operator parentHiveOp;
+          int inputId;
+
+          for (Entry<Byte, List<ExprNodeDesc>> entry : filterExprSet) {
+            inputId = entry.getKey().intValue();
+            if (inputId == 0) {
+              colOffSet = 0;
+              childRel = leftRel;
+              parentHiveOp = leftParent;
+            } else if (inputId == 1) {
+              colOffSet = rightColOffSet;
+              childRel = rightRel;
+              parentHiveOp = rightParent;
+            } else {
+              throw new RuntimeException("Invalid Join Input");
+            }
+
+            for (ExprNodeDesc expr : entry.getValue()) {
+              eqExpr = ctx.convertToOptiqExpr(expr, childRel, colOffSet);
+              List<RexNode> conjElements = new LinkedList<RexNode>();
+              conjElements.add(joinPredicate);
+              conjElements.add(eqExpr);
+              joinPredicate = ctx.cluster.getRexBuilder().makeCall(SqlStdOperatorTable.AND,
+                  conjElements);
+            }
+          }
+        }
+
+        joinRel = HiveJoinRel.getJoin(ctx.cluster, leftRel, rightRel, joinPredicate, joinType);
+      } else {
+        throw new RuntimeException("Right & Left of Join Condition columns are not equal");
+      }
+
+      return joinRel;
+    }
+  }
+
+  private static int convertExpr(Context ctx, RelNode input, ExprNodeDesc expr,
+      List<RexNode> extraExprs) {
     final RexNode rex = ctx.convertToOptiqExpr(expr, input);
     final int index;
     if (rex instanceof RexInputRef) {
@@ -386,8 +362,8 @@ public class RelNodeConverter {
     return index;
   }
 
-  private static AggregateCall convertAgg(Context ctx, AggregationDesc agg,
-      RelNode input, ColumnInfo cI, List<RexNode> extraExprs) {
+  private static AggregateCall convertAgg(Context ctx, AggregationDesc agg, RelNode input,
+      ColumnInfo cI, List<RexNode> extraExprs) {
     final Aggregation aggregation = AGG_MAP.get(agg.getGenericUDAFName());
     if (aggregation == null) {
       throw new AssertionError("agg not found: " + agg.getGenericUDAFName());
@@ -395,7 +371,7 @@ public class RelNodeConverter {
 
     List<Integer> argList = new ArrayList<Integer>();
     RelDataType type = TypeConverter.convert(cI.getType(), ctx.cluster.getTypeFactory());
-    if ( aggregation.equals(SqlStdOperatorTable.AVG) ) {
+    if (aggregation.equals(SqlStdOperatorTable.AVG)) {
       type = type.getField("sum", false).getType();
     }
     for (ExprNodeDesc expr : agg.getParameters()) {
@@ -403,64 +379,60 @@ public class RelNodeConverter {
       argList.add(index);
     }
 
-      /*
-       * set the type to the first arg, it there is one; because the RTi set on Aggregation call
-       * assumes this is the output type.
-       */
-    if ( argList.size() > 0 ) {
+    /*
+     * set the type to the first arg, it there is one; because the RTi set on
+     * Aggregation call assumes this is the output type.
+     */
+    if (argList.size() > 0) {
       RexNode rex = ctx.convertToOptiqExpr(agg.getParameters().get(0), input);
       type = rex.getType();
     }
     return new AggregateCall(aggregation, agg.getDistinct(), argList, type, null);
   }
 
-	static class FilterProcessor implements NodeProcessor {
-		@SuppressWarnings("unchecked")
-		public Object process(Node nd, Stack<Node> stack,
-				NodeProcessorCtx procCtx, Object... nodeOutputs)
-				throws SemanticException {
-			Context ctx = (Context) procCtx;
-			HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
-			FilterOperator filterOp = (FilterOperator) nd;
-			RexNode convertedFilterExpr = ctx.convertToOptiqExpr(filterOp
-					.getConf().getPredicate(), input);
+  static class FilterProcessor implements NodeProcessor {
+    @SuppressWarnings("unchecked")
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      Context ctx = (Context) procCtx;
+      HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      FilterOperator filterOp = (FilterOperator) nd;
+      RexNode convertedFilterExpr = ctx
+          .convertToOptiqExpr(filterOp.getConf().getPredicate(), input);
 
-			HiveRel filtRel = new HiveFilterRel(ctx.cluster,
-					ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
-					convertedFilterExpr);
-			ctx.propagatePosMap(filtRel, input);
-			ctx.hiveOpToRelNode.put(filterOp, filtRel);
-			return filtRel;
-		}
-	}
+      HiveRel filtRel = new HiveFilterRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
+          input, convertedFilterExpr);
+      ctx.propagatePosMap(filtRel, input);
+      ctx.hiveOpToRelNode.put(filterOp, filtRel);
+      return filtRel;
+    }
+  }
 
-	static class SelectProcessor implements NodeProcessor {
-		@SuppressWarnings("unchecked")
-		public Object process(Node nd, Stack<Node> stack,
-				NodeProcessorCtx procCtx, Object... nodeOutputs)
-				throws SemanticException {
-			Context ctx = (Context) procCtx;
-			HiveRel inputRelNode = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
-			SelectOperator selectOp = (SelectOperator) nd;
+  static class SelectProcessor implements NodeProcessor {
+    @SuppressWarnings("unchecked")
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      Context ctx = (Context) procCtx;
+      HiveRel inputRelNode = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
+      SelectOperator selectOp = (SelectOperator) nd;
 
-			List<ExprNodeDesc> colLst = selectOp.getConf().getColList();
-			List<RexNode> optiqColLst = new LinkedList<RexNode>();
+      List<ExprNodeDesc> colLst = selectOp.getConf().getColList();
+      List<RexNode> optiqColLst = new LinkedList<RexNode>();
 
-			for (ExprNodeDesc colExpr : colLst) {
-				optiqColLst.add(ctx.convertToOptiqExpr(colExpr,
-						inputRelNode));
-			}
-			
-			/*
-			 * Hive treats names that start with '_c' as internalNames; so change the names so we
-			 * don't run into this issue when converting back to Hive AST.
-			 */
-			List<String> oFieldNames = Lists.transform(selectOp.getConf().getOutputColumnNames(),
-					new Function<String, String>() {
-						public String apply( String hName ){
-				            return "_o_" + hName;
-				         }
-			});
+      for (ExprNodeDesc colExpr : colLst) {
+        optiqColLst.add(ctx.convertToOptiqExpr(colExpr, inputRelNode));
+      }
+
+      /*
+       * Hive treats names that start with '_c' as internalNames; so change the
+       * names so we don't run into this issue when converting back to Hive AST.
+       */
+      List<String> oFieldNames = Lists.transform(selectOp.getConf().getOutputColumnNames(),
+          new Function<String, String>() {
+            public String apply(String hName) {
+              return "_o_" + hName;
+            }
+          });
 
       HiveRel selRel = HiveProjectRel.create(inputRelNode, optiqColLst, oFieldNames);
       ctx.buildColumnMap(selectOp, selRel);
@@ -470,9 +442,8 @@ public class RelNodeConverter {
   }
 
   static class LimitProcessor implements NodeProcessor {
-    public Object process(Node nd, Stack<Node> stack,
-        NodeProcessorCtx procCtx, Object... nodeOutputs)
-        throws SemanticException {
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
       Context ctx = (Context) procCtx;
       HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
       LimitOperator limitOp = (LimitOperator) nd;
@@ -485,9 +456,8 @@ public class RelNodeConverter {
       } else {
         fetch = null;
       }
-      HiveRel sortRel = new HiveSortRel(ctx.cluster,
-          ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
-          RelCollationImpl.EMPTY, null, fetch);
+      HiveRel sortRel = new HiveSortRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
+          input, RelCollationImpl.EMPTY, null, fetch);
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(limitOp, sortRel);
       return sortRel;
@@ -495,9 +465,8 @@ public class RelNodeConverter {
   }
 
   static class GroupByProcessor implements NodeProcessor {
-    public Object process(Node nd, Stack<Node> stack,
-        NodeProcessorCtx procCtx, Object... nodeOutputs)
-        throws SemanticException {
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
       Context ctx = (Context) procCtx;
 
       HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
@@ -525,19 +494,13 @@ public class RelNodeConverter {
       }
 
       if (!extraExprs.isEmpty()) {
-        //noinspection unchecked
-        input = HiveProjectRel.create(input,
-            CompositeList.of(
-                Lists.transform(
-                    input.getRowType().getFieldList(),
-                    new Function<RelDataTypeField, RexNode>() {
-                      public RexNode apply(RelDataTypeField input) {
-                        return new RexInputRef(input.getIndex(),
-                            input.getType());
-                      }
-                    }),
-                extraExprs),
-            null);
+        // noinspection unchecked
+        input = HiveProjectRel.create(input, CompositeList.of(Lists.transform(input.getRowType()
+            .getFieldList(), new Function<RelDataTypeField, RexNode>() {
+          public RexNode apply(RelDataTypeField input) {
+            return new RexInputRef(input.getIndex(), input.getType());
+          }
+        }), extraExprs), null);
       }
       try {
         HiveRel aggregateRel = new HiveAggregateRel(ctx.cluster,
@@ -552,9 +515,8 @@ public class RelNodeConverter {
   }
 
   static class ReduceSinkProcessor implements NodeProcessor {
-    public Object process(Node nd, Stack<Node> stack,
-        NodeProcessorCtx procCtx, Object... nodeOutputs)
-        throws SemanticException {
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
       Context ctx = (Context) procCtx;
       HiveRel input = (HiveRel) ctx.getParentNode((Operator<? extends OperatorDesc>) nd, 0);
       ReduceSinkOperator sinkOp = (ReduceSinkOperator) nd;
@@ -572,32 +534,25 @@ public class RelNodeConverter {
 
       final List<RelFieldCollation> fieldCollations = Lists.newArrayList();
       final List<RexNode> extraExprs = Lists.newArrayList();
-      for (Pair<ExprNodeDesc, Character> pair
-          : Pair.zip(conf.getKeyCols(), Lists.charactersOf(order))) {
+      for (Pair<ExprNodeDesc, Character> pair : Pair.zip(conf.getKeyCols(),
+          Lists.charactersOf(order))) {
         int index = convertExpr(ctx, input, pair.left, extraExprs);
         RelFieldCollation.Direction direction = getDirection(pair.right);
         fieldCollations.add(new RelFieldCollation(index, direction));
       }
 
       if (!extraExprs.isEmpty()) {
-        //noinspection unchecked
-        input = HiveProjectRel.create(input,
-            CompositeList.of(
-                Lists.transform(
-                    input.getRowType().getFieldList(),
-                    new Function<RelDataTypeField, RexNode>() {
-                      public RexNode apply(RelDataTypeField input) {
-                        return new RexInputRef(input.getIndex(),
-                            input.getType());
-                      }
-                    }),
-                extraExprs),
-            null);
+        // noinspection unchecked
+        input = HiveProjectRel.create(input, CompositeList.of(Lists.transform(input.getRowType()
+            .getFieldList(), new Function<RelDataTypeField, RexNode>() {
+          public RexNode apply(RelDataTypeField input) {
+            return new RexInputRef(input.getIndex(), input.getType());
+          }
+        }), extraExprs), null);
       }
 
-      HiveRel sortRel = new HiveSortRel(ctx.cluster,
-          ctx.cluster.traitSetOf(HiveRel.CONVENTION), input,
-          RelCollationImpl.of(fieldCollations), null, null);
+      HiveRel sortRel = new HiveSortRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
+          input, RelCollationImpl.of(fieldCollations), null, null);
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(sinkOp, sortRel);
 
@@ -619,43 +574,38 @@ public class RelNodeConverter {
   }
 
   static class TableScanProcessor implements NodeProcessor {
-		public Object process(Node nd, Stack<Node> stack,
-				NodeProcessorCtx procCtx, Object... nodeOutputs)
-				throws SemanticException {
-			Context ctx = (Context) procCtx;
-			TableScanOperator tableScanOp = (TableScanOperator) nd;
-			RowResolver rr = ctx.sA.getRowResolver(tableScanOp);
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      Context ctx = (Context) procCtx;
+      TableScanOperator tableScanOp = (TableScanOperator) nd;
+      RowResolver rr = ctx.sA.getRowResolver(tableScanOp);
 
-			List<String> neededCols = tableScanOp.getNeededColumns();
-			RelDataType rowType = TypeConverter.getType(ctx.cluster, rr,
-					neededCols);
-			Statistics stats = tableScanOp.getStatistics();
-			if (stats.getColumnStats().size() != neededCols.size()) {
-				throw new SemanticException("Incomplete Col stats for table: "
-				    + tableScanOp.getConf().getAlias());
-			}
-			RelOptHiveTable optTable = new RelOptHiveTable(ctx.schema,
-					tableScanOp.getConf().getAlias(), rowType,
-					ctx.sA.getTable(tableScanOp), stats);
-			TableAccessRelBase tableRel = new HiveTableScanRel(ctx.cluster,
-					ctx.cluster.traitSetOf(HiveRel.CONVENTION), optTable,
-					rowType);
-			ctx.buildColumnMap(tableScanOp, tableRel);
-			ctx.hiveOpToRelNode.put(tableScanOp, tableRel);
-			return tableRel;
-		}
-	}
-  
-	static class DefaultProcessor implements NodeProcessor {
-		public Object process(Node nd, Stack<Node> stack,
-				NodeProcessorCtx procCtx, Object... nodeOutputs)
-				throws SemanticException {
-			@SuppressWarnings("unchecked")
-			Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
-			Context ctx = (Context) procCtx;
-			RelNode node = (HiveRel) ctx.getParentNode(op, 0);
-			ctx.hiveOpToRelNode.put(op, node);
-			return node;
-		}
-	}
+      List<String> neededCols = tableScanOp.getNeededColumns();
+      RelDataType rowType = TypeConverter.getType(ctx.cluster, rr, neededCols);
+      Statistics stats = tableScanOp.getStatistics();
+      if (stats.getColumnStats().size() != neededCols.size()) {
+        throw new SemanticException("Incomplete Col stats for table: "
+            + tableScanOp.getConf().getAlias());
+      }
+      RelOptHiveTable optTable = new RelOptHiveTable(ctx.schema, tableScanOp.getConf().getAlias(),
+          rowType, ctx.sA.getTable(tableScanOp), stats);
+      TableAccessRelBase tableRel = new HiveTableScanRel(ctx.cluster,
+          ctx.cluster.traitSetOf(HiveRel.CONVENTION), optTable, rowType);
+      ctx.buildColumnMap(tableScanOp, tableRel);
+      ctx.hiveOpToRelNode.put(tableScanOp, tableRel);
+      return tableRel;
+    }
+  }
+
+  static class DefaultProcessor implements NodeProcessor {
+    public Object process(Node nd, Stack<Node> stack, NodeProcessorCtx procCtx,
+        Object... nodeOutputs) throws SemanticException {
+      @SuppressWarnings("unchecked")
+      Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
+      Context ctx = (Context) procCtx;
+      RelNode node = (HiveRel) ctx.getParentNode(op, 0);
+      ctx.hiveOpToRelNode.put(op, node);
+      return node;
+    }
+  }
 }

@@ -14,15 +14,15 @@ import org.eigenbase.reltype.RelDataType;
 
 //Fix Me: use table meta data and stats util to get stats
 public class RelOptHiveTable extends RelOptAbstractTable {
-  private final Table                 m_hiveTblMetadata;
-  private double                      m_rowCount           = -1;
+  private final Table       m_hiveTblMetadata;
+  private double            m_rowCount           = -1;
 
-  final Map<String, Double>           m_columnIdxToSizeMap = new HashMap<String, Double>();
+  final Map<String, Double> m_columnIdxToSizeMap = new HashMap<String, Double>();
 
-  Map<String, Integer>                m_bucketingColMap;
-  Map<String, Integer>                m_bucketingSortColMap;
-  
-  Statistics                          m_hiveStats;
+  Map<String, Integer>      m_bucketingColMap;
+  Map<String, Integer>      m_bucketingSortColMap;
+
+  Statistics                m_hiveStats;
 
   // NOTE: name here is the table alias which may or may not be the real name in
   // metadata. Use
@@ -60,8 +60,8 @@ public class RelOptHiveTable extends RelOptAbstractTable {
   public Table getHiveTableMD() {
     return m_hiveTblMetadata;
   }
-  
+
   public Statistics getHiveStats() {
-  	return m_hiveStats;
+    return m_hiveStats;
   }
 }

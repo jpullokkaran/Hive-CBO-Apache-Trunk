@@ -12,8 +12,8 @@ public class HiveSortRel extends SortRel implements HiveRel {
 
   public HiveSortRel(RelOptCluster cluster, RelTraitSet traitSet, RelNode child,
       RelCollation collation, RexNode offset, RexNode fetch) {
-    super(cluster, TraitsUtil.getSortTraitSet(cluster, traitSet, collation), child,
-        collation, offset, fetch);
+    super(cluster, TraitsUtil.getSortTraitSet(cluster, traitSet, collation), child, collation,
+        offset, fetch);
     assert getConvention() == child.getConvention();
   }
 

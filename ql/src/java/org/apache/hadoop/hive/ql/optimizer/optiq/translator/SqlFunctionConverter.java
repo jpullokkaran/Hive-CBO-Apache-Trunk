@@ -19,11 +19,11 @@ import org.eigenbase.sql.fun.SqlStdOperatorTable;
 import org.eigenbase.sql.type.*;
 
 public class SqlFunctionConverter {
-	static final Map<String, SqlOperator> operatorMap;
-	static final Map<String, SqlOperator> hiveToOptiq;
-	static final Map<SqlOperator, HiveToken> optiqToHiveToken;
+  static final Map<String, SqlOperator>    operatorMap;
+  static final Map<String, SqlOperator>    hiveToOptiq;
+  static final Map<SqlOperator, HiveToken> optiqToHiveToken;
 
-	static {
+  static {
     Builder builder = new Builder();
     operatorMap = ImmutableMap.copyOf(builder.operatorMap);
     hiveToOptiq = ImmutableMap.copyOf(builder.hiveToOptiq);
@@ -33,34 +33,34 @@ public class SqlFunctionConverter {
   public static SqlOperator getOptiqOperator(GenericUDF hiveUDF) {
     return hiveToOptiq.get(getName(hiveUDF));
   }
-  
+
   public static ASTNode buildAST(SqlOperator op, List<ASTNode> children) {
-	  HiveToken hToken = optiqToHiveToken.get(op);
-	  ASTNode node;
-	  if ( hToken != null ) {
-		 node = (ASTNode) ParseDriver.adaptor.create(hToken.type, hToken.text);
-	  } else {
-		  node = (ASTNode) ParseDriver.adaptor.create(HiveParser.TOK_FUNCTION, "TOK_FUNCTION");
-		  node.addChild((ASTNode) ParseDriver.adaptor.create(HiveParser.Identifier, op.getName()));
-	  }
-	  
-	  for(ASTNode c : children) {
-		  ParseDriver.adaptor.addChild(node, c);
-	  }
-	  return node;
+    HiveToken hToken = optiqToHiveToken.get(op);
+    ASTNode node;
+    if (hToken != null) {
+      node = (ASTNode) ParseDriver.adaptor.create(hToken.type, hToken.text);
+    } else {
+      node = (ASTNode) ParseDriver.adaptor.create(HiveParser.TOK_FUNCTION, "TOK_FUNCTION");
+      node.addChild((ASTNode) ParseDriver.adaptor.create(HiveParser.Identifier, op.getName()));
+    }
+
+    for (ASTNode c : children) {
+      ParseDriver.adaptor.addChild(node, c);
+    }
+    return node;
   }
-  
+
   private static String getName(GenericUDF hiveUDF) {
-	  if ( hiveUDF instanceof GenericUDFBridge ) {
-	  	return ((GenericUDFBridge)hiveUDF).getUdfName();
-	  } else {
-	  	return hiveUDF.getClass().getName();
-	  }
+    if (hiveUDF instanceof GenericUDFBridge) {
+      return ((GenericUDFBridge) hiveUDF).getUdfName();
+    } else {
+      return hiveUDF.getClass().getName();
+    }
   }
 
   private static class Builder {
-    final Map<String, SqlOperator> operatorMap = Maps.newHashMap();
-    final Map<String, SqlOperator> hiveToOptiq = Maps.newHashMap();
+    final Map<String, SqlOperator>    operatorMap      = Maps.newHashMap();
+    final Map<String, SqlOperator>    hiveToOptiq      = Maps.newHashMap();
     final Map<SqlOperator, HiveToken> optiqToHiveToken = Maps.newHashMap();
 
     Builder() {
@@ -100,7 +100,6 @@ public class SqlFunctionConverter {
       numericFunction("atan");
       numericFunction("tan");
       numericFunction("e");
-
 
       registerFunction("upper", SqlStdOperatorTable.UPPER, null);
       registerFunction("lower", SqlStdOperatorTable.LOWER, null);
@@ -148,13 +147,15 @@ public class SqlFunctionConverter {
 
       numericFunction("<>");
       registerFunction("<", SqlStdOperatorTable.LESS_THAN, hToken(HiveParser.LESSTHAN, "<"));
-      registerFunction("<=", SqlStdOperatorTable.LESS_THAN_OR_EQUAL, hToken(HiveParser.LESSTHANOREQUALTO, "<="));
+      registerFunction("<=", SqlStdOperatorTable.LESS_THAN_OR_EQUAL,
+          hToken(HiveParser.LESSTHANOREQUALTO, "<="));
       registerFunction(">", SqlStdOperatorTable.GREATER_THAN, hToken(HiveParser.GREATERTHAN, ">"));
-      registerFunction(">=", SqlStdOperatorTable.GREATER_THAN_OR_EQUAL, hToken(HiveParser.GREATERTHANOREQUALTO, ">="));
+      registerFunction(">=", SqlStdOperatorTable.GREATER_THAN_OR_EQUAL,
+          hToken(HiveParser.GREATERTHANOREQUALTO, ">="));
       numericFunction("not");
       registerFunction("!", SqlStdOperatorTable.NOT, hToken(HiveParser.KW_NOT, "not"));
       numericFunction("between");
-      
+
       // implicit convert methods
       numericFunction(serdeConstants.BOOLEAN_TYPE_NAME);
       numericFunction(serdeConstants.TINYINT_TYPE_NAME);
@@ -167,45 +168,42 @@ public class SqlFunctionConverter {
     }
 
     private void stringFunction(String name) {
-      registerFunction(name, SqlFunctionCategory.STRING,
-          ReturnTypes.explicit(SqlTypeName.VARCHAR));
+      registerFunction(name, SqlFunctionCategory.STRING, ReturnTypes.explicit(SqlTypeName.VARCHAR));
     }
 
     private void numericFunction(String name) {
-      registerFunction(name, SqlFunctionCategory.NUMERIC,
-          ReturnTypes.explicit(SqlTypeName.DECIMAL));
+      registerFunction(name, SqlFunctionCategory.NUMERIC, ReturnTypes.explicit(SqlTypeName.DECIMAL));
     }
 
-    private void registerFunction(String name, SqlFunctionCategory cat,
-        SqlReturnTypeInference rti) {
-      SqlOperator optiqFn = new SqlFunction(name.toUpperCase(),
-          SqlKind.OTHER_FUNCTION, rti, null, null, cat);
+    private void registerFunction(String name, SqlFunctionCategory cat, SqlReturnTypeInference rti) {
+      SqlOperator optiqFn = new SqlFunction(name.toUpperCase(), SqlKind.OTHER_FUNCTION, rti, null,
+          null, cat);
       registerFunction(name, optiqFn, null);
     }
 
     private void registerFunction(String name, SqlOperator optiqFn, HiveToken hiveToken) {
       FunctionInfo hFn = FunctionRegistry.getFunctionInfo(name);
       operatorMap.put(name, optiqFn);
-      
+
       String hFnName = getName(hFn.getGenericUDF());
       hiveToOptiq.put(hFnName, optiqFn);
-      if ( hiveToken != null ) {
-    	  optiqToHiveToken.put(optiqFn, hiveToken);
+      if (hiveToken != null) {
+        optiqToHiveToken.put(optiqFn, hiveToken);
       }
     }
   }
-  
+
   private static HiveToken hToken(int type, String text) {
-	  return new HiveToken(type, text);
+    return new HiveToken(type, text);
   }
-  
+
   static class HiveToken {
-	  int type;
-	  String text;
-	  
-	  HiveToken(int type, String text) {
-		  this.type = type;
-		  this.text = text;
-	  }
+    int    type;
+    String text;
+
+    HiveToken(int type, String text) {
+      this.type = type;
+      this.text = text;
+    }
   }
 }
