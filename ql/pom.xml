@@ -28,6 +28,7 @@
   <name>Hive Query Language</name>
 
   <properties>
+    <optiq.version>0.4.19-SNAPSHOT</optiq.version>
     <hive.path.to.root>..</hive.path.to.root>
   </properties>
 
@@ -176,18 +177,18 @@
       <version>${datanucleus-core.version}</version>
     </dependency>
     <dependency>
-       <groupId>net.hydromatic</groupId>
-       <artifactId>optiq-core</artifactId>
-       <version>${optiq.version}</version>
-        <exclusions>
-        	<!-- hsqldb interferes with the use of derby as the default db
-        	     in hive's use of datanucleus. 
-        	-->
-        	<exclusion>
-        		<groupId>org.hsqldb</groupId>
-        		<artifactId>hsqldb</artifactId>
-        	</exclusion>
-        </exclusions>
+      <groupId>net.hydromatic</groupId>
+      <artifactId>optiq-core</artifactId>
+      <version>${optiq.version}</version>
+      <exclusions>
+        <!-- hsqldb interferes with the use of derby as the default db
+             in hive's use of datanucleus. 
+        -->
+        <exclusion>
+          <groupId>org.hsqldb</groupId>
+          <artifactId>hsqldb</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>      
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -514,7 +515,6 @@
                   <include>com.googlecode.javaewah:JavaEWAH</include>
                   <include>javolution:javolution</include>
                   <include>com.google.protobuf:protobuf-java</include>
-                  <include>org.eigenbase:optiq</include>
                   <include>org.iq80.snappy:snappy</include>
                   <include>org.codehaus.jackson:jackson-core-asl</include>
                   <include>org.codehaus.jackson:jackson-mapper-asl</include>
