@@ -1,11 +1,11 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.Iterables;
 import net.hydromatic.optiq.util.BitSets;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
@@ -17,6 +17,7 @@ import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.FilterRelBase;
 import org.eigenbase.rel.JoinRelBase;
 import org.eigenbase.rel.ProjectRelBase;
+import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.RelVisitor;
 import org.eigenbase.rel.SortRel;
@@ -30,8 +31,6 @@ import org.eigenbase.rex.RexVisitorImpl;
 import org.eigenbase.sql.SqlOperator;
 import org.eigenbase.sql.type.BasicSqlType;
 import org.eigenbase.sql.type.SqlTypeName;
-import org.eigenbase.util.CompositeList;
-import org.eigenbase.util.IntList;
 
 public class ASTConverter {
 
@@ -83,8 +82,7 @@ public class ASTConverter {
      */
     if (groupBy != null) {
       ASTBuilder b = ASTBuilder.construct(HiveParser.TOK_GROUPBY, "TOK_GROUPBY");
-      IntList keys = BitSets.toList(groupBy.getGroupSet());
-      for (int i : keys) {
+      for (int i : BitSets.toIter(groupBy.getGroupSet())) {
         RexInputRef iRef = new RexInputRef(i, new BasicSqlType(SqlTypeName.ANY));
         b.add(iRef.accept(new RexVisitor(schema)));
       }
@@ -104,8 +102,7 @@ public class ASTConverter {
      * 6. Project
      */
     int i = 0;
-    ASTBuilder b = select.isDistinct() ? ASTBuilder.construct(HiveParser.TOK_SELECTDI,
-        "TOK_SELECTDI") : ASTBuilder.construct(HiveParser.TOK_SELECT, "TOK_SELECT");
+    ASTBuilder b = ASTBuilder.construct(HiveParser.TOK_SELECT, "TOK_SELECT");
 
     for (RexNode r : select.getChildExps()) {
       ASTNode selectExpr = ASTBuilder.selectExpr(r.accept(new RexVisitor(schema)), select
@@ -113,12 +110,27 @@ public class ASTConverter {
       b.add(selectExpr);
     }
     hiveAST.select = b.node();
+    schema = new Schema(select, "t");
 
     /*
      * 7. Order
      */
     if (order != null) {
-      RexNode limitExpr = ((HiveSortRel) order).getFetchExpr();
+      HiveSortRel hiveSort = (HiveSortRel) order;
+      if (!hiveSort.getCollation().getFieldCollations().isEmpty()) {
+        ASTNode orderAst = ASTBuilder.createAST(HiveParser.TOK_ORDERBY, "TOK_ORDERBY");
+        for (RelFieldCollation c : hiveSort.getCollation().getFieldCollations()) {
+          ColumnInfo cI = schema.get(c.getFieldIndex());
+          ASTNode astCol = ASTBuilder.qualifiedName(cI.table, cI.column);
+          ASTNode astNode = c.getDirection() == RelFieldCollation.Direction.Ascending
+              ? ASTBuilder.createAST(HiveParser.TOK_TABSORTCOLNAMEASC, "TOK_TABSORTCOLNAMEASC")
+              : ASTBuilder.createAST(HiveParser.TOK_TABSORTCOLNAMEDESC, "TOK_TABSORTCOLNAMEDESC");
+          astNode.addChild(astCol);
+          orderAst.addChild(astNode);
+        }
+        hiveAST.order = orderAst;
+      }
+      RexNode limitExpr = hiveSort.getFetchExpr();
       if (limitExpr != null) {
         Object val = ((RexLiteral) limitExpr).getValue2();
         hiveAST.limit = ASTBuilder.limit(val);
@@ -274,14 +286,13 @@ public class ASTConverter {
 
     @SuppressWarnings("unchecked")
     Schema(Schema left, Schema right) {
-      for (ColumnInfo cI : CompositeList.of(left, right)) {
+      for (ColumnInfo cI : Iterables.concat(left, right)) {
         add(cI);
       }
     }
 
     Schema(Schema src, AggregateRelBase gBy) {
-      IntList keys = BitSets.toList(gBy.getGroupSet());
-      for (int i : keys) {
+      for (int i : BitSets.toIter(gBy.getGroupSet())) {
         ColumnInfo cI = src.get(i);
         add(cI);
       }
