@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.FilterOperator;
 import org.apache.hadoop.hive.ql.exec.GroupByOperator;
@@ -30,6 +31,7 @@ import org.apache.hadoop.hive.ql.lib.NodeProcessor;
 import org.apache.hadoop.hive.ql.lib.NodeProcessorCtx;
 import org.apache.hadoop.hive.ql.lib.Rule;
 import org.apache.hadoop.hive.ql.lib.RuleRegExp;
+import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
@@ -39,11 +41,13 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
+import org.apache.hadoop.hive.ql.parse.PrunedPartitionList;
 import org.apache.hadoop.hive.ql.parse.QBJoinTree;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.AggregationDesc;
+import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.JoinCondDesc;
@@ -75,12 +79,12 @@ import com.google.common.collect.Lists;
 
 public class RelNodeConverter {
   private static final Map<String, Aggregation> AGG_MAP = ImmutableMap
-                                                            .of("count",
-                                                                (Aggregation) SqlStdOperatorTable.COUNT,
-                                                                "sum", SqlStdOperatorTable.SUM,
-                                                                "min", SqlStdOperatorTable.MIN,
-                                                                "max", SqlStdOperatorTable.MAX,
-                                                                "avg", SqlStdOperatorTable.AVG);
+      .<String, Aggregation> builder()
+      .put("count", (Aggregation) SqlStdOperatorTable.COUNT)
+      .put("sum", SqlStdOperatorTable.SUM).put("min", SqlStdOperatorTable.MIN)
+      .put("max", SqlStdOperatorTable.MAX).put("avg", SqlStdOperatorTable.AVG)
+      .put("stddev_samp", SqlFunctionConverter.hiveAggFunction("stddev_samp"))
+      .build();
 
   public static RelNode convert(Operator<? extends OperatorDesc> sinkOp, RelOptCluster cluster,
       RelOptSchema schema, SemanticAnalyzer sA, ParseContext pCtx) {
@@ -532,6 +536,15 @@ public class RelNodeConverter {
       final String order = conf.getOrder(); // "+-" means "ASC, DESC"
       assert order.length() == conf.getKeyCols().size();
 
+      /*
+       * numReducers == 1 and order.length = 1 => a RS for CrossJoin.
+       */
+      if ( order.length() == 0 ) {
+        Operator<? extends OperatorDesc> op = (Operator<? extends OperatorDesc>) nd;
+        ctx.hiveOpToRelNode.put(op, input);
+        return input;
+      }
+
       final List<RelFieldCollation> fieldCollations = Lists.newArrayList();
       final List<RexNode> extraExprs = Lists.newArrayList();
       for (Pair<ExprNodeDesc, Character> pair : Pair.zip(conf.getKeyCols(),
@@ -580,13 +593,22 @@ public class RelNodeConverter {
       TableScanOperator tableScanOp = (TableScanOperator) nd;
       RowResolver rr = ctx.sA.getRowResolver(tableScanOp);
 
-      List<String> neededCols = tableScanOp.getNeededColumns();
-      RelDataType rowType = TypeConverter.getType(ctx.cluster, rr, neededCols);
+      List<String> neededCols = new ArrayList<String>(
+          tableScanOp.getNeededColumns());
       Statistics stats = tableScanOp.getStatistics();
+
+      try {
+        stats = addPartitionColumns(ctx, tableScanOp, tableScanOp.getConf()
+            .getAlias(), ctx.sA.getTable(tableScanOp), stats, neededCols);
+      } catch (CloneNotSupportedException ce) {
+        throw new SemanticException(ce);
+      }
+
       if (stats.getColumnStats().size() != neededCols.size()) {
         throw new SemanticException("Incomplete Col stats for table: "
             + tableScanOp.getConf().getAlias());
       }
+      RelDataType rowType = TypeConverter.getType(ctx.cluster, rr, neededCols);
       RelOptHiveTable optTable = new RelOptHiveTable(ctx.schema, tableScanOp.getConf().getAlias(),
           rowType, ctx.sA.getTable(tableScanOp), stats);
       TableAccessRelBase tableRel = new HiveTableScanRel(ctx.cluster,
@@ -594,6 +616,38 @@ public class RelNodeConverter {
       ctx.buildColumnMap(tableScanOp, tableRel);
       ctx.hiveOpToRelNode.put(tableScanOp, tableRel);
       return tableRel;
+    }
+
+    /*
+     * Add partition columns to needed columns and fake the COlStats for it.
+     */
+    private Statistics addPartitionColumns(Context ctx,
+        TableScanOperator tableScanOp, String tblAlias, Table tbl,
+        Statistics stats, List<String> neededCols)
+        throws CloneNotSupportedException {
+      if (!tbl.isPartitioned()) {
+        return stats;
+      }
+      List<ColStatistics> pStats = new ArrayList<ColStatistics>();
+      List<FieldSchema> pCols = tbl.getPartCols();
+      for (FieldSchema pC : pCols) {
+        neededCols.add(pC.getName());
+        ColStatistics cStats = stats.getColumnStatisticsForColumn(tblAlias,
+            pC.getName());
+        if (cStats == null) {
+          PrunedPartitionList partList = ctx.parseCtx.getOpToPartList().get(
+              tableScanOp);
+          cStats = new ColStatistics(tblAlias, pC.getName(), pC.getType());
+          cStats.setCountDistint(partList.getPartitions().size());
+          pStats.add(cStats);
+        }
+      }
+      if (pStats.size() > 0) {
+        stats = stats.clone();
+        stats.addToColumnStats(pStats);
+      }
+
+      return stats;
     }
   }
 
