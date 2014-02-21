@@ -118,6 +118,7 @@ class ASTBuilder {
       type = HiveParser.Number;
       break;
     case VARCHAR:
+    case CHAR:
       type = HiveParser.StringLiteral;
       break;
 

@@ -1,8 +1,8 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
-import com.google.common.collect.*;
 import org.apache.hadoop.hive.ql.exec.FunctionInfo;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
@@ -11,12 +11,22 @@ import org.apache.hadoop.hive.ql.parse.ParseDriver;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFBridge;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.eigenbase.reltype.RelDataType;
+import org.eigenbase.reltype.RelDataTypeFactory;
+import org.eigenbase.sql.SqlAggFunction;
 import org.eigenbase.sql.SqlFunction;
 import org.eigenbase.sql.SqlFunctionCategory;
 import org.eigenbase.sql.SqlKind;
 import org.eigenbase.sql.SqlOperator;
 import org.eigenbase.sql.fun.SqlStdOperatorTable;
-import org.eigenbase.sql.type.*;
+import org.eigenbase.sql.type.OperandTypes;
+import org.eigenbase.sql.type.ReturnTypes;
+import org.eigenbase.sql.type.SqlReturnTypeInference;
+import org.eigenbase.sql.type.SqlTypeName;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 public class SqlFunctionConverter {
   static final Map<String, SqlOperator>    operatorMap;
@@ -205,5 +215,26 @@ public class SqlFunctionConverter {
       this.type = type;
       this.text = text;
     }
+  }
+
+  static SqlAggFunction hiveAggFunction(String name) {
+    return new HiveAggFunction(name);
+  }
+
+  static class HiveAggFunction extends SqlAggFunction {
+
+    public HiveAggFunction(String name) {
+      super(name, SqlKind.OTHER_FUNCTION, ReturnTypes.BIGINT, null,
+          OperandTypes.ANY, SqlFunctionCategory.NUMERIC);
+    }
+
+    public List<RelDataType> getParameterTypes(RelDataTypeFactory typeFactory) {
+      return ImmutableList.of(typeFactory.createSqlType(SqlTypeName.ANY));
+    }
+
+    public RelDataType getReturnType(RelDataTypeFactory typeFactory) {
+      return typeFactory.createSqlType(SqlTypeName.BIGINT);
+    }
+
   }
 }
