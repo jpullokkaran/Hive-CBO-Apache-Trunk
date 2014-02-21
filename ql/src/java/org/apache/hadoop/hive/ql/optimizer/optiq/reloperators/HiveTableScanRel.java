@@ -3,8 +3,8 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
+import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.eigenbase.rel.RelNode;
@@ -15,20 +15,22 @@ import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 
+import com.google.common.collect.ImmutableList;
+
 /**
  * Relational expression representing a scan of a HiveDB collection.
- * 
+ *
  * <p>
  * Additional operations might be applied, using the "find" or "aggregate"
  * methods.
  * </p>
  */
 public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
-  private final List<ColStatistics> m_hiveColStat = new LinkedList<ColStatistics>();
+  private final ImmutableList<ColStatistics> m_hiveColStat;
 
   /**
    * Creates a HiveTableScan.
-   * 
+   *
    * @param cluster
    *          Cluster
    * @param traitSet
@@ -43,12 +45,13 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
     super(cluster, TraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
     assert getConvention() == HiveRel.CONVENTION;
 
-    List<String> colNamesLst = new LinkedList<String>();
-    for (String colName : rowtype.getFieldNames()) {
-      colNamesLst.add(colName);
+    ImmutableList.Builder<ColStatistics> b = new ImmutableList.Builder<ColStatistics>();
+    for (String fN : rowtype.getFieldNames()) {
+      ColStatistics cStat = table.getHiveStats().getColumnStatisticsForColumn(
+          table.getName(), fN);
+      b.add(cStat);
     }
-
-    m_hiveColStat.addAll(table.getHiveStats().getColumnStats());
+    m_hiveColStat = b.build();
   }
 
   @Override
