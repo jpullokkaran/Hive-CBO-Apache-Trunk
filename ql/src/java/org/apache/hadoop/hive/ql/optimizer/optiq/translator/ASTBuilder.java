@@ -121,6 +121,10 @@ class ASTBuilder {
     case CHAR:
       type = HiveParser.StringLiteral;
       break;
+    case BOOLEAN:
+      type = ((Boolean) val).booleanValue() ? HiveParser.KW_TRUE
+          : HiveParser.KW_FALSE;
+      break;
 
     default:
       throw new RuntimeException("Unsupported Type: " + sqlType);
