@@ -77,6 +77,13 @@ class ASTBuilder {
     return b.node();
   }
 
+  static ASTNode unqualifiedName(String colName) {
+    ASTBuilder b = ASTBuilder
+.construct(HiveParser.TOK_TABLE_OR_COL,
+        "TOK_TABLE_OR_COL").add(HiveParser.Identifier, colName);
+    return b.node();
+  }
+
   static ASTNode where(ASTNode cond) {
     return ASTBuilder.construct(HiveParser.TOK_WHERE, "TOK_WHERE").add(cond).node();
   }

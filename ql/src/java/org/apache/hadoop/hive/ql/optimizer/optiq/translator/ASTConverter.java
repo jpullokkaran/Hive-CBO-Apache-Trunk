@@ -5,7 +5,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.collect.Iterables;
 import net.hydromatic.optiq.util.BitSets;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
@@ -31,6 +30,8 @@ import org.eigenbase.rex.RexVisitorImpl;
 import org.eigenbase.sql.SqlOperator;
 import org.eigenbase.sql.type.BasicSqlType;
 import org.eigenbase.sql.type.SqlTypeName;
+
+import com.google.common.collect.Iterables;
 
 public class ASTConverter {
 
@@ -110,7 +111,6 @@ public class ASTConverter {
       b.add(selectExpr);
     }
     hiveAST.select = b.node();
-    schema = new Schema(select, "t");
 
     /*
      * 7. Order
@@ -121,7 +121,11 @@ public class ASTConverter {
         ASTNode orderAst = ASTBuilder.createAST(HiveParser.TOK_ORDERBY, "TOK_ORDERBY");
         for (RelFieldCollation c : hiveSort.getCollation().getFieldCollations()) {
           ColumnInfo cI = schema.get(c.getFieldIndex());
-          ASTNode astCol = ASTBuilder.qualifiedName(cI.table, cI.column);
+          /*
+           * The RowResolver setup for Select drops Table associations. So setup
+           * ASTNode on unqualified name.
+           */
+          ASTNode astCol = ASTBuilder.unqualifiedName(cI.column);
           ASTNode astNode = c.getDirection() == RelFieldCollation.Direction.Ascending
               ? ASTBuilder.createAST(HiveParser.TOK_TABSORTCOLNAMEASC, "TOK_TABSORTCOLNAMEASC")
               : ASTBuilder.createAST(HiveParser.TOK_TABSORTCOLNAMEDESC, "TOK_TABSORTCOLNAMEDESC");
