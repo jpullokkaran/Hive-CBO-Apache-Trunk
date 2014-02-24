@@ -9124,10 +9124,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     // up with later.
     Operator sinkOp = genPlan(qb);
 
-    resultSchema =
-        convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
+    resultSchema = convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
 
-    if (runCBO) {
+    if (runCBO && CostBasedOptimizer.canHandleOpTree(sinkOp, conf, queryProperties)) {
       /*
        * For CBO: 1. Run PreCBOOptimizer on Plan. This applies: Partition
        * Pruning, Predicate Pushdown, Column Pruning and Stats Annotation
@@ -9152,46 +9151,37 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             listMapJoinOpsNoReducer, groupOpToInputTables, prunedPartitions, opToSamplePruner,
             globalLimitCtx, nameToSplitSample, inputs, rootTasks, opToPartToSkewedPruner,
             viewAliasToInput, reduceSinkOperatorsAddedByEnforceBucketingSorting, queryProperties);
-        PreCBOOptimizer optm = new PreCBOOptimizer();
-        optm.setPctx(pCtx);
-        optm.initialize(conf);
-        pCtx = optm.optimize();
+        PreCBOOptimizer preCBOOptm = new PreCBOOptimizer();
+        preCBOOptm.setPctx(pCtx);
+        preCBOOptm.initialize(conf);
+        pCtx = preCBOOptm.optimize();
 
         newAST = CostBasedOptimizer.optimize(sinkOp, this, pCtx);
-        if (newAST == null) {
-          skipCBOPlan = true;
-          LOG.info("CBO failed, skipping CBO");
-        } else if (LOG.isDebugEnabled()) {
+        if (LOG.isDebugEnabled()) {
           String newAstExpanded = newAST.dump();
           LOG.debug("CBO rewritten query: \n" + newAstExpanded);
         }
-      } catch (Throwable t) {
-        LOG.debug("CBO failed, skipping CBO", t);
-        skipCBOPlan = true;
-      }
 
-      if (!skipCBOPlan) {
-        try {
-          init();
-          ctx_1 = initPhase1Ctx();
-          if (!doPhase1(newAST, qb, ctx_1)) {
-            throw new RuntimeException("Couldn't do phase1 on CBO optimized query plan");
-          }
-          getMetaData(qb);
-          try {
-            disableJoinMerge = true;
-            sinkOp = genPlan(qb);
-          } finally {
-            disableJoinMerge = false;
-          }
-
-          resultSchema = convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
-        } catch (Exception e) {
-          LOG.warn("CBO failed, skipping CBO", e);
-          init();
-          analyzeInternal(ast);
-          return;
+        init();
+        ctx_1 = initPhase1Ctx();
+        if (!doPhase1(newAST, qb, ctx_1)) {
+          throw new RuntimeException("Couldn't do phase1 on CBO optimized query plan");
         }
+        getMetaData(qb);
+
+        try {
+          disableJoinMerge = true;
+          sinkOp = genPlan(qb);
+        } finally {
+          disableJoinMerge = false;
+        }
+
+        resultSchema = convertRowSchemaToViewSchema(opParseCtx.get(sinkOp).getRowResolver());
+      } catch (Exception e) {
+        LOG.warn("CBO failed, skipping CBO", e);
+        init();
+        analyzeInternal(ast);
+        return;
       }
     }
 

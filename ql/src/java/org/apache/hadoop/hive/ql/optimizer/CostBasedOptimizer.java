@@ -89,12 +89,9 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
   public static ASTNode optimize(@SuppressWarnings("rawtypes") Operator sinkOp,
       SemanticAnalyzer semanticAnalyzer, ParseContext pCtx) {
     ASTNode optiqOptimizedAST = null;
-    HiveConf conf = pCtx.getConf();
-    if (shouldRunOptiqOptimizer(sinkOp, conf, semanticAnalyzer.getQueryProperties())) {
-      RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CostBasedOptimizer(sinkOp,
-          semanticAnalyzer, pCtx));
-      optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan);
-    }
+    RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CostBasedOptimizer(sinkOp,
+        semanticAnalyzer, pCtx));
+    optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan);
 
     return optiqOptimizedAST;
   }
@@ -143,8 +140,8 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
     return planner.findBestExp();
   }
 
-  private static boolean shouldRunOptiqOptimizer(@SuppressWarnings("rawtypes") Operator sinkOp,
-      HiveConf conf, QueryProperties qp) {
+  public static boolean canHandleOpTree(@SuppressWarnings("rawtypes") Operator sinkOp, HiveConf conf,
+      QueryProperties qp) {
     boolean runOptiq = false;
 
     if ((qp.getJoinCount() < HiveConf.getIntVar(conf,
