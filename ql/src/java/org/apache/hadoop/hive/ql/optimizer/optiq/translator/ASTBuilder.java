@@ -127,6 +127,7 @@ class ASTBuilder {
     case VARCHAR:
     case CHAR:
       type = HiveParser.StringLiteral;
+      val = "'" + String.valueOf(val) + "'";
       break;
     case BOOLEAN:
       type = ((Boolean) val).booleanValue() ? HiveParser.KW_TRUE
