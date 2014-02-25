@@ -7,7 +7,6 @@ import java.util.Set;
 
 import net.hydromatic.optiq.BuiltinMethod;
 
-import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil;
 import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil.JoinLeafPredicateInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.JoinUtil.JoinPredicateInfo;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
@@ -17,6 +16,7 @@ import org.eigenbase.rel.metadata.ReflectiveRelMetadataProvider;
 import org.eigenbase.rel.metadata.RelMdSelectivity;
 import org.eigenbase.rel.metadata.RelMdUtil;
 import org.eigenbase.rel.metadata.RelMetadataProvider;
+import org.eigenbase.rel.metadata.RelMetadataQuery;
 import org.eigenbase.rex.RexNode;
 import org.eigenbase.rex.RexUtil;
 
@@ -56,14 +56,15 @@ public class HiveRelMdSelectivity extends RelMdSelectivity {
    * 3. Join Selectivity = 1/(NDV of (conjuctive element1))*(NDV of (conjuctive
    * element1)).<br>
    * 4. NDV of conjunctive element = max NDV (of args from LHS expr, RHS Expr)
-   * 
+   *
    * @param j
    * @return double value will be within 0 and 1.
-   * 
+   *
    *         TODO: 1. handle join conditions like "(r1.x=r2.x) and (r1.x=r2.y)"
    *         better
    */
-  private Double computeInnerJoinSelectivity(HiveJoinRel j, RexNode predicate) {
+  private Double computeInnerJoinSelectivity_old(HiveJoinRel j,
+      RexNode predicate) {
     double joinSelectivity = 1;
     RexNode combinedPredicate = getCombinedPredicateForJoin(j, predicate);
     JoinPredicateInfo jpi = JoinPredicateInfo.constructJoinPredicateInfo(j, combinedPredicate);
@@ -92,11 +93,99 @@ public class HiveRelMdSelectivity extends RelMdSelectivity {
     // = 1/(max(NDV(left.Expr1), NDV(right.Expr1)) * max(NDV(left.Expr2),
     // NDV(right.Expr2)))
     // NDV(expr) = max(NDV( expr args))
+
     for (JoinLeafPredicateInfo jlpi : jpi.getEquiJoinPredicateElements()) {
-      joinSelectivity *= (1 / (getMaxNDVForJoinSelectivity(jlpi, colStatMap)));
+      joinSelectivity = Math.min(joinSelectivity,
+          (1 / (getMaxNDVForJoinSelectivity(jlpi, colStatMap))));
+    }
+
+    if (jpi.getEquiJoinPredicateElements().size() > 1) {
+      joinSelectivity = joinSelectivity
+          / (jpi.getEquiJoinPredicateElements().size() - 1);
     }
 
     return joinSelectivity;
+  }
+
+  private Double computeInnerJoinSelectivity(HiveJoinRel j, RexNode predicate) {
+    double ndvCrossProduct = 1;
+    RexNode combinedPredicate = getCombinedPredicateForJoin(j, predicate);
+    JoinPredicateInfo jpi = JoinPredicateInfo.constructJoinPredicateInfo(j,
+        combinedPredicate);
+    ImmutableMap.Builder<Integer, Double> colStatMapBuilder = ImmutableMap
+        .builder();
+    ImmutableMap<Integer, Double> colStatMap;
+    int rightOffSet = j.getLeft().getRowType().getFieldCount();
+
+    // 1. Update Col Stats Map with col stats for columns from left side of
+    // Join which are part of join keys
+    for (Integer ljk : jpi.getProjsFromLeftPartOfJoinKeysInChildSchema()) {
+      colStatMapBuilder.put(ljk,
+          HiveRelMdDistinctRowCount.getDistinctRowCount(j.getLeft(), ljk));
+    }
+
+    // 2. Update Col Stats Map with col stats for columns from right side of
+    // Join which are part of join keys
+    for (Integer rjk : jpi.getProjsFromRightPartOfJoinKeysInChildSchema()) {
+      colStatMapBuilder.put(rjk + rightOffSet,
+          HiveRelMdDistinctRowCount.getDistinctRowCount(j.getRight(), rjk));
+    }
+    colStatMap = colStatMapBuilder.build();
+
+    // 3. Walk through the Join Condition Building NDV for selectivity
+    // NDV of the join can not exceed the cardinality of cross join.
+    List<JoinLeafPredicateInfo> peLst = jpi.getEquiJoinPredicateElements();
+    int noOfPE = peLst.size();
+    if (noOfPE > 0) {
+      // 3.1 Use first conjunctive predicate element's NDV as the seed
+      ndvCrossProduct = getMaxNDVForJoinSelectivity(peLst.get(0), colStatMap);
+
+      // 3.2 if conjunctive predicate elements are more than one, then walk
+      // through them one by one. Compute cross product of NDV. Cross product is
+      // computed by multiplying the largest NDV of all of the conjunctive
+      // predicate
+      // elements with degraded NDV of rest of the conjunctive predicate
+      // elements. NDV is
+      // degraded using log function.Finally the ndvCrossProduct is fenced at
+      // the join
+      // cross product to ensure that NDV can not exceed worst case join
+      // cardinality.<br>
+      // NDV of a conjunctive predicate element is the max NDV of all arguments
+      // to lhs, rhs expressions.
+      // NDV(JoinCondition) = min (left cardinality * right cardinality,
+      // ndvCrossProduct(JoinCondition))
+      // ndvCrossProduct(JoinCondition) = ndv(pex)*log(ndv(pe1))*log(ndv(pe2))
+      // where pex is the predicate element of join condition with max ndv.
+      // ndv(pe) = max(NDV(left.Expr), NDV(right.Expr))
+      // NDV(expr) = max(NDV( expr args))
+      if (noOfPE > 1) {
+        double maxNDVSoFar = ndvCrossProduct;
+        double ndvToBeSmoothed;
+        double tmpNDV;
+
+        for (int i = 1; i < noOfPE; i++) {
+          tmpNDV = getMaxNDVForJoinSelectivity(peLst.get(i), colStatMap);
+          if (tmpNDV > maxNDVSoFar) {
+            ndvToBeSmoothed = maxNDVSoFar;
+            maxNDVSoFar = tmpNDV;
+            ndvCrossProduct = (ndvCrossProduct / ndvToBeSmoothed) * tmpNDV;
+          } else {
+            ndvToBeSmoothed = tmpNDV;
+          }
+          // TODO: revisit the fence
+          if (ndvToBeSmoothed > 3)
+            ndvCrossProduct *= Math.log(ndvToBeSmoothed);
+          else
+            ndvCrossProduct *= ndvToBeSmoothed;
+        }
+
+        ndvCrossProduct = Math.min(RelMetadataQuery.getRowCount(j.getLeft())
+            * RelMetadataQuery.getRowCount(j.getRight()), ndvCrossProduct);
+      }
+    }
+
+    // 4. Join Selectivity = 1/NDV
+    return (1 / ndvCrossProduct);
   }
 
   private RexNode getCombinedPredicateForJoin(HiveJoinRel j, RexNode additionalPredicate) {
@@ -116,7 +205,7 @@ public class HiveRelMdSelectivity extends RelMdSelectivity {
 
   /**
    * Compute Max NDV to determine Join Selectivity.
-   * 
+   *
    * @param jlpi
    * @param colStatMap
    *          Immutable Map of Projection Index (in Join Schema) to Column Stat
