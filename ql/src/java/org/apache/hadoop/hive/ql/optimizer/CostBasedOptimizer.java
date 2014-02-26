@@ -82,9 +82,7 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
 
   /*
    * Currently contract is given a Hive Operator Tree, it returns an optimal
-   * plan as an Hive AST. - if there are Operators that cannot be handled, will
-   * return null imply that Semantic Analysis should proceed on the original
-   * AST.
+   * plan as an Hive AST.
    */
   public static ASTNode optimize(@SuppressWarnings("rawtypes") Operator sinkOp,
       SemanticAnalyzer semanticAnalyzer, ParseContext pCtx) {

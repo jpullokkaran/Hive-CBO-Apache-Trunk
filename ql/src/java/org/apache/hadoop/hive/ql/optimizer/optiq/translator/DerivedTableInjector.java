@@ -4,8 +4,8 @@ import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
-import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveLimitRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.eigenbase.rel.AggregateRelBase;
 import org.eigenbase.rel.EmptyRel;
 import org.eigenbase.rel.FilterRelBase;
@@ -52,9 +52,12 @@ public class DerivedTableInjector {
         if (!validFilterParent(rel, parent)) {
           introduceDerivedTable(rel, parent);
         }
-      } else if (rel instanceof HiveLimitRel) {
-        if (!validLimitParent(rel, parent)) {
+      } else if (rel instanceof HiveSortRel) {
+        if (!validSortParent(rel, parent)) {
           introduceDerivedTable(rel, parent);
+        }
+        if (!validSortChild((HiveSortRel) rel)) {
+          introduceDerivedTable(((HiveSortRel) rel).getChild(), rel);
         }
       } else if (rel instanceof HiveAggregateRel) {
         if (!validGBParent(rel, parent)) {
@@ -147,13 +150,24 @@ public class DerivedTableInjector {
     return validParent;
   }
 
-  private static boolean validLimitParent(RelNode gbNode, RelNode parent) {
+  private static boolean validSortParent(RelNode sortNode, RelNode parent) {
     boolean validParent = true;
 
-    if (!(parent instanceof ProjectRelBase)) {
+    if (parent != null && !(parent instanceof ProjectRelBase)) {
       validParent = false;
     }
 
     return validParent;
+  }
+
+  private static boolean validSortChild(HiveSortRel sortNode) {
+    boolean validChild = true;
+    RelNode child = sortNode.getChild();
+
+    if (!(child instanceof ProjectRelBase)) {
+      validChild = false;
+    }
+
+    return validChild;
   }
 }

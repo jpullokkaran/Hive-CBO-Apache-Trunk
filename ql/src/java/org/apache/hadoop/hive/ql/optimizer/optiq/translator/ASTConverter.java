@@ -119,6 +119,7 @@ public class ASTConverter {
       HiveSortRel hiveSort = (HiveSortRel) order;
       if (!hiveSort.getCollation().getFieldCollations().isEmpty()) {
         ASTNode orderAst = ASTBuilder.createAST(HiveParser.TOK_ORDERBY, "TOK_ORDERBY");
+        schema = new Schema((HiveSortRel) order);
         for (RelFieldCollation c : hiveSort.getCollation().getFieldCollations()) {
           ColumnInfo cI = schema.get(c.getFieldIndex());
           /*
@@ -315,6 +316,22 @@ public class ASTConverter {
       }
     }
 
+    /**
+     * Assumption:<br>
+     * 1. ProjectRel will always be child of SortRel.<br>
+     * 2. In Optiq every projection in ProjectRelBase is uniquely named
+     * (unambigous) without using table qualifier (table name).<br>
+     * 
+     * @param order
+     *          Hive Sort Rel Node
+     * @return Schema
+     */
+    public Schema(HiveSortRel order) {
+      ProjectRelBase select = (ProjectRelBase) order.getChild();
+      for (String projName : select.getRowType().getFieldNames()) {
+        add(new ColumnInfo(null, projName));
+      }
+    }
   }
 
   /*
