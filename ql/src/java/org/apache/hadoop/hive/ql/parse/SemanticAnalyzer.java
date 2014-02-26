@@ -270,6 +270,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     int nextNum;
   }
 
+  protected SemanticAnalyzer(HiveConf conf, boolean runCBO) throws SemanticException {
+    this(conf);
+    this.runCBO = runCBO;
+  }
+
   public SemanticAnalyzer(HiveConf conf) throws SemanticException {
 
     super(conf);
