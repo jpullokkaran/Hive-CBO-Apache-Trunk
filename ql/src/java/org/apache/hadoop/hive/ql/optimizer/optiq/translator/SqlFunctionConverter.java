@@ -166,6 +166,9 @@ public class SqlFunctionConverter {
       registerFunction("!", SqlStdOperatorTable.NOT, hToken(HiveParser.KW_NOT, "not"));
       numericFunction("between");
 
+      registerFunction("case", SqlStdOperatorTable.CASE, null);
+      numericFunction("when");
+
       // implicit convert methods
       numericFunction(serdeConstants.BOOLEAN_TYPE_NAME);
       numericFunction(serdeConstants.TINYINT_TYPE_NAME);
