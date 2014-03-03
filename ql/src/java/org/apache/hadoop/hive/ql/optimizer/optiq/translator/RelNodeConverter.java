@@ -59,16 +59,20 @@ import org.eigenbase.rel.AggregateCall;
 import org.eigenbase.rel.Aggregation;
 import org.eigenbase.rel.InvalidRelException;
 import org.eigenbase.rel.JoinRelType;
+import org.eigenbase.rel.RelCollation;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelFieldCollation;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptSchema;
+import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexCall;
 import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexNode;
+import org.eigenbase.rex.RexUtil;
 import org.eigenbase.sql.fun.SqlStdOperatorTable;
 import org.eigenbase.util.CompositeList;
 import org.eigenbase.util.Pair;
@@ -404,6 +408,14 @@ public class RelNodeConverter {
       RexNode convertedFilterExpr = ctx
           .convertToOptiqExpr(filterOp.getConf().getPredicate(), input);
 
+      // Flatten the condition otherwise Optiq chokes on assertion
+      // (FilterRelBase)
+      if (convertedFilterExpr instanceof RexCall) {
+        RexCall call = (RexCall) convertedFilterExpr;
+        convertedFilterExpr = ctx.cluster.getRexBuilder().makeFlatCall(call.getOperator(),
+            call.getOperands());
+      }
+
       HiveRel filtRel = new HiveFilterRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
           input, convertedFilterExpr);
       ctx.propagatePosMap(filtRel, input);
@@ -460,8 +472,10 @@ public class RelNodeConverter {
       } else {
         fetch = null;
       }
-      HiveRel sortRel = new HiveSortRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
-          input, RelCollationImpl.EMPTY, null, fetch);
+      RelTraitSet traitSet = ctx.cluster.traitSetOf(HiveRel.CONVENTION);
+      RelCollation canonizedCollation = traitSet.canonize(RelCollationImpl.EMPTY);
+      HiveRel sortRel = new HiveSortRel(ctx.cluster, traitSet, input, canonizedCollation, null,
+          fetch);
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(limitOp, sortRel);
       return sortRel;
@@ -564,8 +578,10 @@ public class RelNodeConverter {
         }), extraExprs), null);
       }
 
-      HiveRel sortRel = new HiveSortRel(ctx.cluster, ctx.cluster.traitSetOf(HiveRel.CONVENTION),
-          input, RelCollationImpl.of(fieldCollations), null, null);
+      RelTraitSet traitSet = ctx.cluster.traitSetOf(HiveRel.CONVENTION);
+      RelCollation canonizedCollation = traitSet.canonize(RelCollationImpl.of(fieldCollations));
+      HiveRel sortRel = new HiveSortRel(ctx.cluster, traitSet, input, canonizedCollation, null,
+          null);
       ctx.propagatePosMap(sortRel, input);
       ctx.hiveOpToRelNode.put(sinkOp, sortRel);
 

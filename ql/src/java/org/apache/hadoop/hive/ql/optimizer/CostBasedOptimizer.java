@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.ParseContext;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
 import org.apache.hadoop.hive.ql.plan.api.OperatorType;
+import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
 import org.eigenbase.rel.metadata.ChainedRelMetadataProvider;
@@ -127,7 +128,7 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
       planner.addRule(HiveMergeProjectRule.INSTANCE);
     }
 
-    RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION);
+    RelTraitSet desiredTraits = cluster.traitSetOf(HiveRel.CONVENTION, RelCollationImpl.EMPTY);
 
     RelNode rootRel = opTreeInOptiq;
     if (!rootRel.getTraitSet().equals(desiredTraits)) {

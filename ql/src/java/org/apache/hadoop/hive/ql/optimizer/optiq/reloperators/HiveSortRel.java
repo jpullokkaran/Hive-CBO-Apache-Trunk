@@ -2,6 +2,7 @@ package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.TraitsUtil;
 import org.eigenbase.rel.RelCollation;
+import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.SortRel;
 import org.eigenbase.relopt.RelOptCluster;
@@ -14,6 +15,7 @@ public class HiveSortRel extends SortRel implements HiveRel {
       RelCollation collation, RexNode offset, RexNode fetch) {
     super(cluster, TraitsUtil.getSortTraitSet(cluster, traitSet, collation), child, collation,
         offset, fetch);
+
     assert getConvention() == child.getConvention();
   }
 
@@ -22,7 +24,8 @@ public class HiveSortRel extends SortRel implements HiveRel {
       RexNode offset, RexNode fetch) {
     // TODO: can we blindly copy sort trait? What if inputs changed and we
     // are now sorting by different cols
-    return new HiveSortRel(getCluster(), traitSet, newInput, newCollation, offset, fetch);
+    RelCollation canonizedCollation = traitSet.canonize(newCollation);
+    return new HiveSortRel(getCluster(), traitSet, newInput, canonizedCollation, offset, fetch);
   }
 
   public RexNode getFetchExpr() {
