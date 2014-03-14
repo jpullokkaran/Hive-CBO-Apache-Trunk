@@ -327,6 +327,28 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     prunedPartitions.clear();
     disableJoinMerge = false;
     aliasToCTEs.clear();
+    topToTable.clear();
+    opToPartPruner.clear();
+    opToPartList.clear();
+    opToPartToSkewedPruner.clear();
+    opToSamplePruner.clear();
+    nameToSplitSample.clear();
+    fsopToTable.clear();
+    resultSchema = null;
+    createVwDesc = null;
+    viewsExpanded = null;
+    viewSelect = null;
+    ctesExpanded = null;
+    noscan = false;
+    partialscan = false;
+    globalLimitCtx.disableOpt();
+    viewAliasToInput.clear();
+    reduceSinkOperatorsAddedByEnforceBucketingSorting.clear();
+    topToTableProps.clear();
+    listMapJoinOpsNoReducer.clear();
+    unparseTranslator.clear();
+    queryProperties.clear();
+    outputs.clear();
   }
 
   public void initParseCtx(ParseContext pctx) {
