@@ -1,7 +1,9 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.translator;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
@@ -22,6 +24,7 @@ import org.eigenbase.rel.rules.MultiJoinRel;
 import org.eigenbase.relopt.hep.HepRelVertex;
 import org.eigenbase.relopt.volcano.RelSubset;
 import org.eigenbase.reltype.RelDataTypeField;
+import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexNode;
 
 import com.google.common.base.Function;
@@ -29,7 +32,13 @@ import com.google.common.collect.Lists;
 
 public class DerivedTableInjector {
 
-  public static void convertOpTree(RelNode rel, RelNode parent) {
+  public static RelNode convertOpTree(RelNode rel, List<FieldSchema> resultSchema) {
+    RelNode newTopSelect = introduceTopLevelSelectInResultSchema(rel, resultSchema);
+    convertOpTree(newTopSelect, (RelNode) null);
+    return newTopSelect;
+  }
+
+  private static void convertOpTree(RelNode rel, RelNode parent) {
 
     if (rel instanceof EmptyRel) {
       // TODO: replace with null scan
@@ -78,6 +87,24 @@ public class DerivedTableInjector {
         convertOpTree(r, rel);
       }
     }
+  }
+
+  private static HiveProjectRel introduceTopLevelSelectInResultSchema(final RelNode rootRel,
+      List<FieldSchema> resultSchema) {
+    List<RexNode> rootChildExps = rootRel.getChildExps();
+
+    if (resultSchema.size() != rootChildExps.size()) {
+      throw new RuntimeException("Result Schema didn't match Optiq Optimized Op Tree Schema");
+    }
+
+    List<RexNode> newSelExps = new ArrayList<RexNode>();
+    List<String> newSelAliases = new ArrayList<String>();
+    for (int i = 0; i < rootChildExps.size(); i++) {
+      newSelExps.add(new RexInputRef(i, rootChildExps.get(i).getType()));
+      newSelAliases.add(resultSchema.get(i).getName());
+    }
+
+    return HiveProjectRel.create(rootRel, newSelExps, newSelAliases);
   }
 
   private static void introduceDerivedTable(final RelNode rel, RelNode parent) {

@@ -9183,7 +9183,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         preCBOOptm.initialize(conf);
         pCtx = preCBOOptm.optimize();
 
-        newAST = CostBasedOptimizer.optimize(sinkOp, this, pCtx);
+        newAST = CostBasedOptimizer.optimize(sinkOp, this, pCtx, resultSchema);
         if (LOG.isDebugEnabled()) {
           String newAstExpanded = newAST.dump();
           LOG.debug("CBO rewritten query: \n" + newAstExpanded);

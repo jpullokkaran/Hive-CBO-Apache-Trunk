@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import net.hydromatic.optiq.util.BitSets;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveSortRel;
 import org.apache.hadoop.hive.ql.parse.ASTNode;
 import org.apache.hadoop.hive.ql.parse.HiveParser;
@@ -51,9 +52,9 @@ public class ASTConverter {
     hiveAST = new HiveAST();
   }
 
-  public static ASTNode convert(final RelNode relNode) {
-    DerivedTableInjector.convertOpTree(relNode, null);
-    ASTConverter c = new ASTConverter(relNode);
+  public static ASTNode convert(final RelNode relNode, List<FieldSchema> resultSchema) {
+    RelNode optimizedOpTree = DerivedTableInjector.convertOpTree(relNode, resultSchema);
+    ASTConverter c = new ASTConverter(optimizedOpTree);
     return c.convert();
   }
 

@@ -28,6 +28,7 @@ import net.hydromatic.optiq.SchemaPlus;
 import net.hydromatic.optiq.tools.Frameworks;
 
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.QueryProperties;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.optimizer.optiq.HiveDefaultRelMetadataProvider;
@@ -86,11 +87,11 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
    * plan as an Hive AST.
    */
   public static ASTNode optimize(@SuppressWarnings("rawtypes") Operator sinkOp,
-      SemanticAnalyzer semanticAnalyzer, ParseContext pCtx) {
+      SemanticAnalyzer semanticAnalyzer, ParseContext pCtx, List<FieldSchema> resultSchema) {
     ASTNode optiqOptimizedAST = null;
     RelNode optimizedOptiqPlan = Frameworks.withPlanner(new CostBasedOptimizer(sinkOp,
         semanticAnalyzer, pCtx));
-    optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan);
+    optiqOptimizedAST = ASTConverter.convert(optimizedOptiqPlan, resultSchema);
 
     return optiqOptimizedAST;
   }
