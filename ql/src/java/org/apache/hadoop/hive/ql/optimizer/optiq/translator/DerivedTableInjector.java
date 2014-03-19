@@ -91,8 +91,18 @@ public class DerivedTableInjector {
 
   private static HiveProjectRel introduceTopLevelSelectInResultSchema(final RelNode rootRel,
       List<FieldSchema> resultSchema) {
-    List<RexNode> rootChildExps = rootRel.getChildExps();
+    RelNode curNode = rootRel;
+    HiveProjectRel rootProjRel = null;
+    while (curNode != null) {
+      if (curNode instanceof HiveProjectRel) {
+        rootProjRel = (HiveProjectRel) curNode;
+        break;
+      }
+      curNode = curNode.getInput(0);
+    }
 
+    //Assumption: tree could only be (limit)?(OB)?(ProjectRelBase)....
+    List<RexNode> rootChildExps = rootProjRel.getChildExps();
     if (resultSchema.size() != rootChildExps.size()) {
       throw new RuntimeException("Result Schema didn't match Optiq Optimized Op Tree Schema");
     }
