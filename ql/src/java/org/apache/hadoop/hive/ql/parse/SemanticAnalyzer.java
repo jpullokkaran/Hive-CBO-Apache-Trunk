@@ -100,7 +100,10 @@ import org.apache.hadoop.hive.ql.metadata.InvalidTableException;
 import org.apache.hadoop.hive.ql.metadata.Partition;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.metadata.VirtualColumn;
+import org.apache.hadoop.hive.ql.optimizer.CostBasedOptimizer;
 import org.apache.hadoop.hive.ql.optimizer.Optimizer;
+import org.apache.hadoop.hive.ql.optimizer.PreCBOOptimizer;
+import org.apache.hadoop.hive.ql.optimizer.optiq.stats.CBOTableStatsValidator;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
 import org.apache.hadoop.hive.ql.parse.PTFInvocationSpec.OrderExpression;
@@ -193,6 +196,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapred.InputFormat;
+import org.eigenbase.rel.RelNode;
 
 /**
  * Implementation of the semantic analyzer. It generates the query plan.
@@ -259,6 +263,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   //flag for partial scan during analyze ... compute statistics
   protected boolean partialscan = false;
 
+  private volatile boolean runCBO = true;
+  private volatile boolean disableJoinMerge = false;
+
   /*
    * Capture the CTE definitions in a Query.
    */
@@ -271,6 +278,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
   private static class Phase1Ctx {
     String dest;
     int nextNum;
+  }
+
+  protected SemanticAnalyzer(HiveConf conf, boolean runCBO) throws SemanticException {
+    this(conf);
+    this.runCBO = runCBO;
   }
 
   public SemanticAnalyzer(HiveConf conf) throws SemanticException {
@@ -323,7 +335,28 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     opParseCtx.clear();
     groupOpToInputTables.clear();
     prunedPartitions.clear();
+    disableJoinMerge = false;
     aliasToCTEs.clear();
+    topToTable.clear();
+    opToPartPruner.clear();
+    opToPartList.clear();
+    opToPartToSkewedPruner.clear();
+    opToSamplePruner.clear();
+    nameToSplitSample.clear();
+    fsopToTable.clear();
+    resultSchema = null;
+    createVwDesc = null;
+    viewsExpanded = null;
+    viewSelect = null;
+    ctesExpanded = null;
+    globalLimitCtx.disableOpt();
+    viewAliasToInput.clear();
+    reduceSinkOperatorsAddedByEnforceBucketingSorting.clear();
+    topToTableProps.clear();
+    listMapJoinOpsNoReducer.clear();
+    unparseTranslator.clear();
+    queryProperties.clear();
+    outputs.clear();
   }
 
   public void initParseCtx(ParseContext pctx) {
@@ -972,7 +1005,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             frm.getToken().getType() == HiveParser.TOK_LATERAL_VIEW_OUTER) {
           processLateralView(qb, frm);
         } else if (isJoinToken(frm)) {
-          queryProperties.setHasJoin(true);
           processJoin(qb, frm);
           qbp.setJoinExpr(frm);
         }else if(frm.getToken().getType() == HiveParser.TOK_PTBLFUNCTION){
@@ -1187,6 +1219,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       getMetaData(qbexpr.getQBExpr1(), parentInput);
       getMetaData(qbexpr.getQBExpr2(), parentInput);
     }
+  }
+
+  public Table getTable(TableScanOperator ts) {
+    return topToTable.get(ts);
   }
 
   public void getMetaData(QB qb) throws SemanticException {
@@ -6588,6 +6624,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       }
       desc.setNullSafes(nullsafes);
     }
+    queryProperties.incrementJoinCount(joinOp.getConf().getNoOuterJoin());
     return putOpInsertMap(joinOp, outputRS);
   }
 
@@ -8950,7 +8987,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
                 aliasToOpInfo );
           }
         }
-        mergeJoinTree(qb);
+
+        if (!disableJoinMerge)
+          mergeJoinTree(qb);
       }
 
       // if any filters are present in the join tree, push them on top of the
@@ -9215,6 +9254,19 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     getMetaData(qb);
     LOG.info("Completed getting MetaData in Semantic Analysis");
 
+    if (runCBO) {
+      boolean tokenTypeIsQuery = ast.getToken().getType() == HiveParser.TOK_QUERY
+          || ast.getToken().getType() == HiveParser.TOK_EXPLAIN;
+      if (!tokenTypeIsQuery || createVwDesc != null
+          || !HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_CBO_ENABLED)) {
+        runCBO = false;
+      }
+
+      if (runCBO) {
+        disableJoinMerge = true;
+      }
+    }
+
     // Save the result schema derived from the sink operator produced
     // by genPlan. This has the correct column names, which clients
     // such as JDBC would prefer instead of the c0, c1 we'll end
@@ -9226,6 +9278,96 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     else
       resultSchema = convertRowSchemaToResultSetSchema(opParseCtx.get(sinkOp).getRowResolver(),
           HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_RESULTSET_USE_UNIQUE_COLUMN_NAMES));
+
+    if (runCBO) {
+      /*
+       * For CBO: 1. Check if CBO can handle op tree. 2. Run PreCBOOptimizer on
+       * Plan. This applies: Partition Pruning, Predicate Pushdown, Column
+       * Pruning and Stats Annotation transformations on the generated plan. 3.
+       * Validate that all TS has valid stats 4. Hand the Plan to CBO, which
+       * searches the Plan space and returns the best Plan as an AST 5. We then
+       * run the Analysis Pipeline on the new AST: Phase 1, Get Metadata, Gen
+       * Plan. a. During Plan Generation, we disable Join Merging, because we
+       * don't want the Join order to be changed. Error Handling: On Failure -
+       * we restart the Analysis from the beginning on the original AST, with
+       * runCBO set to false.
+       */
+      boolean reAnalyzeAST = false;
+
+      try {
+        // 1. Can CBO handle OP tree
+        if (CostBasedOptimizer.canHandleOpTree(sinkOp, conf, queryProperties)) {
+          ASTNode newAST = null;
+
+          // 2. Set up parse ctx for CBO
+          ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner, opToPartList,
+              topOps, topSelOps, opParseCtx, joinContext, smbMapJoinContext, topToTable,
+              topToTableProps, fsopToTable, loadTableWork, loadFileWork, ctx, idToTableNameMap,
+              destTableId, uCtx, listMapJoinOpsNoReducer, groupOpToInputTables, prunedPartitions,
+              opToSamplePruner, globalLimitCtx, nameToSplitSample, inputs, rootTasks,
+              opToPartToSkewedPruner, viewAliasToInput,
+              reduceSinkOperatorsAddedByEnforceBucketingSorting, queryProperties);
+
+          // 3. Run Pre CBO optimizer
+          PreCBOOptimizer preCBOOptm = new PreCBOOptimizer();
+          preCBOOptm.setPctx(pCtx);
+          preCBOOptm.initialize(conf);
+          pCtx = preCBOOptm.optimize();
+
+          // 4. Validate Table Stats
+          CBOTableStatsValidator tableStatsValidator = new CBOTableStatsValidator();
+          if (tableStatsValidator.validStats(sinkOp, pCtx)) {
+
+            // 5. Optimize the plan with CBO & generate optimized AST
+            newAST = CostBasedOptimizer.optimize(sinkOp, this, pCtx, resultSchema);
+            if (LOG.isDebugEnabled()) {
+              String newAstExpanded = newAST.dump();
+              LOG.debug("CBO rewritten query: \n" + newAstExpanded);
+            }
+
+            // 6. Regen OP plan from optimized AST
+            init();
+            ctx_1 = initPhase1Ctx();
+            if (!doPhase1(newAST, qb, ctx_1)) {
+              throw new RuntimeException("Couldn't do phase1 on CBO optimized query plan");
+            }
+            getMetaData(qb);
+
+            disableJoinMerge = true;
+            sinkOp = genPlan(qb);
+
+            /*
+             * Use non CBO Result Set Schema so as to preserve user specified
+             * names. Hive seems to have bugs with OB/LIMIT in sub queries.
+             * // 7. Reset result set schema resultSchema =
+             * convertRowSchemaToResultSetSchema(opParseCtx.get(sinkOp)
+             * .getRowResolver(), true);
+             */
+          } else {
+            reAnalyzeAST = true;
+            LOG.warn("Skipping CBO. Incomplete column stats for Tables: "
+                + tableStatsValidator.getIncompleteStatsTabNames());
+          }
+        } else {
+          // Need to regen OP tree since join merge was disabled.
+          // TODO: can we just regen OP tree instead of reanalyzing AST.
+          if (queryProperties.getJoinCount() > 1)
+            reAnalyzeAST = true;
+          LOG.info("Skipping CBO as CBO can not handle OP tree.");
+        }
+      } catch (Exception e) {
+        reAnalyzeAST = true;
+        LOG.warn("CBO failed, skipping CBO. ", e);
+      } finally {
+        runCBO = false;
+        disableJoinMerge = false;
+        if (reAnalyzeAST) {
+          init();
+          analyzeInternal(ast);
+          return;
+        }
+      }
+    }
 
     ParseContext pCtx = new ParseContext(conf, qb, child, opToPartPruner,
         opToPartList, topOps, topSelOps, opParseCtx, joinContext, smbMapJoinContext,
@@ -11334,5 +11476,131 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     if (isNonNativeTable) return WriteEntity.WriteType.INSERT_OVERWRITE;
     else return (ltd.getReplace() ? WriteEntity.WriteType.INSERT_OVERWRITE :
         WriteEntity.WriteType.INSERT);
+  }
+
+  /*** CBO Gen Plan ***/
+
+  private void parseJoinCondition(QBJoinTree joinTree, ASTNode joinCond,
+      ArrayList<String> leftSrc, Map<String, RelNode> aliasToOpInfo) {
+    // TODO Auto-generated method stub
+    
+  }
+  
+  private QBJoinTree genLogicalJoinTree(QB qb, ASTNode joinParseTree,
+      Map<String, RelNode> aliasToOpInfo) {
+    return null;
+  }
+
+  @SuppressWarnings("rawtypes")
+  private void extractLogicalJoinCondsFromWhereClause(QBJoinTree joinTree,
+      QB qb, String dest, ASTNode predicate, Map<String, RelNode> aliasToOpInfo)
+      throws SemanticException {
+    return;
+  }
+
+  private QBJoinTree genJoinLogicalTree(QB qb, ASTNode joinParseTree,
+      Map<String, RelNode> aliasToOpInfo) throws SemanticException {
+    return null;
+  }
+
+  private RelNode genLogicalBodyPlan(QB qb, RelNode srcOpInfo,
+      Map<String, RelNode> aliasToOpInfo) {
+    return null;
+  }
+
+  private RelNode genTableLogicalPlan(String alias, QB qb) {
+    return null;
+  }
+
+  private RelNode genUnionLogicalPlan(String unionalias, String leftalias,
+      RelNode leftOp, String rightalias, RelNode rightOp) {
+    return null;
+  }
+
+  private RelNode genLogicalPlan(QBExpr qbexpr) {
+    if (qbexpr.getOpcode() == QBExpr.Opcode.NULLOP) {
+      return genLogicalPlan(qbexpr.getQB());
+    }
+    if (qbexpr.getOpcode() == QBExpr.Opcode.UNION) {
+      RelNode qbexpr1Ops = genLogicalPlan(qbexpr.getQBExpr1());
+      RelNode qbexpr2Ops = genLogicalPlan(qbexpr.getQBExpr2());
+
+      return genUnionLogicalPlan(qbexpr.getAlias(), qbexpr.getQBExpr1()
+          .getAlias(), qbexpr1Ops, qbexpr.getQBExpr2().getAlias(), qbexpr2Ops);
+    }
+    return null;
+  }
+
+  private RelNode genBodyPlanRel(QB qb2, RelNode srcOpInfo,
+      Map<String, RelNode> aliasToRel) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  private RelNode genJoinLogicalPlan(QB qb, Map<String, RelNode> map) {
+    return null;
+  }
+
+  private RelNode genLogicalPlan(QB qb) {
+    RelNode rootRel = null;
+    // First generate all the opInfos for the elements in the from clause
+    Map<String, RelNode> aliasToRel = new HashMap<String, RelNode>();
+
+    // Recurse over the subqueries to fill the subquery part of the plan
+    for (String alias : qb.getSubqAliases()) {
+      QBExpr qbexpr = qb.getSubqForAlias(alias);
+      aliasToRel.put(alias, genLogicalPlan(qbexpr));
+      qbexpr.setAlias(alias);
+    }
+
+    // Recurse over all the source tables
+    for (String alias : qb.getTabAliases()) {
+      RelNode op = genTableLogicalPlan(alias, qb);
+      aliasToRel.put(alias, op);
+    }
+/*
+    if (aliasToRel.isEmpty()) {
+      qb.getMetaData().setSrcForAlias(DUMMY_TABLE, getDummyTable());
+      RelNode op = genTableLogicalPlan(DUMMY_TABLE, qb);
+      op.getConf().setRowLimit(1);
+      qb.addAlias(DUMMY_TABLE);
+      qb.setTabAlias(DUMMY_TABLE, DUMMY_TABLE);
+      aliasToRel.put(DUMMY_TABLE, op);
+    }
+*/
+    RelNode srcOpInfo = null;
+    RelNode lastPTFOp = null;
+    if (queryProperties.hasPTF()) {
+      throw new RuntimeException("Unsupported Op");
+    }
+
+    // For all the source tables that have a lateral view, attach the
+    // appropriate operators to the TS
+    Map<String, ArrayList<ASTNode>> lvMap = qb.getParseInfo()
+        .getAliasToLateralViews();
+    if (lvMap != null && !lvMap.isEmpty()) {
+      throw new RuntimeException("Unsupported Op");
+    }
+
+    // process join
+    if (qb.getParseInfo().getJoinExpr() != null) {
+      
+    } else {
+      // Now if there are more than 1 sources then we have a join case
+      // later we can extend this to the union all case as well
+      srcOpInfo = aliasToRel.values().iterator().next();
+      // with ptfs, there maybe more (note for PTFChains:
+      // 1 ptf invocation may entail multiple PTF operators)
+      srcOpInfo = lastPTFOp != null ? lastPTFOp : srcOpInfo;
+    }
+
+    rootRel = genBodyPlanRel(qb, srcOpInfo, aliasToRel);
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Created Plan for Query Block " + qb.getId());
+    }
+
+    this.qb = qb;
+    return rootRel;
   }
 }

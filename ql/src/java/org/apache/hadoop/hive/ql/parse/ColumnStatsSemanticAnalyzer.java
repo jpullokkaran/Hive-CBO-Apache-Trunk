@@ -118,7 +118,7 @@ public class ColumnStatsSemanticAnalyzer extends SemanticAnalyzer {
   }
 
   public ColumnStatsSemanticAnalyzer(HiveConf conf) throws SemanticException {
-    super(conf);
+    super(conf, false);
   }
 
   private boolean shouldRewrite(ASTNode tree) {
@@ -504,7 +504,7 @@ public class ColumnStatsSemanticAnalyzer extends SemanticAnalyzer {
   }
 
   public ColumnStatsSemanticAnalyzer(HiveConf conf, ASTNode tree) throws SemanticException {
-    super(conf);
+    super(conf, false);
     // check if it is no scan. grammar prevents coexit noscan/columns
     super.processNoScanCommand(tree);
     // check if it is partial scan. grammar prevents coexit partialscan/columns
