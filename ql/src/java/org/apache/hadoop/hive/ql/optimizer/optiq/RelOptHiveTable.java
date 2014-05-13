@@ -1,10 +1,14 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq;
 
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.apache.hadoop.hive.ql.plan.Statistics;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRel;
@@ -12,7 +16,13 @@ import org.eigenbase.relopt.RelOptAbstractTable;
 import org.eigenbase.relopt.RelOptSchema;
 import org.eigenbase.reltype.RelDataType;
 
-//Fix Me: use table meta data and stats util to get stats
+/*
+ * Fix Me: 
+ * 1. Column Pruning
+ * 2. Partition Pruning
+ * 3. Stats
+ */
+
 public class RelOptHiveTable extends RelOptAbstractTable {
   private final Table       m_hiveTblMetadata;
   private double            m_rowCount           = -1;
@@ -23,6 +33,7 @@ public class RelOptHiveTable extends RelOptAbstractTable {
   Map<String, Integer>      m_bucketingSortColMap;
 
   Statistics                m_hiveStats;
+  List<ColStatistics>       m_hiveColStats = new ArrayList<ColStatistics>();
 
   // NOTE: name here is the table alias which may or may not be the real name in
   // metadata. Use
@@ -32,9 +43,6 @@ public class RelOptHiveTable extends RelOptAbstractTable {
       Table hiveTblMetadata, Statistics stats) {
     super(schema, name, rowType);
     m_hiveTblMetadata = hiveTblMetadata;
-    m_hiveStats = stats;
-
-    m_rowCount = stats.getNumRows();
   }
 
   @Override
@@ -63,5 +71,17 @@ public class RelOptHiveTable extends RelOptAbstractTable {
 
   public Statistics getHiveStats() {
     return m_hiveStats;
+  }
+
+  public List<ColStatistics> getColStat(List<Integer> projIndxLst) {
+    if (projIndxLst != null) {
+      List<ColStatistics> hiveColStatLst = new LinkedList<ColStatistics>();
+      for (Integer i : projIndxLst) {
+        hiveColStatLst.add(m_hiveColStats.get(i));
+      }
+      return hiveColStatLst;
+    } else {
+      return m_hiveColStats;
+    }
   }
 }

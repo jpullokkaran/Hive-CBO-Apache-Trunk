@@ -50,6 +50,9 @@ public class QueryProperties {
 
   private int noOfJoins = 0;
   private int noOfOuterJoins = 0;
+  
+  private boolean multiDestQuery;
+  private boolean filterWithSubQuery;
 
   public boolean hasJoin() {
     return (noOfJoins > 0);
@@ -157,6 +160,22 @@ public class QueryProperties {
     this.hasMapGroupBy = hasMapGroupBy;
   }
 
+  public boolean hasMultiDestQuery() {
+    return this.multiDestQuery;
+  }
+
+  public void setMultiDestQuery(boolean multiDestQuery) {
+    this.multiDestQuery = multiDestQuery;
+  }
+
+  public void setFilterWithSubQuery(boolean filterWithSubQuery) {
+    this.filterWithSubQuery = filterWithSubQuery;
+  }
+
+  public boolean hasFilterWithSubQuery() {
+    return this.filterWithSubQuery;
+  }
+
   public void clear() {
     hasJoin = false;
     hasGroupBy = false;
@@ -176,5 +195,7 @@ public class QueryProperties {
 
     noOfJoins = 0;
     noOfOuterJoins = 0;
+    
+    multiDestQuery = false;
   }
 }

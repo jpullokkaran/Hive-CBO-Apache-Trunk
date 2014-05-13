@@ -24,6 +24,20 @@ import com.google.common.collect.Lists;
 
 public class TypeConverter {
 
+  public static RelDataType getType(RelOptCluster cluster,
+      List<ColumnInfo> cInfoLst) {
+    RexBuilder rexBuilder = cluster.getRexBuilder();
+    RelDataTypeFactory dtFactory = rexBuilder.getTypeFactory();
+    List<RelDataType> fieldTypes = new LinkedList<RelDataType>();
+    List<String> fieldNames = new LinkedList<String>();
+
+    for (ColumnInfo ci : cInfoLst) {
+      fieldTypes.add(convert(ci.getType(), dtFactory));
+      fieldNames.add(ci.getInternalName());
+    }
+    return dtFactory.createStructType(fieldTypes, fieldNames);
+  }
+
   public static RelDataType getType(RelOptCluster cluster, RowResolver rr, List<String> neededCols) {
     RexBuilder rexBuilder = cluster.getRexBuilder();
     RelDataTypeFactory dtFactory = rexBuilder.getTypeFactory();
@@ -148,5 +162,4 @@ public class TypeConverter {
     // @todo what do we about unions?
     throw new UnsupportedOperationException();
   }
-
 }

@@ -9,6 +9,7 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
+import org.eigenbase.relopt.RelOptAbstractTable;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
@@ -26,7 +27,7 @@ import com.google.common.collect.ImmutableList;
  * </p>
  */
 public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
-  private final ImmutableList<ColStatistics> m_hiveColStat;
+  private List<ColStatistics> m_hiveColStat;
 
   /**
    * Creates a HiveTableScan.
@@ -44,14 +45,6 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
       RelDataType rowtype) {
     super(cluster, TraitsUtil.getTableScanTraitSet(cluster, traitSet, table, rowtype), table);
     assert getConvention() == HiveRel.CONVENTION;
-
-    ImmutableList.Builder<ColStatistics> b = new ImmutableList.Builder<ColStatistics>();
-    for (String fN : rowtype.getFieldNames()) {
-      ColStatistics cStat = table.getHiveStats().getColumnStatisticsForColumn(
-          table.getName(), fN);
-      b.add(cStat);
-    }
-    m_hiveColStat = b.build();
   }
 
   @Override
@@ -78,17 +71,8 @@ public class HiveTableScanRel extends TableAccessRelBase implements HiveRel {
   public double getRows() {
     return ((RelOptHiveTable) table).getRowCount();
   }
-
+  
   public List<ColStatistics> getColStat(List<Integer> projIndxLst) {
-    if (projIndxLst != null) {
-      List<ColStatistics> hiveColStatLst = new LinkedList<ColStatistics>();
-      for (Integer i : projIndxLst) {
-        hiveColStatLst.add(m_hiveColStat.get(i));
-      }
-      return hiveColStatLst;
-    } else {
-      return m_hiveColStat;
-    }
+    return ((RelOptHiveTable) table).getColStat(projIndxLst);    
   }
-
 }
