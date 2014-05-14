@@ -1,0 +1,517 @@
+PREHOOK: query: drop table if exists t1
+PREHOOK: type: DROPTABLE
+POSTHOOK: query: drop table if exists t1
+POSTHOOK: type: DROPTABLE
+PREHOOK: query: create table t1(key string, value string, c_int int, c_float float, c_boolean boolean)  row format delimited fields terminated by ',' STORED AS TEXTFILE
+PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
+POSTHOOK: query: create table t1(key string, value string, c_int int, c_float float, c_boolean boolean)  row format delimited fields terminated by ',' STORED AS TEXTFILE
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
+POSTHOOK: Output: default@t1
+PREHOOK: query: load data local inpath '../../data/files/cbo_t1.txt' into table t1
+PREHOOK: type: LOAD
+#### A masked pattern was here ####
+PREHOOK: Output: default@t1
+POSTHOOK: query: load data local inpath '../../data/files/cbo_t1.txt' into table t1
+POSTHOOK: type: LOAD
+#### A masked pattern was here ####
+POSTHOOK: Output: default@t1
+PREHOOK: query: analyze table t1 compute statistics
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+PREHOOK: Output: default@t1
+POSTHOOK: query: analyze table t1 compute statistics
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+POSTHOOK: Output: default@t1
+PREHOOK: query: analyze table t1 compute statistics for columns key, value, c_int, c_float, c_boolean
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: analyze table t1 compute statistics for columns key, value, c_int, c_float, c_boolean
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+PREHOOK: query: -- 1. Test Select + TS
+select * from t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: -- 1. Test Select + TS
+select * from t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+null	null	NULL	NULL	NULL
+null	null	NULL	NULL	NULL
+PREHOOK: query: select * from t1 as t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from t1 as t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+null	null	NULL	NULL	NULL
+null	null	NULL	NULL	NULL
+PREHOOK: query: select * from t1 as t2
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from t1 as t2
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+null	null	NULL	NULL	NULL
+null	null	NULL	NULL	NULL
+PREHOOK: query: select t1.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select t1.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+ 1	1	25.0
+ 1	1	25.0
+ 1 	1	25.0
+ 1 	1	25.0
+1 	1	25.0
+1 	1	25.0
+1	1	25.0
+1	1	25.0
+null	NULL	NULL
+null	NULL	NULL
+PREHOOK: query: -- 2. Test Select + TS + FIL
+select * from t1 where t1.c_int >= 0
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: -- 2. Test Select + TS + FIL
+select * from t1 where t1.c_int >= 0
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+ 1	1	25.0
+ 1	1	25.0
+ 1 	1	25.0
+ 1 	1	25.0
+1 	1	25.0
+1 	1	25.0
+1	1	25.0
+1	1	25.0
+PREHOOK: query: -- 3 Test Select + Select + TS + FIL
+select * from (select * from t1 where t1.c_int >= 0) as t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: -- 3 Test Select + Select + TS + FIL
+select * from (select * from t1 where t1.c_int >= 0) as t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+ 1	1	25.0
+ 1	1	25.0
+ 1 	1	25.0
+ 1 	1	25.0
+1 	1	25.0
+1 	1	25.0
+1	1	25.0
+1	1	25.0
+PREHOOK: query: select * from (select * from t1 where t1.c_int >= 0) as t1 where t1.c_int >= 0
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select * from t1 where t1.c_int >= 0) as t1 where t1.c_int >= 0
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select * from t1 as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1  where t1.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select * from t1 as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t2 where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+1	1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1	 1	1	1.0	true
+ 1 	 1 	1	1.0	true
+ 1 	 1 	1	1.0	true
+1 	1 	1	1.0	true
+1 	1 	1	1.0	true
+1	1	1	1.0	false
+1	1	1	1.0	false
+PREHOOK: query: select * from (select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1 where t1.c_int >= 0 and y+c_int >= 0 or x <= 100
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select * from (select t2.key as x, c_int as c_int, (((c_int+c_float)*10)+5) as y from t1 as t2  where t2.c_int >= 0 and c_float+c_int >= 0 or c_float <= 100) as t1 where t1.c_int >= 0 and y+c_int >= 0 or x <= 100
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+1	1	25.0
+ 1	1	25.0
+ 1	1	25.0
+ 1 	1	25.0
+ 1 	1	25.0
+1 	1	25.0
+1 	1	25.0
+1	1	25.0
+1	1	25.0
+PREHOOK: query: select t1.c_int+c_float as x , c_int as c_int, (((c_int+c_float)*10)+5) as y from (select * from t1 where t1.c_int >= 0) as t1 where t1.c_int >= 0
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select t1.c_int+c_float as x , c_int as c_int, (((c_int+c_float)*10)+5) as y from (select * from t1 where t1.c_int >= 0) as t1 where t1.c_int >= 0
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+PREHOOK: query: select t2.c_int+c_float as x , c_int as c_int, (((c_int+c_float)*10)+5) as y from (select * from t1 where t1.c_int >= 0) as t2 where t2.c_int >= 0
+PREHOOK: type: QUERY
+PREHOOK: Input: default@t1
+#### A masked pattern was here ####
+POSTHOOK: query: select t2.c_int+c_float as x , c_int as c_int, (((c_int+c_float)*10)+5) as y from (select * from t1 where t1.c_int >= 0) as t2 where t2.c_int >= 0
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@t1
+#### A masked pattern was here ####
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0
+2.0	1	25.0

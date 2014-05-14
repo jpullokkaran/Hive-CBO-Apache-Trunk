@@ -7,9 +7,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.apache.hadoop.hive.ql.plan.Statistics;
+import org.apache.hadoop.hive.ql.stats.StatsUtils;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRel;
 import org.eigenbase.relopt.RelOptAbstractTable;
@@ -43,6 +45,21 @@ public class RelOptHiveTable extends RelOptAbstractTable {
       Table hiveTblMetadata, Statistics stats) {
     super(schema, name, rowType);
     m_hiveTblMetadata = hiveTblMetadata;
+  }
+
+  public RelOptHiveTable(RelOptSchema optiqSchema, String name, RelDataType rowType,
+      Table hiveTblMetadata, List<ColumnInfo> hiveSchema) {
+    super(optiqSchema, name, rowType);
+    m_hiveTblMetadata = hiveTblMetadata;
+    
+    List<String> neededColumns = new ArrayList<String>();
+    for (ColumnInfo ci : hiveSchema) {
+      neededColumns.add(ci.getInternalName());
+    }
+    
+    //TODO: Fix below two stats
+    m_hiveColStats = StatsUtils.getTableColumnStats(m_hiveTblMetadata, hiveSchema, neededColumns);
+    m_rowCount = StatsUtils.getNumRows(m_hiveTblMetadata);
   }
 
   @Override

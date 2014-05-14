@@ -9337,8 +9337,8 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
          * .getRowResolver(), true);
          */
       } catch (Exception e) {
-        reAnalyzeAST = true;
         LOG.warn("CBO failed, skipping CBO. ", e);
+        throw new RuntimeException(e);
       } finally {
         runCBO = false;
         disableJoinMerge = false;
@@ -11634,7 +11634,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           colInfo
               .setSkewedCol((isSkewedCol(alias, qb, colName)) ? true : false);
           rr.put(alias, colName, colInfo);
+          cInfoLst.add(colInfo);
         }
+        //TODO: Fix this
+        ArrayList<ColumnInfo> columnsThatNeedsStats = new ArrayList<ColumnInfo>(cInfoLst);
 
         // 3.2 Add column info corresponding to partition columns
         for (FieldSchema part_col : tab.getPartCols()) {
@@ -11643,6 +11646,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
               TypeInfoFactory.getPrimitiveTypeInfo(part_col.getType()), alias,
               true);
           rr.put(alias, colName, colInfo);
+          cInfoLst.add(colInfo);
         }
 
         // 3.3 Add column info corresponding to virtual columns
@@ -11650,11 +11654,13 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             .iterator();
         while (vcs.hasNext()) {
           VirtualColumn vc = vcs.next();
+          colInfo = new ColumnInfo(vc.getName(), vc.getTypeInfo(), alias, true, vc
+              .getIsHidden());
           rr.put(
               alias,
               vc.getName(),
-              new ColumnInfo(vc.getName(), vc.getTypeInfo(), alias, true, vc
-                  .getIsHidden()));
+              colInfo);
+          cInfoLst.add(colInfo);
         }
 
         // 3.4 Build row type from field <type, name>
@@ -11662,7 +11668,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
         // 4. Build RelOptAbstractTable
         RelOptHiveTable optTable = new RelOptHiveTable(m_relOptSchema, alias,
-            rowType, tab, null);
+            rowType, tab, columnsThatNeedsStats);
 
         // 5. Build Hive Table Scan Rel
         tableRel = new HiveTableScanRel(m_cluster,
@@ -11743,6 +11749,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       RowResolver inputRR = this.m_relToHiveRR.get(srcRel);
 
       // 3. Query Hints
+      // TODO: Handle Query Hints; currently we ignore them
       boolean selectStar = false;
       int posn = 0;
       boolean hintPresent = (selExprList.getChild(0).getType() == HiveParser.TOK_HINTLIST);
@@ -11993,6 +12000,24 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       // 7. Build Rel for Select Clause
       selectRel = genSelectLogicalPlan(qb, srcRel);
       srcRel = (selectRel == null) ? srcRel : selectRel;
+
+      // 8. Incase this QB corresponds to subquery then modify its RR to point to subquery alias
+      // TODO: cleanup this
+      if (qb.getParseInfo().getAlias() != null) {
+        RowResolver rr = this.m_relToHiveRR.get(srcRel);
+        RowResolver newRR = new RowResolver();
+        String alias = qb.getParseInfo().getAlias();
+        for (ColumnInfo colInfo : rr.getColumnInfos()) {
+          String name = colInfo.getInternalName();
+          String[] tmp = rr.reverseLookup(name);
+          if ("".equals(tmp[0]) || tmp[1] == null) {
+            // ast expression is not a valid column name for table
+            tmp[1] = colInfo.getInternalName();
+          }
+          newRR.put(alias, tmp[1], colInfo);
+        }
+        m_relToHiveRR.put(srcRel, newRR);
+      }
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("Created Plan for Query Block " + qb.getId());

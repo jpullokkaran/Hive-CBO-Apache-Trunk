@@ -1,6 +1,5 @@
 package org.apache.hadoop.hive.ql.optimizer.optiq.reloperators;
 
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
@@ -9,14 +8,12 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveCost;
 import org.apache.hadoop.hive.ql.plan.ColStatistics;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.TableAccessRelBase;
-import org.eigenbase.relopt.RelOptAbstractTable;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptCost;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
 
-import com.google.common.collect.ImmutableList;
 
 /**
  * Relational expression representing a scan of a HiveDB collection.
