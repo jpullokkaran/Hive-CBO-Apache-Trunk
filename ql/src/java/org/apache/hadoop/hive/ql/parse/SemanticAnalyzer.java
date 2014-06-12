@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -107,7 +108,9 @@ import org.apache.hadoop.hive.ql.optimizer.Optimizer;
 import org.apache.hadoop.hive.ql.optimizer.optiq.HiveDefaultRelMetadataProvider;
 import org.apache.hadoop.hive.ql.optimizer.optiq.RelOptHiveTable;
 import org.apache.hadoop.hive.ql.optimizer.optiq.cost.HiveVolcanoPlanner;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveAggregateRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveFilterRel;
+import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveJoinRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveProjectRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveRel;
 import org.apache.hadoop.hive.ql.optimizer.optiq.reloperators.HiveTableScanRel;
@@ -116,8 +119,8 @@ import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePullUpProjectsAboveJo
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HivePushJoinThroughJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.rules.HiveSwapJoinRule;
 import org.apache.hadoop.hive.ql.optimizer.optiq.translator.ASTConverter;
-import org.apache.hadoop.hive.ql.optimizer.optiq.translator.RelNodeConverter;
 import org.apache.hadoop.hive.ql.optimizer.optiq.translator.RexNodeConverter;
+import org.apache.hadoop.hive.ql.optimizer.optiq.translator.SqlFunctionConverter;
 import org.apache.hadoop.hive.ql.optimizer.optiq.translator.TypeConverter;
 import org.apache.hadoop.hive.ql.optimizer.unionproc.UnionProcContext;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer.tableSpec.SpecType;
@@ -211,6 +214,10 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapred.InputFormat;
+import org.eigenbase.rel.AggregateCall;
+import org.eigenbase.rel.Aggregation;
+import org.eigenbase.rel.InvalidRelException;
+import org.eigenbase.rel.JoinRelType;
 import org.eigenbase.rel.RelCollationImpl;
 import org.eigenbase.rel.RelNode;
 import org.eigenbase.rel.metadata.CachingRelMetadataProvider;
@@ -222,8 +229,12 @@ import org.eigenbase.relopt.RelOptQuery;
 import org.eigenbase.relopt.RelOptSchema;
 import org.eigenbase.relopt.RelTraitSet;
 import org.eigenbase.reltype.RelDataType;
+import org.eigenbase.reltype.RelDataTypeField;
 import org.eigenbase.rex.RexBuilder;
+import org.eigenbase.rex.RexInputRef;
 import org.eigenbase.rex.RexNode;
+import org.eigenbase.sql.fun.SqlStdOperatorTable;
+import org.eigenbase.util.CompositeList;
 
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
@@ -11584,35 +11595,172 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       return null;
     }
 
-    private void parseJoinCondition(QBJoinTree joinTree, ASTNode joinCond,
-        ArrayList<String> leftSrc, Map<String, RelNode> aliasToOpInfo) {
-      // TODO Auto-generated method stub
+    private RelNode genJoinRelNode(RelNode leftRel, RelNode rightRel,
+        JoinType hiveJoinType, ASTNode joinCond) throws SemanticException {
+      RelNode joinRel = null;
+
+      // 1. construct the RowResolver for the new Join Node by combining row
+      // resolvers from left, right
+      RowResolver leftRR = this.m_relToHiveRR.get(leftRel);
+      RowResolver rightRR = this.m_relToHiveRR.get(rightRel);
+      RowResolver joinRR = null;
+
+      if (hiveJoinType != JoinType.LEFTSEMI) {
+        joinRR = RowResolver.getCombinedRR(leftRR, rightRR);
+      } else {
+        joinRR = new RowResolver();
+        RowResolver.add(joinRR, leftRR, 0);
+      }
+
+      // 2. Construct ExpressionNodeDesc representing Join Condition
+      RexNode optiqJoinCond = null;
+      if (joinCond != null) {
+        Map<ASTNode, ExprNodeDesc> exprNodes = JoinCondnTypeCheckProcFactory
+            .genExprNode(joinCond, new JoinTypeCheckCtx(leftRR, rightRR));
+
+        ExprNodeDesc joinCondnExprNode = exprNodes.get(joinCond);
+
+        List<RelNode> inputRels = new ArrayList<RelNode>();
+        inputRels.add(leftRel);
+        inputRels.add(rightRel);
+        optiqJoinCond = RexNodeConverter.convert(m_cluster, joinCondnExprNode,
+            inputRels, m_relToHiveRR, m_relToHiveColNameOptiqPosMap, false);
+      } else {
+        optiqJoinCond = RexNodeConverter.getAlwaysTruePredicate(m_cluster);
+      }
+      
+      // 3. Validate that join condition is legal (i.e no function refering to both sides of join, only equi join)
+      // TODO: Join filter handling (only supported for OJ by runtime or is it supported for IJ as well)
+
+      // 4. Construct Join Rel Node
+      boolean leftSemiJoin = false;
+      JoinRelType optiqJoinType;
+      switch (hiveJoinType) {
+      case LEFTOUTER:
+        optiqJoinType = JoinRelType.LEFT;
+        break;
+      case RIGHTOUTER:
+        optiqJoinType = JoinRelType.RIGHT;
+        break;
+      case FULLOUTER:
+        optiqJoinType = JoinRelType.FULL;
+        break;
+      case LEFTSEMI:
+        optiqJoinType = JoinRelType.INNER;
+        leftSemiJoin = true;
+        break;
+      case INNER:
+      default:
+        optiqJoinType = JoinRelType.INNER;
+        break;
+      }
+      joinRel = HiveJoinRel.getJoin(m_cluster, leftRel, rightRel, optiqJoinCond, optiqJoinType, leftSemiJoin);
+
+      // 5. Add new JoinRel & its RR to the maps
+      m_relToHiveColNameOptiqPosMap.put(joinRel, this.buildHiveToOptiqColumnMap(joinRR, joinRel));
+      m_relToHiveRR.put(joinRel, joinRR);
+
+      return joinRel;
     }
 
-    private QBJoinTree genLogicalJoinTree(QB qb, ASTNode joinParseTree,
-        Map<String, RelNode> aliasToOpInfo) {
-      return null;
+    /**
+     * Generate Join Logical Plan Relnode by walking through the join AST.
+     * 
+     * @param qb
+     * @param aliasToRel
+     *          Alias(Table/Relation alias) to RelNode; only read and not
+     *          written in to by this method
+     * @return
+     * @throws SemanticException
+     */
+    private RelNode genJoinLogicalPlan(ASTNode joinParseTree, Map<String, RelNode> aliasToRel) throws SemanticException {
+      RelNode leftRel = null;
+      RelNode rightRel = null;
+      JoinType hiveJoinType = null;
+      
+      if (joinParseTree.getToken().getType() == HiveParser.TOK_UNIQUEJOIN) {
+        throw new RuntimeException("CBO does not support Unique Join");
+      }
+      
+      // 1. Determine Join Type
+      // TODO: What about TOK_CROSSJOIN, TOK_MAPJOIN
+      switch (joinParseTree.getToken().getType()) {
+      case HiveParser.TOK_LEFTOUTERJOIN:
+        hiveJoinType = JoinType.LEFTOUTER;
+        break;
+      case HiveParser.TOK_RIGHTOUTERJOIN:
+        hiveJoinType =  JoinType.RIGHTOUTER;
+        break;
+      case HiveParser.TOK_FULLOUTERJOIN:
+        hiveJoinType =  JoinType.FULLOUTER;
+        break;
+      case HiveParser.TOK_LEFTSEMIJOIN:
+        hiveJoinType =  JoinType.LEFTSEMI;
+        break;
+      default:
+        hiveJoinType =  JoinType.INNER;
+        break;
+      }
+      
+      // 2. Get Left Table Alias
+      ASTNode left = (ASTNode) joinParseTree.getChild(0);
+      if ((left.getToken().getType() == HiveParser.TOK_TABREF)
+          || (left.getToken().getType() == HiveParser.TOK_SUBQUERY)
+          || (left.getToken().getType() == HiveParser.TOK_PTBLFUNCTION)) {
+        String tableName = getUnescapedUnqualifiedTableName((ASTNode) left.getChild(0))
+            .toLowerCase();
+        String leftTableAlias = left.getChildCount() == 1 ? tableName
+            : unescapeIdentifier(left.getChild(left.getChildCount() - 1)
+            .getText().toLowerCase());
+        // ptf node form is: ^(TOK_PTBLFUNCTION $name $alias? partitionTableFunctionSource partitioningSpec? expression*)
+        // guranteed to have an lias here: check done in processJoin
+        leftTableAlias = (left.getToken().getType() == HiveParser.TOK_PTBLFUNCTION) ?
+            unescapeIdentifier(left.getChild(1).getText().toLowerCase()) :
+              leftTableAlias;
+        leftRel = aliasToRel.get(leftTableAlias);
+      } else if (isJoinToken(left)) {
+        leftRel = genJoinLogicalPlan(left, aliasToRel);
+      } else {
+        assert (false);
+      }
+
+      // 3. Get Right Table Alias
+      ASTNode right = (ASTNode) joinParseTree.getChild(1);
+      if ((right.getToken().getType() == HiveParser.TOK_TABREF)
+          || (right.getToken().getType() == HiveParser.TOK_SUBQUERY)
+          || (right.getToken().getType() == HiveParser.TOK_PTBLFUNCTION)) {
+        String tableName = getUnescapedUnqualifiedTableName((ASTNode) right.getChild(0))
+            .toLowerCase();
+        String rightTableAlias = right.getChildCount() == 1 ? tableName
+            : unescapeIdentifier(right.getChild(right.getChildCount() - 1)
+            .getText().toLowerCase());
+        // ptf node form is: ^(TOK_PTBLFUNCTION $name $alias? partitionTableFunctionSource partitioningSpec? expression*)
+        // guranteed to have an lias here: check done in processJoin
+        rightTableAlias = (right.getToken().getType() == HiveParser.TOK_PTBLFUNCTION) ?
+            unescapeIdentifier(right.getChild(1).getText().toLowerCase()) :
+              rightTableAlias;
+        rightRel = aliasToRel.get(rightTableAlias);
+      } else {
+        assert (false);
+      }
+      
+      // 4. Get Join Condn
+      ASTNode joinCond = (ASTNode) joinParseTree.getChild(2);
+
+      // 5. Create Join rel
+      return genJoinRelNode(leftRel, rightRel, hiveJoinType, joinCond);
     }
 
-    private QBJoinTree genJoinLogicalTree(QB qb, ASTNode joinParseTree,
-        Map<String, RelNode> aliasToOpInfo) throws SemanticException {
-      return null;
-    }
-
-    private RelNode genJoinLogicalPlan(QB qb, Map<String, RelNode> map) {
-      return null;
-    }
-
-    private RelNode genTableLogicalPlan(String alias, QB qb) {
+    private RelNode genTableLogicalPlan(String tableAlias, QB qb) {
       RowResolver rr = new RowResolver();
       HiveTableScanRel tableRel = null;
 
       try {
         // 1. Get Table Alias
-        String alias_id = getAliasId(alias, qb);
+        String alias_id = getAliasId(tableAlias, qb);
 
         // 2. Get Table Metadata
-        Table tab = qb.getMetaData().getSrcForAlias(alias);
+        Table tab = qb.getMetaData().getSrcForAlias(tableAlias);
 
         // 3. Get Table Logical Schema (Row Type)
         // NOTE: Table logical schema = Non Partition Cols + Partition Cols +
@@ -11630,10 +11778,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
           colName = fields.get(i).getFieldName();
           colInfo = new ColumnInfo(fields.get(i).getFieldName(),
               TypeInfoUtils.getTypeInfoFromObjectInspector(fields.get(i)
-                  .getFieldObjectInspector()), alias, false);
+                  .getFieldObjectInspector()), tableAlias, false);
           colInfo
-              .setSkewedCol((isSkewedCol(alias, qb, colName)) ? true : false);
-          rr.put(alias, colName, colInfo);
+              .setSkewedCol((isSkewedCol(tableAlias, qb, colName)) ? true : false);
+          rr.put(tableAlias, colName, colInfo);
           cInfoLst.add(colInfo);
         }
         //TODO: Fix this
@@ -11643,9 +11791,9 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         for (FieldSchema part_col : tab.getPartCols()) {
           colName = part_col.getName();
           colInfo = new ColumnInfo(colName,
-              TypeInfoFactory.getPrimitiveTypeInfo(part_col.getType()), alias,
+              TypeInfoFactory.getPrimitiveTypeInfo(part_col.getType()), tableAlias,
               true);
-          rr.put(alias, colName, colInfo);
+          rr.put(tableAlias, colName, colInfo);
           cInfoLst.add(colInfo);
         }
 
@@ -11654,10 +11802,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             .iterator();
         while (vcs.hasNext()) {
           VirtualColumn vc = vcs.next();
-          colInfo = new ColumnInfo(vc.getName(), vc.getTypeInfo(), alias, true, vc
+          colInfo = new ColumnInfo(vc.getName(), vc.getTypeInfo(), tableAlias, true, vc
               .getIsHidden());
           rr.put(
-              alias,
+              tableAlias,
               vc.getName(),
               colInfo);
           cInfoLst.add(colInfo);
@@ -11667,7 +11815,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         RelDataType rowType = TypeConverter.getType(m_cluster, rr, null);
 
         // 4. Build RelOptAbstractTable
-        RelOptHiveTable optTable = new RelOptHiveTable(m_relOptSchema, alias,
+        RelOptHiveTable optTable = new RelOptHiveTable(m_relOptSchema, tableAlias,
             rowType, tab, columnsThatNeedsStats);
 
         // 5. Build Hive Table Scan Rel
@@ -11716,9 +11864,266 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       return filterRel;
     }
 
-    private RelNode genGBLogicalPlan(QB qb, RelNode srcRel) {
-      // TODO Auto-generated method stub
-      return null;
+    private final Map<String, Aggregation> AGG_MAP = ImmutableMap
+                                                       .<String, Aggregation> builder()
+                                                       .put(
+                                                           "count",
+                                                           (Aggregation) SqlStdOperatorTable.COUNT)
+                                                       .put(
+                                                           "sum",
+                                                           SqlStdOperatorTable.SUM)
+                                                       .put(
+                                                           "min",
+                                                           SqlStdOperatorTable.MIN)
+                                                       .put(
+                                                           "max",
+                                                           SqlStdOperatorTable.MAX)
+                                                       .put(
+                                                           "avg",
+                                                           SqlStdOperatorTable.AVG)
+                                                       .put(
+                                                           "stddev_samp",
+                                                           SqlFunctionConverter
+                                                               .hiveAggFunction("stddev_samp"))
+                                                       .build();
+
+    /**
+     * Class to store GenericUDAF related information.
+     */
+    private class AggInfo {
+      private final List<ExprNodeDesc> m_aggParams;
+      private final TypeInfo           m_returnType;
+      private final String             m_udfName;
+      private final boolean            m_distinct;
+
+      private AggInfo(List<ExprNodeDesc> aggParams, TypeInfo returnType,
+          String udfName, boolean isDistinct) {
+        m_aggParams = aggParams;
+        m_returnType = returnType;
+        m_udfName = udfName;
+        m_distinct = isDistinct;
+      }
+    }
+
+    private AggregateCall convertAgg(AggInfo agg, RelNode input,
+        List<RexNode> gbChildProjLst, RexNodeConverter converter, HashMap<RexNode, Integer> rexNodeToPosMap, Integer childProjLstIndx)
+        throws SemanticException {
+      final Aggregation aggregation = AGG_MAP.get(agg.m_udfName);
+      if (aggregation == null) {
+        throw new AssertionError("agg not found: " + agg.m_udfName);
+      }
+
+      List<Integer> argList = new ArrayList<Integer>();
+      RelDataType type = TypeConverter.convert(agg.m_returnType,
+          this.m_cluster.getTypeFactory());
+      if (aggregation.equals(SqlStdOperatorTable.AVG)) {
+        type = type.getField("sum", false).getType();
+      }
+
+      // TODO: Does HQL allows expressions as aggregate args or can it only be
+      // projections from child?
+      Integer inputIndx;
+      RexNode rexNd = null;
+      for (ExprNodeDesc expr : agg.m_aggParams) {
+        rexNd = converter.convert(expr);
+        inputIndx = rexNodeToPosMap.get(rexNd);
+        if (inputIndx == null) {
+          gbChildProjLst.add(rexNd);
+          rexNodeToPosMap.put(rexNd, childProjLstIndx);
+          inputIndx = childProjLstIndx;
+          childProjLstIndx++;
+        }
+        argList.add(inputIndx);
+      }
+
+      /*
+       * set the type to the first arg, it there is one; because the RTi set on
+       * Aggregation call assumes this is the output type.
+       */
+      if (argList.size() > 0) {
+        RexNode rex = converter.convert(agg.m_aggParams.get(0));
+        type = rex.getType();
+      }
+      return new AggregateCall(aggregation, agg.m_distinct, argList, type, null);
+    }
+
+    private RelNode genGBRelNode(List<ExprNodeDesc> gbExprs,
+        List<AggInfo> aggInfoLst, RelNode srcRel) throws SemanticException {
+      RowResolver gbInputRR = this.m_relToHiveRR.get(srcRel);
+      ArrayList<ColumnInfo> signature = gbInputRR.getRowSchema().getSignature();
+      ImmutableMap<String, Integer> posMap = this.m_relToHiveColNameOptiqPosMap
+          .get(srcRel);
+      RexNodeConverter converter = new RexNodeConverter(this.m_cluster,
+          srcRel.getRowType(), posMap, 0, false);
+
+      final List<RexNode> gbChildProjLst = Lists.newArrayList();
+      final HashMap<RexNode, Integer> rexNodeToPosMap = new HashMap<RexNode, Integer>();
+      final BitSet groupSet = new BitSet();
+      Integer gbIndx = 0;
+      RexNode rnd;
+      for (ExprNodeDesc key : gbExprs) {
+        rnd = converter.convert(key);
+        gbChildProjLst.add(rnd);
+        groupSet.set(gbIndx);
+        rexNodeToPosMap.put(rnd, gbIndx);
+        gbIndx++;
+      }
+
+      List<AggregateCall> aggregateCalls = Lists.newArrayList();
+      int i = aggInfoLst.size();
+      for (AggInfo agg : aggInfoLst) {
+        aggregateCalls.add(convertAgg(agg, srcRel, gbChildProjLst, converter, rexNodeToPosMap, gbChildProjLst.size()));
+      }
+
+      RelNode gbInputRel = HiveProjectRel.create(srcRel, gbChildProjLst, null);
+
+      HiveRel aggregateRel = null;
+      try {
+        aggregateRel = new HiveAggregateRel(m_cluster,
+            m_cluster.traitSetOf(HiveRel.CONVENTION), gbInputRel, groupSet,
+            aggregateCalls);
+      } catch (InvalidRelException e) {
+        throw new SemanticException(e);
+      }
+
+      return aggregateRel;
+    }
+
+    private void addAlternateGByKeyMappings(ASTNode gByExpr, ColumnInfo colInfo,
+        RowResolver gByInputRR, RowResolver gByRR) {
+      if ( gByExpr.getType() == HiveParser.DOT
+            && gByExpr.getChild(0).getType() == HiveParser.TOK_TABLE_OR_COL ) {
+        String tab_alias = BaseSemanticAnalyzer.unescapeIdentifier(gByExpr
+                  .getChild(0).getChild(0).getText());
+        String col_alias = BaseSemanticAnalyzer.unescapeIdentifier(
+            gByExpr.getChild(1).getText());
+        gByRR.put(tab_alias, col_alias, colInfo);
+      } else if ( gByExpr.getType() == HiveParser.TOK_TABLE_OR_COL ) {
+        String col_alias = BaseSemanticAnalyzer.unescapeIdentifier(gByExpr
+                .getChild(0).getText());
+        String tab_alias = null;
+        /*
+         * If the input to the GBy has a tab alias for the column, then add an entry
+         * based on that tab_alias.
+         * For e.g. this query:
+         * select b.x, count(*) from t1 b group by x
+         * needs (tab_alias=b, col_alias=x) in the GBy RR.
+         * tab_alias=b comes from looking at the RowResolver that is the ancestor
+         * before any GBy/ReduceSinks added for the GBY operation.
+         */
+        try {
+          ColumnInfo pColInfo = gByInputRR.get(tab_alias, col_alias);
+          tab_alias = pColInfo == null ? null : pColInfo.getTabAlias();
+        } catch(SemanticException se) {
+        }
+        gByRR.put(tab_alias, col_alias, colInfo);
+      }
+    }
+
+    /**
+     * Generate GB plan.
+     * 
+     * @param qb
+     * @param srcRel
+     * @return TODO: 1. Grouping Sets (roll up..)
+     * @throws SemanticException
+     */
+    private RelNode genGBLogicalPlan(QB qb, RelNode srcRel)
+        throws SemanticException {
+      RelNode gbRel = null;
+      QBParseInfo qbp = qb.getParseInfo();
+      if (qbp.getClauseNames().size() > 1)
+        throw new RuntimeException("Multi Insert is not supported");
+
+      // 1. Gather GB Expressions (AST)
+      // NOTE: Multi Insert is not supported
+      String detsClauseName = qbp.getClauseNames().iterator().next();
+      List<ASTNode> grpByAstExprs = getGroupByForClause(qbp, detsClauseName);
+
+      if (grpByAstExprs != null && !grpByAstExprs.isEmpty()) {
+        // 2. Input, Output Row Resolvers
+        RowResolver groupByInputRowResolver = this.m_relToHiveRR.get(srcRel);
+        RowResolver groupByOutputRowResolver = new RowResolver();
+        groupByOutputRowResolver.setIsExprResolver(true);
+
+        // 3. Construct GB Keys (ExprNode)
+        ArrayList<ExprNodeDesc> gbExprNDescLst = new ArrayList<ExprNodeDesc>();
+        ArrayList<String> outputColumnNames = new ArrayList<String>();
+        Map<String, ExprNodeDesc> colExprMap = new HashMap<String, ExprNodeDesc>();
+        for (int i = 0; i < grpByAstExprs.size(); ++i) {
+          ASTNode grpbyExpr = grpByAstExprs.get(i);
+          Map<ASTNode, ExprNodeDesc> astToExprNDescMap = TypeCheckProcFactory
+              .genExprNode(grpbyExpr, new TypeCheckCtx(groupByInputRowResolver));
+          ExprNodeDesc grpbyExprNDesc = astToExprNDescMap.get(grpbyExpr);
+          if (grpbyExprNDesc == null)
+            throw new RuntimeException("Invalid Column Reference: "
+                + grpbyExpr.dump());
+          gbExprNDescLst.add(grpbyExprNDesc);
+
+          // TODO: Should we use grpbyExprNDesc.getTypeInfo()? what if expr is
+          // UDF
+          String field = getColumnInternalName(i);
+          outputColumnNames.add(field);
+          ColumnInfo oColInfo = new ColumnInfo(field,
+              grpbyExprNDesc.getTypeInfo(), null, false);
+          groupByOutputRowResolver.putExpression(grpbyExpr, oColInfo);
+
+          // TODO: Alternate mappings, are they necessary?
+          addAlternateGByKeyMappings(grpbyExpr, oColInfo,
+              groupByInputRowResolver, groupByOutputRowResolver);
+          colExprMap.put(field, gbExprNDescLst.get(gbExprNDescLst.size() - 1));
+        }
+
+        // 4. Construct aggregation function Info
+        ArrayList<AggInfo> aggregations = new ArrayList<AggInfo>();
+        HashMap<String, ASTNode> aggregationTrees = qbp
+            .getAggregationExprsForClause(detsClauseName);
+        assert (aggregationTrees != null);
+        int numDistinctUDFs = 0;
+        for (ASTNode value : aggregationTrees.values()) {
+
+          // 4.1 Convert UDF Params to ExprNodeDesc
+          ArrayList<ExprNodeDesc> aggParameters = new ArrayList<ExprNodeDesc>();
+          for (int i = 1; i < value.getChildCount(); i++) {
+            ASTNode paraExpr = (ASTNode) value.getChild(i);
+            ExprNodeDesc paraExprNode = genExprNodeDesc(paraExpr,
+                groupByInputRowResolver);
+            aggParameters.add(paraExprNode);
+          }
+
+          // 4.2 Determine type of UDF
+          // This is the GenericUDAF name
+          String aggName = unescapeIdentifier(value.getChild(0).getText());
+          boolean isDistinct = value.getType() == HiveParser.TOK_FUNCTIONDI;
+          boolean isAllColumns = value.getType() == HiveParser.TOK_FUNCTIONSTAR;
+
+          if (isDistinct) {
+            numDistinctUDFs++;
+          }
+          Mode amode = groupByDescModeToUDAFMode(GroupByDesc.Mode.COMPLETE,
+              isDistinct);
+          GenericUDAFEvaluator genericUDAFEvaluator = getGenericUDAFEvaluator(
+              aggName, aggParameters, value, isDistinct, isAllColumns);
+          assert (genericUDAFEvaluator != null);
+          GenericUDAFInfo udaf = getGenericUDAFInfo(genericUDAFEvaluator,
+              amode, aggParameters);
+          AggInfo aInfo = new AggInfo(aggParameters, udaf.returnType, aggName,
+              isDistinct);
+          aggregations.add(aInfo);
+          String field = getColumnInternalName(gbExprNDescLst.size()
+              + aggregations.size() - 1);
+          outputColumnNames.add(field);
+          groupByOutputRowResolver.putExpression(value, new ColumnInfo(field,
+              aInfo.m_returnType, "", false));
+        }
+
+        gbRel = genGBRelNode(gbExprNDescLst, aggregations, srcRel);
+        m_relToHiveColNameOptiqPosMap.put(gbRel,
+            buildHiveToOptiqColumnMap(groupByOutputRowResolver, gbRel));
+        this.m_relToHiveRR.put(gbRel, groupByOutputRowResolver);
+      }
+
+      return gbRel;
     }
 
     private RelNode genOBLogicalPlan(QB qb, RelNode srcRel) {
@@ -11893,8 +12298,17 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         }
         columnNames.add(getColumnInternalName(i));
       }
+      
+      // 8. Convert Hive projections to Optiq 
+      List<RexNode> optiqColLst = new ArrayList<RexNode>();
+      RexNodeConverter rexNodeConv = new RexNodeConverter(m_cluster,
+          srcRel.getRowType(), buildHiveColNameToInputPosMap(col_list, inputRR), 0, false);
+      for (ExprNodeDesc colExpr : col_list) {
+        optiqColLst.add(rexNodeConv.convert(colExpr));
+      }
 
-      // 8. Prepend column names with '_o_'
+      // 9. Construct Hive Project Rel
+      // 9.1. Prepend column names with '_o_'
       /*
        * Hive treats names that start with '_c' as internalNames; so change the
        * names so we don't run into this issue when converting back to Hive AST.
@@ -11905,22 +12319,10 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
               return "_o_" + hName;
             }
           });
-
-      // 9. Convert Hive projections to Optiq (select expression node desc to
-      // optiq rex nodes)
-      List<RexNode> optiqColLst = new ArrayList<RexNode>();
-      ImmutableMap<String, Integer> posMap = this.m_relToHiveColNameOptiqPosMap
-          .get(srcRel);
-      RexNodeConverter rexNodeConv = new RexNodeConverter(m_cluster,
-          srcRel.getRowType(), posMap, 0, false);
-      for (ExprNodeDesc colExpr : col_list) {
-        optiqColLst.add(rexNodeConv.convert(colExpr));
-      }
-
-      // 10. Construct Hive Project Rel
+      // 9.2 Build Optiq Rel Node for project using converted projections & col names
       HiveRel selRel = HiveProjectRel.create(srcRel, optiqColLst, oFieldNames);
 
-      // 11. Keep track of colname-to-posmap && RR for new select
+      // 10. Keep track of colname-to-posmap && RR for new select
       this.m_relToHiveColNameOptiqPosMap.put(selRel,
           buildHiveToOptiqColumnMap(out_rwsch, selRel));
       this.m_relToHiveRR.put(selRel, out_rwsch);
@@ -11958,22 +12360,23 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       // 1. Build Rel For Src (SubQuery, TS, Join)
       // 1.1. Recurse over the subqueries to fill the subquery part of the plan
-      for (String alias : qb.getSubqAliases()) {
-        QBExpr qbexpr = qb.getSubqForAlias(alias);
-        aliasToRel.put(alias, genLogicalPlan(qbexpr));
-        qbexpr.setAlias(alias);
+      for (String subqAlias : qb.getSubqAliases()) {
+        QBExpr qbexpr = qb.getSubqForAlias(subqAlias);
+        aliasToRel.put(subqAlias, genLogicalPlan(qbexpr));
+        qbexpr.setAlias(subqAlias);
       }
 
       // 1.2 Recurse over all the source tables
-      for (String alias : qb.getTabAliases()) {
-        RelNode op = genTableLogicalPlan(alias, qb);
-        aliasToRel.put(alias, op);
+      for (String tableAlias : qb.getTabAliases()) {
+        RelNode op = genTableLogicalPlan(tableAlias, qb);
+        aliasToRel.put(tableAlias, op);
       }
 
       // 1.3 process join
       if (qb.getParseInfo().getJoinExpr() != null) {
-
+        srcRel = genJoinLogicalPlan(qb.getParseInfo().getJoinExpr(), aliasToRel);
       } else {
+        // If no join then there should only be either 1 TS or 1 SubQuery
         srcRel = aliasToRel.values().iterator().next();
       }
 
@@ -11987,7 +12390,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
 
       // 4. Build Rel for GB Having Clause
       gbHavingRel = genGBHavingLogicalPlan(qb, srcRel);
-      gbHavingRel = (gbHavingRel == null) ? srcRel : gbHavingRel;
+      srcRel = (gbHavingRel == null) ? srcRel : gbHavingRel;
 
       // 5. Build Rel for Distinct Clause
       distinctRel = genDistinctLogicalPlan(qb, srcRel);
@@ -12014,9 +12417,12 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
             // ast expression is not a valid column name for table
             tmp[1] = colInfo.getInternalName();
           }
-          newRR.put(alias, tmp[1], colInfo);
+          ColumnInfo newCi = new ColumnInfo(colInfo);
+          newCi.setTabAlias(alias);
+          newRR.put(alias, tmp[1], newCi);
         }
         m_relToHiveRR.put(srcRel, newRR);
+        m_relToHiveColNameOptiqPosMap.put(srcRel, buildHiveToOptiqColumnMap(newRR, srcRel));
       }
 
       if (LOG.isDebugEnabled()) {
@@ -12041,11 +12447,24 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       ImmutableMap.Builder<String, Integer> b = new ImmutableMap.Builder<String, Integer>();
       int i = 0;
       for (ColumnInfo ci : rr.getRowSchema().getSignature()) {
-        b.put(ci.getInternalName(), i);
-        i++;
+        b.put(ci.getInternalName(), rr.getPosition(ci.getInternalName()));
       }
       return b.build();
     }
-
+    
+    private ImmutableMap<String, Integer> buildHiveColNameToInputPosMap (List<ExprNodeDesc> col_list, RowResolver inputRR) {
+      // Build a map of Hive column Names (ExprNodeColumnDesc Name)
+      // to the positions of those projections in the input
+      Map<Integer, ExprNodeDesc> hashCodeTocolumnDescMap = new HashMap<Integer, ExprNodeDesc>();
+      ExprNodeDescUtils.getExprNodeColumnDesc(col_list, hashCodeTocolumnDescMap);
+      ImmutableMap.Builder<String, Integer> hiveColNameToInputPosMapBuilder = new ImmutableMap.Builder<String, Integer>();
+      String exprNodecolName;
+      for (ExprNodeDesc exprDesc : hashCodeTocolumnDescMap.values()) {
+        exprNodecolName = ((ExprNodeColumnDesc)exprDesc).getColumn();
+        hiveColNameToInputPosMapBuilder.put(exprNodecolName, inputRR.getPosition(exprNodecolName));
+      }
+      
+      return hiveColNameToInputPosMapBuilder.build();
+    }
   }
 }
