@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
+import org.apache.hadoop.hive.ql.parse.ParseUtils;
 import org.apache.hadoop.hive.ql.parse.RowResolver;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.ExprNodeColumnDesc;
@@ -95,6 +96,7 @@ public class RexNodeConverter {
   private RexNode convert(final ExprNodeGenericFuncDesc func)
       throws SemanticException {
 
+    ExprNodeDesc tmpExprNode;
     RexNode tmpRN;
     TypeInfo tgtDT = null;
 
@@ -102,7 +104,8 @@ public class RexNodeConverter {
         .getGenericUDF());
     List<RexNode> childRexNodeLst = new LinkedList<RexNode>();
 
-    // TODO: Expand to other functions as needed
+    // TODO: 1) Expand to other functions as needed 2) What about types other
+    // than primitive
     if (func.getGenericUDF() instanceof GenericUDFBaseNumeric) {
       tgtDT = func.getTypeInfo();
     } else if (func.getGenericUDF() instanceof GenericUDFBaseCompare) {
@@ -113,12 +116,14 @@ public class RexNodeConverter {
     }
 
     for (ExprNodeDesc childExpr : func.getChildren()) {
-      tmpRN = convert(childExpr);
+      tmpExprNode = childExpr;
       if (tgtDT != null
           && TypeInfoUtils.isConversionRequiredForComparison(tgtDT,
-              childExpr.getTypeInfo()))
-        tmpRN = m_cluster.getRexBuilder().makeCast(
-            TypeConverter.convert(tgtDT, m_cluster.getTypeFactory()), tmpRN);
+              childExpr.getTypeInfo())) {
+        tmpExprNode = ParseUtils.createConversionCast(childExpr,
+            (PrimitiveTypeInfo) tgtDT);
+      }
+      tmpRN = convert(tmpExprNode);
       childRexNodeLst.add(tmpRN);
     }
 

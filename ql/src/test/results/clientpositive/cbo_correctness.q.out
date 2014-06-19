@@ -15474,12 +15474,12 @@ POSTHOOK: Input: default@t3
 1	1	1 	1.0	1
 1	1	1 	1.0	1
 1	1	1 	1.0	1
-PREHOOK: query: -- 6. Test Select + TS + Join + Fil + GB
+PREHOOK: query: -- 6. Test Select + TS + Join + Fil + GB + GB Having
 select * from t1 group by c_int
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 #### A masked pattern was here ####
-POSTHOOK: query: -- 6. Test Select + TS + Join + Fil + GB
+POSTHOOK: query: -- 6. Test Select + TS + Join + Fil + GB + GB Having
 select * from t1 group by c_int
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
@@ -15510,75 +15510,89 @@ POSTHOOK: Input: default@t1
 NULL	NULL
 2	5.0
 12	5.0
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0) group by c_float, t1.c_int, key) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0) group by c_float, t1.c_int, key order by a) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key order by q/10 desc, r asc) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c order by t3.c_int+c desc, c
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0) group by c_float, t1.c_int, key) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0) group by c_float, t1.c_int, key order by a) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key order by q/10 desc, r asc) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c order by t3.c_int+c desc, c
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 left semi join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p left semi join t3 on t1.a=key where (b + 1  == 2) and (b > 0 or a >= 0) group by a, c
+12	1
+2	1
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by a+b desc, c asc) t1 left semi join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by q+r/10 desc, p) t2 on t1.a=p left semi join t3 on t1.a=key where (b + 1  >= 0) and (b > 0 or a >= 0) group by a, c  having a > 0 and (a >=1 or c >= 1) and (a + c) >= 0 order by c, a
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 left semi join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p left semi join t3 on t1.a=key where (b + 1  == 2) and (b > 0 or a >= 0) group by a, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by a+b desc, c asc) t1 left semi join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by q+r/10 desc, p) t2 on t1.a=p left semi join t3 on t1.a=key where (b + 1  >= 0) and (b > 0 or a >= 0) group by a, c  having a > 0 and (a >=1 or c >= 1) and (a + c) >= 0 order by c, a
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 left outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p left outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+ 1	NULL
+ 1 	NULL
+1	NULL
+1 	NULL
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by b % c asc, b desc) t1 left outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key  having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p left outer join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c  having t3.c_int > 0 and (c_int >=1 or c >= 1) and (c_int + c) >= 0  order by t3.c_int % c asc, t3.c_int desc
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 left outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p left outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by b % c asc, b desc) t1 left outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key  having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p left outer join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c  having t3.c_int > 0 and (c_int >=1 or c >= 1) and (c_int + c) >= 0  order by t3.c_int % c asc, t3.c_int desc
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 right outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p right outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+12	1
+2	1
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by b+c, a desc) t1 right outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p right outer join t3 on t1.a=key where (b + t2.q >= 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 right outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p right outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by b+c, a desc) t1 right outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p right outer join t3 on t1.a=key where (b + t2.q >= 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 full outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p full outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+2	1
+12	1
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by c+a desc) t1 full outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by p+q desc, r asc) t2 on t1.a=p full outer join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c having t3.c_int > 0 and (c_int >=1 or c >= 1) and (c_int + c) >= 0 order by t3.c_int
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 full outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p full outer join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by c+a desc) t1 full outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by p+q desc, r asc) t2 on t1.a=p full outer join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c having t3.c_int > 0 and (c_int >=1 or c >= 1) and (c_int + c) >= 0 order by t3.c_int
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
-PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+12	1
+2	1
+PREHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c
 PREHOOK: type: QUERY
 PREHOOK: Input: default@t1
 PREHOOK: Input: default@t2
 PREHOOK: Input: default@t3
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 == 2) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 == 2) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q == 2) and (b > 0 or c_int >= 0) group by t3.c_int, c
+POSTHOOK: query: select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@t1
 POSTHOOK: Input: default@t2
 POSTHOOK: Input: default@t3
 #### A masked pattern was here ####
+2	1
+12	1
