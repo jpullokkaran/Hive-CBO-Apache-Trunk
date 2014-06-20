@@ -34,8 +34,6 @@ POSTHOOK: query: insert overwrite table table_desc select key, value from src
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@table_desc
-POSTHOOK: Lineage: table_asc.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: table_asc.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: table_desc.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: table_desc.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: -- If the user asked for sort merge join to be enforced (by setting
@@ -58,14 +56,10 @@ POSTHOOK: query: -- If the user asked for sort merge join to be enforced (by set
 explain 
 select /*+mapjoin(a)*/ * from table_asc a join table_desc b on a.key = b.key
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: table_asc.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: table_asc.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: table_desc.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: table_desc.value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -81,7 +75,7 @@ STAGE PLANS:
             Statistics: Num rows: 500 Data size: 4812 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {key} {value}
+                0 {value}
                 1 {key} {value}
               keys:
                 0 key (type: int)
@@ -121,5 +115,7 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 FAILED: SemanticException [Error 10135]: Sort merge bucketed join could not be performed. If you really want to perform the operation, either set hive.optimize.bucketmapjoin.sortedmerge=false, or set hive.enforce.sortmergebucketmapjoin=false.

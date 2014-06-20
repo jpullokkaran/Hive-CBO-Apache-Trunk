@@ -8,7 +8,7 @@ STAGE DEPENDENCIES:
   Stage-6 has a backup stage: Stage-2
   Stage-4 depends on stages: Stage-6
   Stage-2
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-4, Stage-2
 
 STAGE PLANS:
   Stage: Stage-1
@@ -119,13 +119,12 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Left Semi Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
+            0 {KEY.reducesinkkey0}
             1 
           outputColumnNames: _col0
           Statistics: Num rows: 63 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
@@ -147,4 +146,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 

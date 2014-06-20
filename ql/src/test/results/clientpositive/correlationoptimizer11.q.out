@@ -33,8 +33,6 @@ POSTHOOK: query: INSERT OVERWRITE TABLE part_table PARTITION (partitionId=2)
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src1
 POSTHOOK: Output: default@part_table@partitionid=2
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
 POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 PREHOOK: query: -- In this case, we should not do shared scan on part_table
@@ -59,14 +57,10 @@ WHERE x.partitionId = 1 AND
       y.partitionId = 2
 GROUP BY x.key
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-2
 
 STAGE PLANS:
   Stage: Stage-1
@@ -88,13 +82,12 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 100 Data size: 1070 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
+            0 {KEY.reducesinkkey0}
             1 
           outputColumnNames: _col0
           Statistics: Num rows: 110 Data size: 1177 Basic stats: COMPLETE Column stats: NONE
@@ -147,6 +140,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT x.key AS key, count(1) AS cnt
 FROM part_table x JOIN part_table y ON (x.key = y.key)
@@ -168,10 +163,6 @@ POSTHOOK: Input: default@part_table
 POSTHOOK: Input: default@part_table@partitionid=1
 POSTHOOK: Input: default@part_table@partitionid=2
 #### A masked pattern was here ####
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 128	3
 146	2
 150	1
@@ -189,13 +180,9 @@ WHERE x.partitionId = 1 AND
       y.partitionId = 2
 GROUP BY x.key
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -217,7 +204,6 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 100 Data size: 1070 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Demux Operator
           Statistics: Num rows: 125 Data size: 1261 Basic stats: COMPLETE Column stats: NONE
@@ -225,7 +211,7 @@ STAGE PLANS:
             condition map:
                  Inner Join 0 to 1
             condition expressions:
-              0 {VALUE._col0}
+              0 {KEY.reducesinkkey0}
               1 
             outputColumnNames: _col0
             Statistics: Num rows: 0 Data size: 0 Basic stats: NONE Column stats: NONE
@@ -256,6 +242,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT x.key AS key, count(1) AS cnt
 FROM part_table x JOIN part_table y ON (x.key = y.key)
@@ -277,10 +265,6 @@ POSTHOOK: Input: default@part_table
 POSTHOOK: Input: default@part_table@partitionid=1
 POSTHOOK: Input: default@part_table@partitionid=2
 #### A masked pattern was here ####
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 128	3
 146	2
 150	1
@@ -306,14 +290,10 @@ WHERE x.partitionId = 2 AND
       y.partitionId = 2
 GROUP BY x.key
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-2
 
 STAGE PLANS:
   Stage: Stage-1
@@ -335,13 +315,12 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 25 Data size: 191 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
+            0 {KEY.reducesinkkey0}
             1 
           outputColumnNames: _col0
           Statistics: Num rows: 27 Data size: 210 Basic stats: COMPLETE Column stats: NONE
@@ -394,6 +373,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT x.key AS key, count(1) AS cnt
 FROM part_table x JOIN part_table y ON (x.key = y.key)
@@ -413,10 +394,6 @@ POSTHOOK: type: QUERY
 POSTHOOK: Input: default@part_table
 POSTHOOK: Input: default@part_table@partitionid=2
 #### A masked pattern was here ####
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 	100
 128	1
 146	1
@@ -447,13 +424,9 @@ WHERE x.partitionId = 2 AND
       y.partitionId = 2
 GROUP BY x.key
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -475,7 +448,6 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 25 Data size: 191 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Demux Operator
           Statistics: Num rows: 50 Data size: 382 Basic stats: COMPLETE Column stats: NONE
@@ -483,7 +455,7 @@ STAGE PLANS:
             condition map:
                  Inner Join 0 to 1
             condition expressions:
-              0 {VALUE._col0}
+              0 {KEY.reducesinkkey0}
               1 
             outputColumnNames: _col0
             Statistics: Num rows: 0 Data size: 0 Basic stats: NONE Column stats: NONE
@@ -514,6 +486,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT x.key AS key, count(1) AS cnt
 FROM part_table x JOIN part_table y ON (x.key = y.key)
@@ -533,10 +507,6 @@ POSTHOOK: type: QUERY
 POSTHOOK: Input: default@part_table
 POSTHOOK: Input: default@part_table@partitionid=2
 #### A masked pattern was here ####
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).key SIMPLE [(src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=1).value SIMPLE [(src)src.FieldSchema(name:value, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).key SIMPLE [(src1)src1.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: part_table PARTITION(partitionid=2).value SIMPLE [(src1)src1.FieldSchema(name:value, type:string, comment:default), ]
 	100
 128	1
 146	1

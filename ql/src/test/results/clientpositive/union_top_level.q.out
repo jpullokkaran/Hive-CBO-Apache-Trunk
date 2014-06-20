@@ -1,29 +1,29 @@
-PREHOOK: query: -- top level
+PREHOOK: query: -- SORT_QUERY_RESULTS
+
+-- top level
 explain
-select * from (
 select key, 0 as value from src where key % 3 == 0 limit 3
 union all
 select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
-) q1 order by key
 PREHOOK: type: QUERY
-POSTHOOK: query: -- top level
+POSTHOOK: query: -- SORT_QUERY_RESULTS
+
+-- top level
 explain
-select * from (
 select key, 0 as value from src where key % 3 == 0 limit 3
 union all
 select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
-) q1 order by key
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1, Stage-3, Stage-4
   Stage-3 is a root stage
   Stage-4 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-2
 
 STAGE PLANS:
   Stage: Stage-1
@@ -33,10 +33,10 @@ STAGE PLANS:
             alias: src
             Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             Filter Operator
-              predicate: ((key % 3) = 1) (type: boolean)
+              predicate: ((key % 3) = 0) (type: boolean)
               Statistics: Num rows: 29 Data size: 2906 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions: key (type: string), 1 (type: int)
+                expressions: key (type: string), 0 (type: int)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 29 Data size: 2906 Basic stats: COMPLETE Column stats: NONE
                 Limit
@@ -47,7 +47,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -69,11 +71,13 @@ STAGE PLANS:
                 expressions: _col0 (type: string), _col1 (type: int)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                Reduce Output Operator
-                  key expressions: _col0 (type: string)
-                  sort order: +
+                File Output Operator
+                  compressed: false
                   Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col0 (type: string), _col1 (type: int)
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           TableScan
             Union
               Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
@@ -81,11 +85,13 @@ STAGE PLANS:
                 expressions: _col0 (type: string), _col1 (type: int)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                Reduce Output Operator
-                  key expressions: _col0 (type: string)
-                  sort order: +
+                File Output Operator
+                  compressed: false
                   Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col0 (type: string), _col1 (type: int)
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           TableScan
             Union
               Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
@@ -93,21 +99,13 @@ STAGE PLANS:
                 expressions: _col0 (type: string), _col1 (type: int)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                Reduce Output Operator
-                  key expressions: _col0 (type: string)
-                  sort order: +
+                File Output Operator
+                  compressed: false
                   Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col0 (type: string), _col1 (type: int)
-      Reduce Operator Tree:
-        Extract
-          Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-          File Output Operator
-            compressed: false
-            Statistics: Num rows: 9 Data size: 900 Basic stats: COMPLETE Column stats: NONE
-            table:
-                input format: org.apache.hadoop.mapred.TextInputFormat
-                output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-3
     Map Reduce
@@ -116,10 +114,10 @@ STAGE PLANS:
             alias: src
             Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             Filter Operator
-              predicate: ((key % 3) = 0) (type: boolean)
+              predicate: ((key % 3) = 1) (type: boolean)
               Statistics: Num rows: 29 Data size: 2906 Basic stats: COMPLETE Column stats: NONE
               Select Operator
-                expressions: key (type: string), 0 (type: int)
+                expressions: key (type: string), 1 (type: int)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 29 Data size: 2906 Basic stats: COMPLETE Column stats: NONE
                 Limit
@@ -130,7 +128,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -163,7 +163,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -178,24 +180,22 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
-PREHOOK: query: select * from (
-select key, 0 as value from src where key % 3 == 0 limit 3
+PREHOOK: query: select key, 0 as value from src where key % 3 == 0 limit 3
 union all
 select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
-) q1 order by key
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (
-select key, 0 as value from src where key % 3 == 0 limit 3
+POSTHOOK: query: select key, 0 as value from src where key % 3 == 0 limit 3
 union all
 select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
-) q1 order by key
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 #### A masked pattern was here ####
@@ -209,18 +209,14 @@ POSTHOOK: Input: default@src
 484	1
 86	2
 PREHOOK: query: explain
-select * from (
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
 union all
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
-) q1 order by k
 PREHOOK: type: QUERY
 POSTHOOK: query: explain
-select * from (
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
 union all
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
-) q1 order by k
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
@@ -228,7 +224,7 @@ STAGE DEPENDENCIES:
   Stage-3 depends on stages: Stage-2, Stage-6
   Stage-5 is a root stage
   Stage-6 depends on stages: Stage-5
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-3
 
 STAGE PLANS:
   Stage: Stage-1
@@ -242,7 +238,6 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
           TableScan
             alias: s2
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
@@ -257,8 +252,8 @@ STAGE PLANS:
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col5
           Statistics: Num rows: 63 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
           Select Operator
@@ -284,7 +279,9 @@ STAGE PLANS:
               Statistics: Num rows: 10 Data size: 1010 Basic stats: COMPLETE Column stats: NONE
               value expressions: _col0 (type: string), _col1 (type: string)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: string)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 10 Data size: 1010 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 10
@@ -306,11 +303,13 @@ STAGE PLANS:
                 expressions: _col0 (type: string), _col1 (type: string)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-                Reduce Output Operator
-                  key expressions: _col0 (type: string)
-                  sort order: +
+                File Output Operator
+                  compressed: false
                   Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col0 (type: string), _col1 (type: string)
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
           TableScan
             Union
               Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
@@ -318,25 +317,25 @@ STAGE PLANS:
                 expressions: _col0 (type: string), _col1 (type: string)
                 outputColumnNames: _col0, _col1
                 Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-                Reduce Output Operator
-                  key expressions: _col0 (type: string)
-                  sort order: +
+                File Output Operator
+                  compressed: false
                   Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col0 (type: string), _col1 (type: string)
-      Reduce Operator Tree:
-        Extract
-          Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-          File Output Operator
-            compressed: false
-            Statistics: Num rows: 20 Data size: 2020 Basic stats: COMPLETE Column stats: NONE
-            table:
-                input format: org.apache.hadoop.mapred.TextInputFormat
-                output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
-                serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+                  table:
+                      input format: org.apache.hadoop.mapred.TextInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
 
   Stage: Stage-5
     Map Reduce
       Map Operator Tree:
+          TableScan
+            alias: s1
+            Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
+            Reduce Output Operator
+              key expressions: key (type: string)
+              sort order: +
+              Map-reduce partition columns: key (type: string)
+              Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
           TableScan
             alias: s2
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
@@ -346,22 +345,13 @@ STAGE PLANS:
               Map-reduce partition columns: key (type: string)
               Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
               value expressions: value (type: string)
-          TableScan
-            alias: s1
-            Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-            Reduce Output Operator
-              key expressions: key (type: string)
-              sort order: +
-              Map-reduce partition columns: key (type: string)
-              Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-              value expressions: key (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col5
           Statistics: Num rows: 63 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
           Select Operator
@@ -387,7 +377,9 @@ STAGE PLANS:
               Statistics: Num rows: 10 Data size: 1010 Basic stats: COMPLETE Column stats: NONE
               value expressions: _col0 (type: string), _col1 (type: string)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: string)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 10 Data size: 1010 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 10
@@ -402,20 +394,18 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
-PREHOOK: query: select * from (
-select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
+PREHOOK: query: select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
 union all
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
-) q1 order by k
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 #### A masked pattern was here ####
-POSTHOOK: query: select * from (
-select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
+POSTHOOK: query: select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
 union all
 select s1.key as k, s2.value as v from src s1 join src s2 on (s1.key = s2.key) limit 10
-) q1 order by k
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 #### A masked pattern was here ####
@@ -493,7 +483,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -631,7 +623,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -664,7 +658,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -693,11 +689,11 @@ select key, 2 as value from src where key % 3 == 2 limit 3
 POSTHOOK: type: CREATETABLE_AS_SELECT
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@union_top
-PREHOOK: query: select * from union_top order by key
+PREHOOK: query: select * from union_top
 PREHOOK: type: QUERY
 PREHOOK: Input: default@union_top
 #### A masked pattern was here ####
-POSTHOOK: query: select * from union_top order by key
+POSTHOOK: query: select * from union_top
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@union_top
 #### A masked pattern was here ####
@@ -769,7 +765,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -903,7 +901,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -936,7 +936,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -968,16 +970,14 @@ POSTHOOK: Input: default@src
 POSTHOOK: Output: default@union_top
 POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: union_top.value EXPRESSION []
-PREHOOK: query: select * from union_top order by key
+PREHOOK: query: select * from union_top
 PREHOOK: type: QUERY
 PREHOOK: Input: default@union_top
 #### A masked pattern was here ####
-POSTHOOK: query: select * from union_top order by key
+POSTHOOK: query: select * from union_top
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@union_top
 #### A masked pattern was here ####
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 165	0
 238	1
 255	0
@@ -1003,8 +1003,6 @@ select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
   Stage-2 depends on stages: Stage-1, Stage-9, Stage-10
@@ -1040,7 +1038,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -1174,7 +1174,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -1207,7 +1209,9 @@ STAGE PLANS:
                     Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
                     value expressions: _col0 (type: string), _col1 (type: int)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: VALUE._col0 (type: string), VALUE._col1 (type: int)
+          outputColumnNames: _col0, _col1
           Statistics: Num rows: 3 Data size: 300 Basic stats: COMPLETE Column stats: NONE
           Limit
             Number of rows: 3
@@ -1238,21 +1242,15 @@ POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@union_top
 POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
 POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-PREHOOK: query: select * from union_top order by key
+PREHOOK: query: select * from union_top
 PREHOOK: type: QUERY
 PREHOOK: Input: default@union_top
 #### A masked pattern was here ####
-POSTHOOK: query: select * from union_top order by key
+POSTHOOK: query: select * from union_top
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@union_top
 #### A masked pattern was here ####
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 165	0
 238	1
 255	0
@@ -1280,10 +1278,6 @@ select key, 1 as value from src where key % 3 == 1 limit 3
 union all
 select key, 2 as value from src where key % 3 == 2 limit 3
 POSTHOOK: type: CREATEVIEW
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 STAGE DEPENDENCIES:
   Stage-0 is a root stage
 
@@ -1322,24 +1316,16 @@ select key, 2 as value from src where key % 3 == 2 limit 3
 POSTHOOK: type: CREATEVIEW
 POSTHOOK: Input: default@src
 POSTHOOK: Output: default@union_top_view
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-PREHOOK: query: select * from union_top_view order by key
+PREHOOK: query: select * from union_top_view
 PREHOOK: type: QUERY
 PREHOOK: Input: default@src
 PREHOOK: Input: default@union_top_view
 #### A masked pattern was here ####
-POSTHOOK: query: select * from union_top_view order by key
+POSTHOOK: query: select * from union_top_view
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@src
 POSTHOOK: Input: default@union_top_view
 #### A masked pattern was here ####
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 165	0
 238	1
 255	0
@@ -1357,10 +1343,6 @@ POSTHOOK: query: drop table union_top
 POSTHOOK: type: DROPTABLE
 POSTHOOK: Input: default@union_top
 POSTHOOK: Output: default@union_top
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []
 PREHOOK: query: drop view union_top_view
 PREHOOK: type: DROPVIEW
 PREHOOK: Input: default@union_top_view
@@ -1369,7 +1351,3 @@ POSTHOOK: query: drop view union_top_view
 POSTHOOK: type: DROPVIEW
 POSTHOOK: Input: default@union_top_view
 POSTHOOK: Output: default@union_top_view
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.key EXPRESSION [(src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), (src)src.FieldSchema(name:key, type:string, comment:default), ]
-POSTHOOK: Lineage: union_top.value EXPRESSION []
-POSTHOOK: Lineage: union_top.value EXPRESSION []

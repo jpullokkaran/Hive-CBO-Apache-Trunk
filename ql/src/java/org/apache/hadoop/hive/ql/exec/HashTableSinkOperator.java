@@ -34,8 +34,8 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.mapjoin.MapJoinMemoryExhaustionHandler;
 import org.apache.hadoop.hive.ql.exec.persistence.HashMapWrapper;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKeyObject;
-import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinObjectSerDeContext;
+import org.apache.hadoop.hive.ql.exec.persistence.MapJoinPersistableTableContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinEagerRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinRowContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainer;
@@ -93,7 +93,7 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
   private transient Byte[] order; // order in which the results should
   private Configuration hconf;
 
-  private transient MapJoinTableContainer[] mapJoinTables;
+  private transient MapJoinPersistableTableContainer[] mapJoinTables;
   private transient MapJoinTableContainerSerDe[] mapJoinTableSerdes;
 
   private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
@@ -165,11 +165,8 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
         }
       }
     }
-    mapJoinTables = new MapJoinTableContainer[tagLen];
+    mapJoinTables = new MapJoinPersistableTableContainer[tagLen];
     mapJoinTableSerdes = new MapJoinTableContainerSerDe[tagLen];
-    int hashTableThreshold = HiveConf.getIntVar(hconf, HiveConf.ConfVars.HIVEHASHTABLETHRESHOLD);
-    float hashTableLoadFactor = HiveConf.getFloatVar(hconf,
-        HiveConf.ConfVars.HIVEHASHTABLELOADFACTOR);
     hashTableScale = HiveConf.getLongVar(hconf, HiveConf.ConfVars.HIVEHASHTABLESCALE);
     if (hashTableScale <= 0) {
       hashTableScale = 1;
@@ -184,7 +181,7 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
         if (pos == posBigTableAlias) {
           continue;
         }
-        mapJoinTables[pos] = new HashMapWrapper(hashTableThreshold, hashTableLoadFactor);
+        mapJoinTables[pos] = new HashMapWrapper(hconf);
         TableDesc valueTableDesc = conf.getValueTblFilteredDescs().get(pos);
         SerDe valueSerDe = (SerDe) ReflectionUtils.newInstance(valueTableDesc.getDeserializerClass(), null);
         SerDeUtils.initializeSerDe(valueSerDe, null, valueTableDesc.getProperties(), null);
@@ -227,15 +224,20 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
   public void processOp(Object row, int tag) throws HiveException {
     byte alias = (byte)tag;
     // compute keys and values as StandardObjects. Use non-optimized key (MR).
-    MapJoinKey key = MapJoinKey.readFromRow(null, new MapJoinKeyObject(),
-        row, joinKeys[alias], joinKeysObjectInspectors[alias], true);
+    Object[] currentKey = new Object[joinKeys[alias].size()];
+    for (int keyIndex = 0; keyIndex < joinKeys[alias].size(); ++keyIndex) {
+      currentKey[keyIndex] = joinKeys[alias].get(keyIndex).evaluate(row);
+    }
+    MapJoinKeyObject key = new MapJoinKeyObject();
+    key.readFromRow(currentKey, joinKeysObjectInspectors[alias]);
+
     Object[] value = EMPTY_OBJECT_ARRAY;
     if((hasFilter(alias) && filterMaps[alias].length > 0) || joinValues[alias].size() > 0) {
       value = JoinUtil.computeMapJoinValues(row, joinValues[alias],
         joinValuesObjectInspectors[alias], joinFilters[alias], joinFilterObjectInspectors[alias],
         filterMaps == null ? null : filterMaps[alias]);
     }
-    MapJoinTableContainer tableContainer = mapJoinTables[alias];
+    MapJoinPersistableTableContainer tableContainer = mapJoinTables[alias];
     MapJoinRowContainer rowContainer = tableContainer.get(key);
     if (rowContainer == null) {
       if(value.length != 0) {
@@ -270,8 +272,10 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
         flushToFile();
       }
       super.closeOp(abort);
+    } catch (HiveException e) {
+      throw e;
     } catch (Exception e) {
-      LOG.error("Error generating side-table", e);
+      throw new HiveException(e);
     }
   }
 
@@ -281,7 +285,7 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
     LOG.info("Temp URI for side table: " + tmpURI);
     for (byte tag = 0; tag < mapJoinTables.length; tag++) {
       // get the key and value
-      MapJoinTableContainer tableContainer = mapJoinTables[tag];
+      MapJoinPersistableTableContainer tableContainer = mapJoinTables[tag];
       if (tableContainer == null) {
         continue;
       }
@@ -291,7 +295,8 @@ public class HashTableSinkOperator extends TerminalOperator<HashTableSinkDesc> i
       // get the tmp URI path; it will be a hdfs path if not local mode
       String dumpFilePrefix = conf.getDumpFilePrefix();
       Path path = Utilities.generatePath(tmpURI, dumpFilePrefix, tag, fileName);
-      console.printInfo(Utilities.now() + "\tDump the side-table into file: " + path);
+      console.printInfo(Utilities.now() + "\tDump the side-table for tag: " + tag +
+          " with group count: " + tableContainer.size() + " into file: " + path);
       // get the hashtable file and path
       FileSystem fs = path.getFileSystem(hconf);
       ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(fs.create(path), 4096));

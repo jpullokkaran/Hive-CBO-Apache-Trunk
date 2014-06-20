@@ -24,6 +24,8 @@ import java.net.URISyntaxException;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.shims.HadoopShimsSecure;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.util.StringUtils;
 import org.junit.After;
 import org.junit.Assert;
@@ -306,7 +308,17 @@ public class TestTempletonUtils {
     String[] newProps = StringUtils.split(input.toString());
     for(int i = 0; i < newProps.length; i++) {
       Assert.assertEquals("Pre/post split values don't match",
-        TempletonUtils.unEscape(props[i]), TempletonUtils.unEscape(newProps[i]));
+        TempletonUtils.unEscapeString(props[i]), TempletonUtils.unEscapeString(newProps[i]));
     }
+  }
+
+  @Test
+  public void testFindContainingJar() throws Exception {
+    String result = TempletonUtils.findContainingJar(ShimLoader.class, ".*hive-shims.*");
+    Assert.assertNotNull(result);
+    result = TempletonUtils.findContainingJar(HadoopShimsSecure.class, ".*hive-shims.*");
+    Assert.assertNotNull(result);
+    result = TempletonUtils.findContainingJar(HadoopShimsSecure.class, ".*unknownjar.*");
+    Assert.assertNull(result);
   }
 }

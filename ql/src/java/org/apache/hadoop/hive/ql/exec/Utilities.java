@@ -177,6 +177,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Shell;
 
@@ -220,6 +221,13 @@ public final class Utilities {
     }
   }
 
+  public static String removeValueTag(String column) {
+    if (column.startsWith(ReduceField.VALUE + ".")) {
+      return column.substring(6);
+    }
+    return column;
+  }
+
   private Utilities() {
     // prevent instantiation
   }
@@ -234,7 +242,7 @@ public final class Utilities {
     Path reducePath = getPlanPath(conf, REDUCE_PLAN_NAME);
 
     // if the plan path hasn't been initialized just return, nothing to clean.
-    if (mapPath == null || reducePath == null) {
+    if (mapPath == null && reducePath == null) {
       return;
     }
 
@@ -252,12 +260,7 @@ public final class Utilities {
     } finally {
       // where a single process works with multiple plans - we must clear
       // the cache before working with the next plan.
-      if (mapPath != null) {
-        gWorkMap.remove(mapPath);
-      }
-      if (reducePath != null) {
-        gWorkMap.remove(reducePath);
-      }
+      clearWorkMapForConf(conf);
     }
   }
 
@@ -662,11 +665,7 @@ public final class Utilities {
    * @return Bytes.
    */
   public static byte[] serializeExpressionToKryo(ExprNodeGenericFuncDesc expr) {
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    Output output = new Output(baos);
-    runtimeSerializationKryo.get().writeObject(output, expr);
-    output.close();
-    return baos.toByteArray();
+    return serializeObjectToKryo(expr);
   }
 
   /**
@@ -675,11 +674,7 @@ public final class Utilities {
    * @return Expression; null if deserialization succeeded, but the result type is incorrect.
    */
   public static ExprNodeGenericFuncDesc deserializeExpressionFromKryo(byte[] bytes) {
-    Input inp = new Input(new ByteArrayInputStream(bytes));
-    ExprNodeGenericFuncDesc func = runtimeSerializationKryo.get().
-      readObject(inp,ExprNodeGenericFuncDesc.class);
-    inp.close();
-    return func;
+    return deserializeObjectFromKryo(bytes, ExprNodeGenericFuncDesc.class);
   }
 
   public static String serializeExpression(ExprNodeGenericFuncDesc expr) {
@@ -698,6 +693,37 @@ public final class Utilities {
       throw new RuntimeException("UTF-8 support required", ex);
     }
     return deserializeExpressionFromKryo(bytes);
+  }
+
+  private static byte[] serializeObjectToKryo(Serializable object) {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    Output output = new Output(baos);
+    runtimeSerializationKryo.get().writeObject(output, object);
+    output.close();
+    return baos.toByteArray();
+  }
+
+  private static <T extends Serializable> T deserializeObjectFromKryo(byte[] bytes, Class<T> clazz) {
+    Input inp = new Input(new ByteArrayInputStream(bytes));
+    T func = runtimeSerializationKryo.get().readObject(inp, clazz);
+    inp.close();
+    return func;
+  }
+
+  public static String serializeObject(Serializable expr) {
+    try {
+      return new String(Base64.encodeBase64(serializeObjectToKryo(expr)), "UTF-8");
+    } catch (UnsupportedEncodingException ex) {
+      throw new RuntimeException("UTF-8 support required", ex);
+    }
+  }
+
+  public static <T extends Serializable> T deserializeObject(String s, Class<T> clazz) {
+    try {
+      return deserializeObjectFromKryo(Base64.decodeBase64(s.getBytes("UTF-8")), clazz);
+    } catch (UnsupportedEncodingException ex) {
+      throw new RuntimeException("UTF-8 support required", ex);
+    }
   }
 
   public static class CollectionPersistenceDelegate extends DefaultPersistenceDelegate {
@@ -1331,9 +1357,9 @@ public final class Utilities {
    * @return output stream over the created sequencefile
    */
   public static SequenceFile.Writer createSequenceWriter(JobConf jc, FileSystem fs, Path file,
-      Class<?> keyClass, Class<?> valClass) throws IOException {
+      Class<?> keyClass, Class<?> valClass, Progressable progressable) throws IOException {
     boolean isCompressed = FileOutputFormat.getCompressOutput(jc);
-    return createSequenceWriter(jc, fs, file, keyClass, valClass, isCompressed);
+    return createSequenceWriter(jc, fs, file, keyClass, valClass, isCompressed, progressable);
   }
 
   /**
@@ -1353,7 +1379,8 @@ public final class Utilities {
    * @return output stream over the created sequencefile
    */
   public static SequenceFile.Writer createSequenceWriter(JobConf jc, FileSystem fs, Path file,
-      Class<?> keyClass, Class<?> valClass, boolean isCompressed) throws IOException {
+      Class<?> keyClass, Class<?> valClass, boolean isCompressed, Progressable progressable)
+      throws IOException {
     CompressionCodec codec = null;
     CompressionType compressionType = CompressionType.NONE;
     Class codecClass = null;
@@ -1362,7 +1389,8 @@ public final class Utilities {
       codecClass = FileOutputFormat.getOutputCompressorClass(jc, DefaultCodec.class);
       codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, jc);
     }
-    return (SequenceFile.createWriter(fs, jc, file, keyClass, valClass, compressionType, codec));
+    return (SequenceFile.createWriter(fs, jc, file, keyClass, valClass, compressionType, codec,
+	progressable));
 
   }
 
@@ -1379,14 +1407,14 @@ public final class Utilities {
    * @return output stream over the created rcfile
    */
   public static RCFile.Writer createRCFileWriter(JobConf jc, FileSystem fs, Path file,
-      boolean isCompressed) throws IOException {
+      boolean isCompressed, Progressable progressable) throws IOException {
     CompressionCodec codec = null;
     Class<?> codecClass = null;
     if (isCompressed) {
       codecClass = FileOutputFormat.getOutputCompressorClass(jc, DefaultCodec.class);
       codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, jc);
     }
-    return new RCFile.Writer(fs, jc, file, null, codec);
+    return new RCFile.Writer(fs, jc, file, progressable, codec);
   }
 
   /**
@@ -1408,10 +1436,6 @@ public final class Utilities {
     }
 
     String file = path.makeQualified(fs).toString();
-    // For compatibility with hadoop 0.17, change file:/a/b/c to file:///a/b/c
-    if (StringUtils.startsWith(file, "file:/") && !StringUtils.startsWith(file, "file:///")) {
-      file = "file:///" + file.substring("file:/".length());
-    }
     return file;
   }
 
@@ -1913,6 +1937,26 @@ public final class Utilities {
   }
 
   /**
+   * Create a URL from a string representing a path to a local file.
+   * The path string can be just a path, or can start with file:/, file:///
+   * @param onestr  path string
+   * @return
+   */
+  private static URL urlFromPathString(String onestr) {
+    URL oneurl = null;
+    try {
+      if (StringUtils.indexOf(onestr, "file:/") == 0) {
+        oneurl = new URL(onestr);
+      } else {
+        oneurl = new File(onestr).toURL();
+      }
+    } catch (Exception err) {
+      LOG.error("Bad URL " + onestr + ", ignoring path");
+    }
+    return oneurl;
+  }
+
+  /**
    * Add new elements to the classpath.
    *
    * @param newPaths
@@ -1930,13 +1974,8 @@ public final class Utilities {
     curPath = newPath;
 
     for (String onestr : newPaths) {
-      // special processing for hadoop-17. file:// needs to be removed
-      if (StringUtils.indexOf(onestr, "file://") == 0) {
-        onestr = StringUtils.substring(onestr, 7);
-      }
-
-      URL oneurl = (new File(onestr)).toURL();
-      if (!curPath.contains(oneurl)) {
+      URL oneurl = urlFromPathString(onestr);
+      if (oneurl != null && !curPath.contains(oneurl)) {
         curPath.add(oneurl);
       }
     }
@@ -1956,13 +1995,10 @@ public final class Utilities {
     Set<URL> newPath = new HashSet<URL>(Arrays.asList(loader.getURLs()));
 
     for (String onestr : pathsToRemove) {
-      // special processing for hadoop-17. file:// needs to be removed
-      if (StringUtils.indexOf(onestr, "file://") == 0) {
-        onestr = StringUtils.substring(onestr, 7);
+      URL oneurl = urlFromPathString(onestr);
+      if (oneurl != null) {
+        newPath.remove(oneurl);
       }
-
-      URL oneurl = (new File(onestr)).toURL();
-      newPath.remove(oneurl);
     }
 
     loader = new URLClassLoader(newPath.toArray(new URL[0]));
@@ -3046,7 +3082,7 @@ public final class Utilities {
           throws IOException, InstantiationException, IllegalAccessException {
 
     // create a dummy empty file in a new directory
-    String newDir = hiveScratchDir + File.separator + sequenceNumber;
+    String newDir = hiveScratchDir + Path.SEPARATOR + sequenceNumber;
     Path newPath = new Path(newDir);
     FileSystem fs = newPath.getFileSystem(job);
     fs.mkdirs(newPath);
@@ -3054,7 +3090,7 @@ public final class Utilities {
     //in the file status. This makes sure that all paths which goes into PathToPartitionInfo are always listed status
     //file path.
     newPath = fs.makeQualified(newPath);
-    String newFile = newDir + File.separator + "emptyFile";
+    String newFile = newDir + Path.SEPARATOR + "emptyFile";
     Path newFilePath = new Path(newFile);
 
     RecordWriter recWriter = outFileFormat.newInstance().getHiveRecordWriter(job, newFilePath,
@@ -3273,7 +3309,19 @@ public final class Utilities {
     return false;
   }
 
-    public static void clearWorkMap() {
+  public static void clearWorkMapForConf(Configuration conf) {
+    // Remove cached query plans for the current query only
+    Path mapPath = getPlanPath(conf, MAP_PLAN_NAME);
+    Path reducePath = getPlanPath(conf, REDUCE_PLAN_NAME);
+    if (mapPath != null) {
+      gWorkMap.remove(mapPath);
+    }
+    if (reducePath != null) {
+      gWorkMap.remove(reducePath);
+    }
+  }
+
+  public static void clearWorkMap() {
     gWorkMap.clear();
   }
 
@@ -3399,9 +3447,24 @@ public final class Utilities {
     return createDirsWithPermission(conf, mkdir, fsPermission, recursive);
   }
 
-  public static boolean createDirsWithPermission(Configuration conf, Path mkdir,
+  private static void resetConfAndCloseFS (Configuration conf, boolean unsetUmask, 
+      String origUmask, FileSystem fs) throws IOException {
+    if (unsetUmask) {
+      if (origUmask != null) {
+        conf.set("fs.permissions.umask-mode", origUmask);
+      } else {
+        conf.unset("fs.permissions.umask-mode");
+      }
+    }
+
+    fs.close();
+  }
+
+  public static boolean createDirsWithPermission(Configuration conf, Path mkdirPath,
       FsPermission fsPermission, boolean recursive) throws IOException {
     String origUmask = null;
+    LOG.debug("Create dirs " + mkdirPath + " with permission " + fsPermission + " recursive " +
+        recursive);
 
     if (recursive) {
       origUmask = conf.get("fs.permissions.umask-mode");
@@ -3410,16 +3473,53 @@ public final class Utilities {
       conf.set("fs.permissions.umask-mode", "000");
     }
 
-    FileSystem fs = mkdir.getFileSystem(conf);
-    boolean retval = fs.mkdirs(mkdir, fsPermission);
-
-    if (recursive) {
-      if (origUmask != null) {
-        conf.set("fs.permissions.umask-mode", origUmask);
-      } else {
-        conf.unset("fs.permissions.umask-mode");
+    FileSystem fs = ShimLoader.getHadoopShims().getNonCachedFileSystem(mkdirPath.toUri(), conf);
+    boolean retval = false;
+    try {
+      retval = fs.mkdirs(mkdirPath, fsPermission);
+      resetConfAndCloseFS(conf, recursive, origUmask, fs);
+    } catch (IOException ioe) {
+      try {
+        resetConfAndCloseFS(conf, recursive, origUmask, fs);
+      }
+      catch (IOException e) {
+        // do nothing - double failure
       }
     }
     return retval;
+  }
+
+
+  /**
+   * Convert path to qualified path.
+   *
+   * @param conf
+   *          Hive configuration.
+   * @param path
+   *          Path to convert.
+   * @return Qualified path
+   */
+  public static String getQualifiedPath(HiveConf conf, Path path) throws HiveException {
+    FileSystem fs;
+    if (path == null) {
+      return null;
+    }
+
+    try {
+      fs = path.getFileSystem(conf);
+      return fs.makeQualified(path).toString();
+    }
+    catch (IOException e) {
+      throw new HiveException(e);
+    }
+  }
+
+  /**
+   * Checks if current hive script was executed with non-default namenode
+   *
+   * @return True/False
+   */
+  public static boolean isDefaultNameNode(HiveConf conf) {
+    return !conf.getChangedProperties().containsKey(HiveConf.ConfVars.HADOOPFS.varname);
   }
 }

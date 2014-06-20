@@ -18,7 +18,7 @@ WHERE rand() > 0.5
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -52,14 +52,13 @@ STAGE PLANS:
                 sort order: +
                 Map-reduce partition columns: _col0 (type: string)
                 Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-                value expressions: _col0 (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col3
           Statistics: Num rows: 63 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
           Filter Operator
@@ -80,6 +79,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: EXPLAIN
 SELECT src1.c1, src2.c4 
@@ -101,7 +102,7 @@ WHERE rand() > 0.5
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -135,14 +136,13 @@ STAGE PLANS:
                 sort order: +
                 Map-reduce partition columns: _col0 (type: string)
                 Statistics: Num rows: 58 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
-                value expressions: _col0 (type: string)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col3
           Statistics: Num rows: 63 Data size: 6393 Basic stats: COMPLETE Column stats: NONE
           Filter Operator
@@ -163,4 +163,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 

@@ -27,7 +27,6 @@ import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.security.PrivilegedExceptionAction;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -481,6 +480,35 @@ public interface HadoopShims {
    */
   public void hflush(FSDataOutputStream stream) throws IOException;
 
+  /**
+   * For a given file, return a file status
+   * @param conf
+   * @param fs
+   * @param file
+   * @return
+   * @throws IOException
+   */
+  public HdfsFileStatus getFullFileStatus(Configuration conf, FileSystem fs, Path file) throws IOException;
+
+  /**
+   * For a given file, set a given file status.
+   * @param conf
+   * @param sourceStatus
+   * @param fs
+   * @param target
+   * @throws IOException
+   */
+  public void setFullFileStatus(Configuration conf, HdfsFileStatus sourceStatus,
+    FileSystem fs, Path target) throws IOException;
+
+  /**
+   * Includes the vanilla FileStatus, and AclStatus if it applies to this version of hadoop.
+   */
+  public interface HdfsFileStatus {
+    public FileStatus getFileStatus();
+    public void debugLog();
+  }
+
   public HCatHadoopShims getHCatShim();
   public interface HCatHadoopShims {
 
@@ -553,6 +581,11 @@ public interface HadoopShims {
      * Assumes that both parameters are not {@code null}.
      */
     public void addCacheFile(URI uri, Job job);
+    /**
+     * Kills all jobs tagged with the given tag that have been started after the
+     * given timestamp.
+     */
+    public void killJobs(String tag, long timestamp);
   }
 
   /**
@@ -631,4 +664,9 @@ public interface HadoopShims {
    * Get configuration from JobContext
    */
   public Configuration getConfiguration(JobContext context);
+
+  public FileSystem getNonCachedFileSystem(URI uri, Configuration conf) throws IOException;
+
+  public void getMergedCredentials(JobConf jobConf) throws IOException;
+
 }

@@ -619,12 +619,17 @@ statement
 explainStatement
 @init { pushMsg("explain statement", state); }
 @after { popMsg(state); }
-	: KW_EXPLAIN 
-	  ( (explainOptions=KW_EXTENDED|explainOptions=KW_FORMATTED|explainOptions=KW_DEPENDENCY|explainOptions=KW_LOGICAL)? execStatement
-          -> ^(TOK_EXPLAIN execStatement $explainOptions?) |
-      KW_REWRITE queryStatementExpression[true] -> ^(TOK_EXPLAIN_SQ_REWRITE queryStatementExpression)
-    )
+	: KW_EXPLAIN (
+	    explainOption* execStatement -> ^(TOK_EXPLAIN execStatement explainOption*)
+        |
+        KW_REWRITE queryStatementExpression[true] -> ^(TOK_EXPLAIN_SQ_REWRITE queryStatementExpression))
 	;
+
+explainOption
+@init { msgs.push("explain option"); }
+@after { msgs.pop(); }
+    : KW_EXTENDED|KW_FORMATTED|KW_DEPENDENCY|KW_LOGICAL|KW_AUTHORIZATION
+    ;
 
 execStatement
 @init { pushMsg("statement", state); }
@@ -1265,8 +1270,8 @@ fileFormat
     | KW_RCFILE  -> ^(TOK_TBLRCFILE)
     | KW_ORCFILE -> ^(TOK_TBLORCFILE)
     | KW_PARQUETFILE -> ^(TOK_TBLPARQUETFILE)
-    | KW_INPUTFORMAT inFmt=StringLiteral KW_OUTPUTFORMAT outFmt=StringLiteral (KW_INPUTDRIVER inDriver=StringLiteral KW_OUTPUTDRIVER outDriver=StringLiteral)?
-      -> ^(TOK_TABLEFILEFORMAT $inFmt $outFmt $inDriver? $outDriver?)
+    | KW_INPUTFORMAT inFmt=StringLiteral KW_OUTPUTFORMAT outFmt=StringLiteral KW_SERDE serdeCls=StringLiteral (KW_INPUTDRIVER inDriver=StringLiteral KW_OUTPUTDRIVER outDriver=StringLiteral)?
+      -> ^(TOK_TABLEFILEFORMAT $inFmt $outFmt $serdeCls $inDriver? $outDriver?)
     | genericSpec=identifier -> ^(TOK_FILEFORMAT_GENERIC $genericSpec)
     ;
 
@@ -1307,7 +1312,9 @@ descStatement
 analyzeStatement
 @init { pushMsg("analyze statement", state); }
 @after { popMsg(state); }
-    : KW_ANALYZE KW_TABLE (parttype=tableOrPartition) KW_COMPUTE KW_STATISTICS ((noscan=KW_NOSCAN) | (partialscan=KW_PARTIALSCAN) | (KW_FOR KW_COLUMNS statsColumnName=columnNameList))? -> ^(TOK_ANALYZE $parttype $noscan? $partialscan? $statsColumnName?)
+    : KW_ANALYZE KW_TABLE (parttype=tableOrPartition) KW_COMPUTE KW_STATISTICS ((noscan=KW_NOSCAN) | (partialscan=KW_PARTIALSCAN) 
+                                                      | (KW_FOR KW_COLUMNS (statsColumnName=columnNameList)?))?
+      -> ^(TOK_ANALYZE $parttype $noscan? $partialscan? KW_COLUMNS? $statsColumnName?)
     ;
 
 showStatement

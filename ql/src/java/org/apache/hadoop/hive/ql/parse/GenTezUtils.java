@@ -33,6 +33,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.FetchTask;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.HashTableDummyOperator;
@@ -42,14 +43,14 @@ import org.apache.hadoop.hive.ql.exec.UnionOperator;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.optimizer.GenMapRedUtils;
 import org.apache.hadoop.hive.ql.plan.BaseWork;
+import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.MapWork;
 import org.apache.hadoop.hive.ql.plan.OperatorDesc;
-import org.apache.hadoop.hive.ql.plan.FileSinkDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceWork;
 import org.apache.hadoop.hive.ql.plan.TezEdgeProperty;
+import org.apache.hadoop.hive.ql.plan.TezEdgeProperty.EdgeType;
 import org.apache.hadoop.hive.ql.plan.TezWork;
 import org.apache.hadoop.hive.ql.plan.UnionWork;
-import org.apache.hadoop.hive.ql.plan.TezEdgeProperty.EdgeType;
 
 /**
  * GenTezUtils is a collection of shared helper methods to produce
@@ -88,6 +89,15 @@ public class GenTezUtils {
 
   public ReduceWork createReduceWork(GenTezProcContext context, Operator<?> root, TezWork tezWork) {
     assert !root.getParentOperators().isEmpty();
+
+    boolean isAutoReduceParallelism =
+        context.conf.getBoolVar(HiveConf.ConfVars.TEZ_AUTO_REDUCER_PARALLELISM);
+
+    float maxPartitionFactor =
+        context.conf.getFloatVar(HiveConf.ConfVars.TEZ_MAX_PARTITION_FACTOR);
+    float minPartitionFactor = context.conf.getFloatVar(HiveConf.ConfVars.TEZ_MIN_PARTITION_FACTOR);
+    long bytesPerReducer = context.conf.getLongVar(HiveConf.ConfVars.BYTESPERREDUCER);
+
     ReduceWork reduceWork = new ReduceWork("Reducer "+ (++sequenceNumber));
     LOG.debug("Adding reduce work (" + reduceWork.getName() + ") for " + root);
     reduceWork.setReducer(root);
@@ -102,10 +112,38 @@ public class GenTezUtils {
 
     reduceWork.setNumReduceTasks(reduceSink.getConf().getNumReducers());
 
+    if (isAutoReduceParallelism && reduceSink.getConf().isAutoParallel()) {
+      reduceWork.setAutoReduceParallelism(true);
+
+      // configured limit for reducers
+      int maxReducers = context.conf.getIntVar(HiveConf.ConfVars.MAXREDUCERS);
+
+      // min we allow tez to pick
+      int minPartition = Math.max(1, (int) (reduceSink.getConf().getNumReducers() 
+        * minPartitionFactor));
+      minPartition = (minPartition > maxReducers) ? maxReducers : minPartition;
+
+      // max we allow tez to pick
+      int maxPartition = (int) (reduceSink.getConf().getNumReducers() * maxPartitionFactor); 
+      maxPartition = (maxPartition > maxReducers) ? maxReducers : maxPartition;
+
+      reduceWork.setMinReduceTasks(minPartition);
+      reduceWork.setMaxReduceTasks(maxPartition);
+    }
+
     setupReduceSink(context, reduceWork, reduceSink);
 
     tezWork.add(reduceWork);
-    TezEdgeProperty edgeProp = new TezEdgeProperty(EdgeType.SIMPLE_EDGE);
+
+    TezEdgeProperty edgeProp;
+    if (reduceWork.isAutoReduceParallelism()) {
+      edgeProp =
+          new TezEdgeProperty(context.conf, EdgeType.SIMPLE_EDGE, true,
+              reduceWork.getMinReduceTasks(), reduceWork.getMaxReduceTasks(), bytesPerReducer);
+    } else {
+      edgeProp = new TezEdgeProperty(EdgeType.SIMPLE_EDGE);
+    }
+
     tezWork.connect(
         context.preceedingWork,
         reduceWork, edgeProp);
@@ -280,6 +318,13 @@ public class GenTezUtils {
       GenMapRedUtils.createMRWorkForMergingFiles(fileSink, finalName,
           context.dependencyTask, context.moveTask,
           hconf, context.currentTask);
+    }
+
+    FetchTask fetchTask = parseContext.getFetchTask();
+    if (fetchTask != null && context.currentTask.getNumChild() == 0) {
+      if (fetchTask.isFetchFrom(fileSink.getConf())) {
+        context.currentTask.setFetchSource(true);
+      }
     }
   }
 }

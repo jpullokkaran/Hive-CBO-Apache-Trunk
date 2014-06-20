@@ -94,8 +94,6 @@ POSTHOOK: query: -- stats are disabled. basic stats will report the file size bu
 -- basicStatState: PARTIAL colStatState: NONE
 explain extended select * from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -140,16 +138,12 @@ analyze table emp_orc compute statistics
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@emp_orc
 POSTHOOK: Output: default@emp_orc
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 PREHOOK: query: -- basicStatState: COMPLETE colStatState: NONE
 explain extended select * from emp_orc
 PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: NONE
 explain extended select * from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -194,16 +188,12 @@ analyze table emp_orc compute statistics for columns deptid
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@emp_orc
 #### A masked pattern was here ####
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 PREHOOK: query: -- basicStatState: COMPLETE colStatState: PARTIAL
 explain extended select * from emp_orc
 PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: PARTIAL
 explain extended select * from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -246,8 +236,6 @@ POSTHOOK: query: -- all selected columns have statistics
 -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select deptid from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -267,7 +255,7 @@ TOK_QUERY
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -357,6 +345,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- column level complete statistics
 analyze table emp_orc compute statistics for columns lastname,deptid
@@ -368,16 +358,12 @@ analyze table emp_orc compute statistics for columns lastname,deptid
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@emp_orc
 #### A masked pattern was here ####
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 PREHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select * from emp_orc
 PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select * from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -418,8 +404,6 @@ PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select lastname from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -439,7 +423,7 @@ TOK_QUERY
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -529,6 +513,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select deptid from emp_orc
@@ -536,8 +522,6 @@ PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select deptid from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -557,7 +541,7 @@ TOK_QUERY
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -647,6 +631,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select lastname,deptid from emp_orc
@@ -654,8 +640,6 @@ PREHOOK: type: QUERY
 POSTHOOK: query: -- basicStatState: COMPLETE colStatState: COMPLETE
 explain extended select lastname,deptid from emp_orc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: emp_orc.deptid SIMPLE [(emp_staging)emp_staging.FieldSchema(name:deptid, type:int, comment:null), ]
-POSTHOOK: Lineage: emp_orc.lastname SIMPLE [(emp_staging)emp_staging.FieldSchema(name:lastname, type:string, comment:null), ]
 ABSTRACT SYNTAX TREE:
   
 TOK_QUERY
@@ -678,7 +662,7 @@ TOK_QUERY
 
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -768,4 +752,6 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 

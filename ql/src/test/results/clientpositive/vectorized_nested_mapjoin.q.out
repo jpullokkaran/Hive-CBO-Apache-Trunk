@@ -5,7 +5,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-7 is a root stage
   Stage-2 depends on stages: Stage-7
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-2
 
 STAGE PLANS:
   Stage: Stage-7
@@ -24,7 +24,7 @@ STAGE PLANS:
             Statistics: Num rows: 23577 Data size: 377237 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {ctinyint} {csmallint} {cdouble}
+                0 {csmallint} {cdouble}
                 1 {ctinyint}
               keys:
                 0 ctinyint (type: tinyint)
@@ -113,6 +113,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: select sum(t1.td) from (select  v1.csmallint as tsi, v1.cdouble as td from alltypesorc v1, alltypesorc v2 where v1.ctinyint=v2.ctinyint) t1 join alltypesorc v3 on t1.tsi=v3.csmallint
 PREHOOK: type: QUERY

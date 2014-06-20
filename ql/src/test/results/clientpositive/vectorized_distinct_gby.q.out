@@ -19,11 +19,9 @@ PREHOOK: query: explain select sum(distinct a), count(distinct a) from dtest
 PREHOOK: type: QUERY
 POSTHOOK: query: explain select sum(distinct a), count(distinct a) from dtest
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: dtest.a SIMPLE []
-POSTHOOK: Lineage: dtest.b EXPRESSION []
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -47,7 +45,6 @@ STAGE PLANS:
                   key expressions: _col0 (type: int)
                   sort order: +
                   Statistics: Num rows: 5 Data size: 40 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col1 (type: bigint), _col2 (type: bigint)
       Execution mode: vectorized
       Reduce Operator Tree:
         Group By Operator
@@ -70,6 +67,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: select sum(distinct a), count(distinct a) from dtest
 PREHOOK: type: QUERY
@@ -79,18 +78,14 @@ POSTHOOK: query: select sum(distinct a), count(distinct a) from dtest
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@dtest
 #### A masked pattern was here ####
-POSTHOOK: Lineage: dtest.a SIMPLE []
-POSTHOOK: Lineage: dtest.b EXPRESSION []
 300	1
 PREHOOK: query: explain select sum(distinct cint), count(distinct cint), avg(distinct cint), std(distinct cint) from alltypesorc
 PREHOOK: type: QUERY
 POSTHOOK: query: explain select sum(distinct cint), count(distinct cint), avg(distinct cint), std(distinct cint) from alltypesorc
 POSTHOOK: type: QUERY
-POSTHOOK: Lineage: dtest.a SIMPLE []
-POSTHOOK: Lineage: dtest.b EXPRESSION []
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -113,7 +108,6 @@ STAGE PLANS:
                   key expressions: _col0 (type: int)
                   sort order: +
                   Statistics: Num rows: 94309 Data size: 377237 Basic stats: COMPLETE Column stats: NONE
-                  value expressions: _col1 (type: bigint), _col2 (type: bigint), _col3 (type: struct<count:bigint,sum:double,input:int>), _col4 (type: struct<count:bigint,sum:double,variance:double>)
       Execution mode: vectorized
       Reduce Operator Tree:
         Group By Operator
@@ -136,6 +130,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: select sum(distinct cint), count(distinct cint), avg(distinct cint), std(distinct cint) from alltypesorc
 PREHOOK: type: QUERY
@@ -145,6 +141,4 @@ POSTHOOK: query: select sum(distinct cint), count(distinct cint), avg(distinct c
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@alltypesorc
 #### A masked pattern was here ####
-POSTHOOK: Lineage: dtest.a SIMPLE []
-POSTHOOK: Lineage: dtest.b EXPRESSION []
 -3482841611	6082	-572647.4204209142	6.153814687328991E8

@@ -23,7 +23,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,9 +39,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.common.type.HiveChar;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
-import org.apache.hadoop.hive.common.type.HiveVarchar;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
@@ -57,8 +54,10 @@ import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.HiveCharWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.HiveVarcharWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
+import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.typeinfo.HiveDecimalUtils;
 import org.apache.hadoop.hive.shims.HadoopShims.ByteBufferPoolShim;
 import org.apache.hadoop.hive.shims.HadoopShims.ZeroCopyReaderShim;
@@ -746,9 +745,11 @@ class RecordReaderImpl implements RecordReader {
 
   private static class FloatTreeReader extends TreeReader{
     private InStream stream;
+    private final SerializationUtils utils;
 
     FloatTreeReader(Path path, int columnId, Configuration conf) {
       super(path, columnId, conf);
+      this.utils = new SerializationUtils();
     }
 
     @Override
@@ -777,7 +778,7 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (FloatWritable) previous;
         }
-        result.set(SerializationUtils.readFloat(stream));
+        result.set(utils.readFloat(stream));
       }
       return result;
     }
@@ -797,7 +798,7 @@ class RecordReaderImpl implements RecordReader {
       // Read value entries based on isNull entries
       for (int i = 0; i < batchSize; i++) {
         if (!result.isNull[i]) {
-          result.vector[i] = SerializationUtils.readFloat(stream);
+          result.vector[i] = utils.readFloat(stream);
         } else {
 
           // If the value is not present then set NaN
@@ -819,16 +820,18 @@ class RecordReaderImpl implements RecordReader {
     void skipRows(long items) throws IOException {
       items = countNonNulls(items);
       for(int i=0; i < items; ++i) {
-        SerializationUtils.readFloat(stream);
+        utils.readFloat(stream);
       }
     }
   }
 
   private static class DoubleTreeReader extends TreeReader{
     private InStream stream;
+    private final SerializationUtils utils;
 
     DoubleTreeReader(Path path, int columnId, Configuration conf) {
       super(path, columnId, conf);
+      this.utils = new SerializationUtils();
     }
 
     @Override
@@ -858,7 +861,7 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (DoubleWritable) previous;
         }
-        result.set(SerializationUtils.readDouble(stream));
+        result.set(utils.readDouble(stream));
       }
       return result;
     }
@@ -878,7 +881,7 @@ class RecordReaderImpl implements RecordReader {
       // Read value entries based on isNull entries
       for (int i = 0; i < batchSize; i++) {
         if (!result.isNull[i]) {
-          result.vector[i] = SerializationUtils.readDouble(stream);
+          result.vector[i] = utils.readDouble(stream);
         } else {
           // If the value is not present then set NaN
           result.vector[i] = Double.NaN;
@@ -1021,13 +1024,14 @@ class RecordReaderImpl implements RecordReader {
     @Override
     Object next(Object previous) throws IOException {
       super.next(previous);
-      Timestamp result = null;
+      TimestampWritable result = null;
       if (valuePresent) {
         if (previous == null) {
-          result = new Timestamp(0);
+          result = new TimestampWritable();
         } else {
-          result = (Timestamp) previous;
+          result = (TimestampWritable) previous;
         }
+        Timestamp ts = new Timestamp(0);
         long millis = (data.next() + WriterImpl.BASE_TIMESTAMP) *
             WriterImpl.MILLIS_PER_SECOND;
         int newNanos = parseNanos(nanos.next());
@@ -1037,8 +1041,9 @@ class RecordReaderImpl implements RecordReader {
         } else {
           millis -= newNanos / 1000000;
         }
-        result.setTime(millis);
-        result.setNanos(newNanos);
+        ts.setTime(millis);
+        ts.setNanos(newNanos);
+        result.set(ts);
       }
       return result;
     }
@@ -1144,14 +1149,14 @@ class RecordReaderImpl implements RecordReader {
     @Override
     Object next(Object previous) throws IOException {
       super.next(previous);
-      Date result = null;
+      DateWritable result = null;
       if (valuePresent) {
         if (previous == null) {
-          result = new Date(0);
+          result = new DateWritable();
         } else {
-          result = (Date) previous;
+          result = (DateWritable) previous;
         }
-        result.setTime(DateWritable.daysToMillis((int) reader.next()));
+        result.set((int) reader.next());
       }
       return result;
     }
@@ -1223,10 +1228,16 @@ class RecordReaderImpl implements RecordReader {
     @Override
     Object next(Object previous) throws IOException {
       super.next(previous);
+      HiveDecimalWritable result = null;
       if (valuePresent) {
-        HiveDecimal dec = HiveDecimal.create(SerializationUtils.readBigInteger(valueStream),
-            (int) scaleStream.next());
-        return HiveDecimalUtils.enforcePrecisionScale(dec, precision, scale);
+        if (previous == null) {
+          result = new HiveDecimalWritable();
+        } else {
+          result = (HiveDecimalWritable) previous;
+        }
+        result.set(HiveDecimal.create(SerializationUtils.readBigInteger(valueStream),
+            (int) scaleStream.next()));
+        return HiveDecimalUtils.enforcePrecisionScale(result, precision, scale);
       }
       return null;
     }
@@ -2641,6 +2652,8 @@ class RecordReaderImpl implements RecordReader {
       case LIST:
       case UNION:
         return base;
+      case CHAR:
+      case VARCHAR:
       case STRING:
         if (encoding == OrcProto.ColumnEncoding.Kind.DICTIONARY ||
             encoding == OrcProto.ColumnEncoding.Kind.DICTIONARY_V2) {

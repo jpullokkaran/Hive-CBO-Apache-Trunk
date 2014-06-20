@@ -190,8 +190,8 @@ public class HiveConf extends Configuration {
     COMPRESSINTERMEDIATE("hive.exec.compress.intermediate", false),
     COMPRESSINTERMEDIATECODEC("hive.intermediate.compression.codec", ""),
     COMPRESSINTERMEDIATETYPE("hive.intermediate.compression.type", ""),
-    BYTESPERREDUCER("hive.exec.reducers.bytes.per.reducer", (long) (1000 * 1000 * 1000)),
-    MAXREDUCERS("hive.exec.reducers.max", 999),
+    BYTESPERREDUCER("hive.exec.reducers.bytes.per.reducer", (long) (256 * 1000 * 1000)),
+    MAXREDUCERS("hive.exec.reducers.max", 1009), // pick a prime
     PREEXECHOOKS("hive.exec.pre.hooks", ""),
     POSTEXECHOOKS("hive.exec.post.hooks", ""),
     ONFAILUREHOOKS("hive.exec.failure.hooks", ""),
@@ -275,7 +275,7 @@ public class HiveConf extends Configuration {
     // Number of seconds the client should wait between connection attempts
     METASTORE_CLIENT_CONNECT_RETRY_DELAY("hive.metastore.client.connect.retry.delay", 1),
     // Socket timeout for the client connection (in seconds)
-    METASTORE_CLIENT_SOCKET_TIMEOUT("hive.metastore.client.socket.timeout", 20),
+    METASTORE_CLIENT_SOCKET_TIMEOUT("hive.metastore.client.socket.timeout", 600),
     METASTOREPWD("javax.jdo.option.ConnectionPassword", "mine"),
     // Class name of JDO connection url hook
     METASTORECONNECTURLHOOK("hive.metastore.ds.connection.url.hook", ""),
@@ -456,8 +456,10 @@ public class HiveConf extends Configuration {
     // hive.mapjoin.bucket.cache.size has been replaced by hive.smbjoin.cache.row,
     // need to remove by hive .13. Also, do not change default (see SMB operator)
     HIVEMAPJOINBUCKETCACHESIZE("hive.mapjoin.bucket.cache.size", 100),
+    HIVEMAPJOINUSEOPTIMIZEDTABLE("hive.mapjoin.optimized.hashtable", true),
     HIVEMAPJOINUSEOPTIMIZEDKEYS("hive.mapjoin.optimized.keys", true),
     HIVEMAPJOINLAZYHASHTABLE("hive.mapjoin.lazy.hashtable", true),
+    HIVEHASHTABLEWBSIZE("hive.mapjoin.optimized.hashtable.wbsize", 10 * 1024 * 1024),
 
     HIVESMBJOINCACHEROWS("hive.smbjoin.cache.rows", 10000),
     HIVEGROUPBYMAPINTERVAL("hive.groupby.mapaggr.checkinterval", 100000),
@@ -563,6 +565,9 @@ public class HiveConf extends Configuration {
         true),
     // Define the default compression codec for ORC file
     HIVE_ORC_DEFAULT_COMPRESS("hive.exec.orc.default.compress", "ZLIB"),
+    // Define the default encoding strategy to use
+    HIVE_ORC_ENCODING_STRATEGY("hive.exec.orc.encoding.strategy", "SPEED",
+        new StringsValidator("SPEED", "COMPRESSION")),
     HIVE_ORC_INCLUDE_FILE_FOOTER_IN_SPLITS("hive.orc.splits.include.file.footer", false),
     HIVE_ORC_CACHE_STRIPE_DETAILS_SIZE("hive.orc.cache.stripe.details.size", 10000),
     HIVE_ORC_COMPUTE_SPLITS_NUM_THREADS("hive.orc.compute.splits.num.threads", 10),
@@ -1039,6 +1044,9 @@ public class HiveConf extends Configuration {
     HIVE_CHECK_CROSS_PRODUCT("hive.exec.check.crossproducts", true),
     HIVE_LOCALIZE_RESOURCE_WAIT_INTERVAL("hive.localize.resource.wait.interval", 5000L), // in ms
     HIVE_LOCALIZE_RESOURCE_NUM_WAIT_ATTEMPTS("hive.localize.resource.num.wait.attempts", 5),
+    TEZ_AUTO_REDUCER_PARALLELISM("hive.tez.auto.reducer.parallelism", false),
+    TEZ_MAX_PARTITION_FACTOR("hive.tez.max.partition.factor", 2f),
+    TEZ_MIN_PARTITION_FACTOR("hive.tez.min.partition.factor", 0.25f)
     ;
 
     public final String varname;

@@ -66,7 +66,7 @@ STAGE DEPENDENCIES:
   Stage-8 depends on stages: Stage-11 [MAPRED]
   Stage-3 [MAPRED]
   Stage-5 is a root stage [MAPRED]
-  Stage-0 is a root stage [FETCH]
+  Stage-0 depends on stages: Stage-4 [FETCH]
 
 STAGE PLANS:
   Stage: Stage-1
@@ -167,9 +167,10 @@ STAGE PLANS:
             Reduce Output Operator
               key expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
               sort order: +++
-              value expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: KEY.reducesinkkey0 (type: int), KEY.reducesinkkey1 (type: bigint), KEY.reducesinkkey2 (type: bigint)
+          outputColumnNames: _col0, _col1, _col2
           File Output Operator
             compressed: false
             table:
@@ -188,7 +189,7 @@ STAGE PLANS:
           TableScan
             HashTable Sink Operator
               condition expressions:
-                0 {_col0} {_col1}
+                0 {_col1}
                 1 {_col1}
               keys:
                 0 _col0 (type: int)
@@ -228,7 +229,7 @@ STAGE PLANS:
               key expressions: _col0 (type: int)
               sort order: +
               Map-reduce partition columns: _col0 (type: int)
-              value expressions: _col0 (type: int), _col1 (type: bigint)
+              value expressions: _col1 (type: bigint)
           TableScan
             Reduce Output Operator
               key expressions: _col0 (type: int)
@@ -240,8 +241,8 @@ STAGE PLANS:
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0} {VALUE._col1}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0} {VALUE._col0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col1, _col3
           Select Operator
             expressions: _col0 (type: int), _col1 (type: bigint), _col3 (type: bigint)
@@ -301,6 +302,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- changes id only
 
@@ -352,7 +355,7 @@ STAGE DEPENDENCIES:
   Stage-7 depends on stages: Stage-6 [MAPRED]
   Stage-8 [MAPRED]
   Stage-9 is a root stage [MAPRED]
-  Stage-10 is a root stage [FETCH]
+  Stage-10 depends on stages: Stage-5 [FETCH]
 
 STAGE PLANS:
   Stage: Stage-1
@@ -453,9 +456,10 @@ STAGE PLANS:
             Reduce Output Operator
               key expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
               sort order: +++
-              value expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: KEY.reducesinkkey0 (type: int), KEY.reducesinkkey1 (type: bigint), KEY.reducesinkkey2 (type: bigint)
+          outputColumnNames: _col0, _col1, _col2
           File Output Operator
             compressed: false
             table:
@@ -474,7 +478,7 @@ STAGE PLANS:
           TableScan
             HashTable Sink Operator
               condition expressions:
-                0 {_col0} {_col1}
+                0 {_col1}
                 1 {_col1}
               keys:
                 0 _col0 (type: int)
@@ -514,7 +518,7 @@ STAGE PLANS:
               key expressions: _col0 (type: int)
               sort order: +
               Map-reduce partition columns: _col0 (type: int)
-              value expressions: _col0 (type: int), _col1 (type: bigint)
+              value expressions: _col1 (type: bigint)
           TableScan
             Reduce Output Operator
               key expressions: _col0 (type: int)
@@ -526,8 +530,8 @@ STAGE PLANS:
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0} {VALUE._col1}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0} {VALUE._col0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col1, _col3
           Select Operator
             expressions: _col0 (type: int), _col1 (type: bigint), _col3 (type: bigint)
@@ -587,6 +591,8 @@ STAGE PLANS:
   Stage: Stage-10
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- assign ids in traverse order
 
@@ -638,7 +644,7 @@ STAGE DEPENDENCIES:
   Stage-7 depends on stages: Stage-6 [MAPRED]
   Stage-8 [MAPRED]
   Stage-9 depends on stages: Stage-8, Stage-5, Stage-7 [MAPRED]
-  Stage-10 is a root stage [FETCH]
+  Stage-10 depends on stages: Stage-9 [FETCH]
 
 STAGE PLANS:
   Stage: Stage-1
@@ -788,7 +794,7 @@ STAGE PLANS:
           TableScan
             HashTable Sink Operator
               condition expressions:
-                0 {_col0} {_col1}
+                0 {_col1}
                 1 {_col1}
               keys:
                 0 _col0 (type: int)
@@ -828,7 +834,7 @@ STAGE PLANS:
               key expressions: _col0 (type: int)
               sort order: +
               Map-reduce partition columns: _col0 (type: int)
-              value expressions: _col0 (type: int), _col1 (type: bigint)
+              value expressions: _col1 (type: bigint)
           TableScan
             Reduce Output Operator
               key expressions: _col0 (type: int)
@@ -840,8 +846,8 @@ STAGE PLANS:
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0} {VALUE._col1}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0} {VALUE._col0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col1, _col3
           Select Operator
             expressions: _col0 (type: int), _col1 (type: bigint), _col3 (type: bigint)
@@ -860,9 +866,10 @@ STAGE PLANS:
             Reduce Output Operator
               key expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
               sort order: +++
-              value expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: KEY.reducesinkkey0 (type: int), KEY.reducesinkkey1 (type: bigint), KEY.reducesinkkey2 (type: bigint)
+          outputColumnNames: _col0, _col1, _col2
           File Output Operator
             compressed: false
             table:
@@ -873,6 +880,8 @@ STAGE PLANS:
   Stage: Stage-10
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: -- assign ids in execution order
 
@@ -924,7 +933,7 @@ STAGE DEPENDENCIES:
   Stage-7 depends on stages: Stage-4 [MAPRED]
   Stage-8 depends on stages: Stage-5 [MAPRED]
   Stage-9 depends on stages: Stage-6, Stage-7, Stage-8 [MAPRED]
-  Stage-10 is a root stage [FETCH]
+  Stage-10 depends on stages: Stage-9 [FETCH]
 
 STAGE PLANS:
   Stage: Stage-1
@@ -1048,7 +1057,7 @@ STAGE PLANS:
           TableScan
             HashTable Sink Operator
               condition expressions:
-                0 {_col0} {_col1}
+                0 {_col1}
                 1 {_col1}
               keys:
                 0 _col0 (type: int)
@@ -1062,7 +1071,7 @@ STAGE PLANS:
               key expressions: _col0 (type: int)
               sort order: +
               Map-reduce partition columns: _col0 (type: int)
-              value expressions: _col0 (type: int), _col1 (type: bigint)
+              value expressions: _col1 (type: bigint)
           TableScan
             Reduce Output Operator
               key expressions: _col0 (type: int)
@@ -1074,8 +1083,8 @@ STAGE PLANS:
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0} {VALUE._col1}
-            1 {VALUE._col1}
+            0 {KEY.reducesinkkey0} {VALUE._col0}
+            1 {VALUE._col0}
           outputColumnNames: _col0, _col1, _col3
           Select Operator
             expressions: _col0 (type: int), _col1 (type: bigint), _col3 (type: bigint)
@@ -1146,9 +1155,10 @@ STAGE PLANS:
             Reduce Output Operator
               key expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
               sort order: +++
-              value expressions: _col0 (type: int), _col1 (type: bigint), _col2 (type: bigint)
       Reduce Operator Tree:
-        Extract
+        Select Operator
+          expressions: KEY.reducesinkkey0 (type: int), KEY.reducesinkkey1 (type: bigint), KEY.reducesinkkey2 (type: bigint)
+          outputColumnNames: _col0, _col1, _col2
           File Output Operator
             compressed: false
             table:
@@ -1159,4 +1169,6 @@ STAGE PLANS:
   Stage: Stage-10
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 

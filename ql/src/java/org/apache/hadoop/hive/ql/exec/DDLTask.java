@@ -38,13 +38,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -62,6 +61,7 @@ import org.apache.hadoop.hive.metastore.ProtectMode;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.GetOpenTxnsInfoResponse;
@@ -92,6 +92,7 @@ import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.exec.ArchiveUtils.PartSpecInfo;
 import org.apache.hadoop.hive.ql.hooks.ReadEntity;
 import org.apache.hadoop.hive.ql.hooks.WriteEntity;
+import org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.BlockMergeTask;
 import org.apache.hadoop.hive.ql.io.rcfile.merge.MergeWork;
 import org.apache.hadoop.hive.ql.io.rcfile.truncate.ColumnTruncateTask;
@@ -116,7 +117,6 @@ import org.apache.hadoop.hive.ql.metadata.formatting.MetaDataFormatUtils;
 import org.apache.hadoop.hive.ql.metadata.formatting.MetaDataFormatter;
 import org.apache.hadoop.hive.ql.parse.AlterTablePartMergeFilesDesc;
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer;
-import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc;
 import org.apache.hadoop.hive.ql.plan.AlterDatabaseDesc;
 import org.apache.hadoop.hive.ql.plan.AlterIndexDesc;
@@ -600,14 +600,9 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         Database dbObj = null;
 
         if (hiveObjectDesc.getTable()) {
-          String[] dbTab = obj.split("\\.");
-          if (dbTab.length == 2) {
-            dbName = dbTab[0];
-            tableName = dbTab[1];
-          } else {
-            dbName = SessionState.get().getCurrentDatabase();
-            tableName = obj;
-          }
+          String[] dbTab = splitTableName(obj);
+          dbName = dbTab[0];
+          tableName = dbTab[1];
           dbObj = db.getDatabase(dbName);
           tableObj = db.getTable(dbName, tableName);
           notFound = (dbObj == null || tableObj == null);
@@ -667,6 +662,19 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       throw new HiveException(e);
     }
     return 0;
+  }
+
+  private static String[] splitTableName(String fullName) {
+    String[] dbTab = fullName.split("\\.");
+    String[] result = new String[2];
+    if (dbTab.length == 2) {
+      result[0] = dbTab[0];
+      result[1] = dbTab[1];
+    } else {
+      result[0] = SessionState.get().getCurrentDatabase();
+      result[1] = fullName;
+    }
+    return result;
   }
 
   private int showGrantsV2(ShowGrantDesc showGrantDesc) throws HiveException {
@@ -1106,6 +1114,16 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       validateSerDe(crtIndex.getSerde());
     }
 
+    String indexTableName =
+      crtIndex.getIndexTableName() != null ? crtIndex.getIndexTableName() :
+        MetaStoreUtils.getIndexTableName(SessionState.get().getCurrentDatabase(),
+             crtIndex.getTableName(), crtIndex.getIndexName());
+
+    if (!Utilities.isDefaultNameNode(conf)) {
+      // If location is specified - ensure that it is a full qualified name
+      makeLocationQualified(crtIndex, indexTableName);
+    }
+
     db
     .createIndex(
         crtIndex.getTableName(), crtIndex.getIndexName(), crtIndex.getIndexTypeHandlerClass(),
@@ -1116,10 +1134,6 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         crtIndex.getLineDelim(), crtIndex.getMapKeyDelim(), crtIndex.getIndexComment()
         );
     if (HiveUtils.getIndexHandler(conf, crtIndex.getIndexTypeHandlerClass()).usesIndexTable()) {
-      String indexTableName =
-          crtIndex.getIndexTableName() != null ? crtIndex.getIndexTableName() :
-            MetaStoreUtils.getIndexTableName(SessionState.get().getCurrentDatabase(),
-                crtIndex.getTableName(), crtIndex.getIndexName());
           Table indexTable = db.getTable(indexTableName);
           work.getOutputs().add(new WriteEntity(indexTable, WriteEntity.WriteType.DDL_NO_LOCK));
     }
@@ -2186,6 +2200,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     final String ROW_FORMAT = "row_format";
     final String TBL_LOCATION = "tbl_location";
     final String TBL_PROPERTIES = "tbl_properties";
+    boolean isHbaseTable = false;
+    StringBuilder createTab_str = new StringBuilder();
 
     String tableName = showCreateTbl.getTableName();
     Table tbl = db.getTable(tableName, false);
@@ -2196,6 +2212,10 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       FileSystem fs = resFile.getFileSystem(conf);
       outStream = fs.create(resFile);
 
+      if (tbl.getStorageHandler() != null) {
+        isHbaseTable = tbl.getStorageHandler().toString().equals("org.apache.hadoop.hive.hbase.HBaseStorageHandler");
+      }
+
       if (tbl.isView()) {
         String createTab_stmt = "CREATE VIEW `" + tableName + "` AS " + tbl.getViewExpandedText();
         outStream.writeBytes(createTab_stmt.toString());
@@ -2204,17 +2224,20 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         return 0;
       }
 
-      ST createTab_stmt = new ST("CREATE <" + EXTERNAL + "> TABLE `" +
-          tableName + "`(\n" +
-          "<" + LIST_COLUMNS + ">)\n" +
-          "<" + TBL_COMMENT + ">\n" +
-          "<" + LIST_PARTITIONS + ">\n" +
-          "<" + SORT_BUCKET + ">\n" +
-          "<" + ROW_FORMAT + ">\n" +
-          "LOCATION\n" +
-          "<" + TBL_LOCATION + ">\n" +
-          "TBLPROPERTIES (\n" +
-          "<" + TBL_PROPERTIES + ">)\n");
+      createTab_str.append("CREATE <" + EXTERNAL + "> TABLE `");
+      createTab_str.append(tableName + "`(\n");
+      createTab_str.append("<" + LIST_COLUMNS + ">)\n");
+      createTab_str.append("<" + TBL_COMMENT + ">\n");
+      createTab_str.append("<" + LIST_PARTITIONS + ">\n");
+      createTab_str.append("<" + SORT_BUCKET + ">\n");
+      createTab_str.append("<" + ROW_FORMAT + ">\n");
+      if (!isHbaseTable) {
+        createTab_str.append("LOCATION\n");
+        createTab_str.append("<" + TBL_LOCATION + ">\n");
+      }
+      createTab_str.append("TBLPROPERTIES (\n");
+      createTab_str.append("<" + TBL_PROPERTIES + ">)\n");
+      ST createTab_stmt = new ST(createTab_str.toString());
 
       // For cases where the table is external
       String tbl_external = "";
@@ -2364,7 +2387,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
 
       // Table properties
       String tbl_properties = "";
-      Map<String, String> properties = tbl.getParameters();
+      Map<String, String> properties = new TreeMap<String, String>(tbl.getParameters());
       if (properties.size() > 0) {
         List<String> realProps = new ArrayList<String>();
         for (String key : properties.keySet()) {
@@ -2382,7 +2405,10 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       createTab_stmt.add(LIST_PARTITIONS, tbl_partitions);
       createTab_stmt.add(SORT_BUCKET, tbl_sort_bucket);
       createTab_stmt.add(ROW_FORMAT, tbl_row_format);
-      createTab_stmt.add(TBL_LOCATION, tbl_location);
+      // Table location should not be printed with hbase backed tables
+      if (!isHbaseTable) {
+        createTab_stmt.add(TBL_LOCATION, tbl_location);
+      }
       createTab_stmt.add(TBL_PROPERTIES, tbl_properties);
 
       outStream.writeBytes(createTab_stmt.render());
@@ -2571,7 +2597,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       // as HiveServer2 output is consumed by JDBC/ODBC clients.
       boolean isOutputPadded = !SessionState.get().isHiveServerQuery();
       outStream.writeBytes(MetaDataFormatUtils.getAllColumnsInformation(
-          cols, false, isOutputPadded));
+          cols, false, isOutputPadded, null));
       outStream.close();
       outStream = null;
     } catch (IOException e) {
@@ -3304,7 +3330,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         }
       }
       else {
-        Map<String, String> properties = tbl.getParameters();
+        Map<String, String> properties = new TreeMap<String, String>(tbl.getParameters());
         for (Entry<String, String> entry : properties.entrySet()) {
           appendNonNull(builder, entry.getKey(), true);
           appendNonNull(builder, entry.getValue());
@@ -3396,6 +3422,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       outStream = fs.create(resFile);
 
       List<FieldSchema> cols = null;
+      List<ColumnStatisticsObj> colStats = null;
       if (colPath.equals(tableName)) {
         cols = (part == null || tbl.getTableType() == TableType.VIRTUAL_VIEW) ?
             tbl.getCols() : part.getCols();
@@ -3405,6 +3432,16 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         }
       } else {
         cols = Hive.getFieldsFromDeserializer(colPath, tbl.getDeserializer());
+        if (descTbl.isFormatted()) {
+          // when column name is specified in describe table DDL, colPath will
+          // will be table_name.column_name
+          String colName = colPath.split("\\.")[1];
+          String[] dbTab = splitTableName(tableName);
+          List<String> colNames = new ArrayList<String>();
+          colNames.add(colName.toLowerCase());
+          colStats = db.getTableColumnStatistics(dbTab[0].toLowerCase(),
+              dbTab[1].toLowerCase(), colNames);
+        }
       }
 
       fixDecimalColumnTypeName(cols);
@@ -3413,7 +3450,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       boolean isOutputPadded = !SessionState.get().isHiveServerQuery();
       formatter.describeTable(outStream, colPath, tableName, tbl, part,
           cols, descTbl.isFormatted(), descTbl.isExt(),
-          descTbl.isPretty(), isOutputPadded);
+          descTbl.isPretty(), isOutputPadded, colStats);
 
       LOG.info("DDLTask: written data for " + tbl.getTableName());
       outStream.close();
@@ -3664,7 +3701,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
           MetadataTypedColumnsetSerDe.class.getName())
           && !tbl.getSerializationLib().equals(LazySimpleSerDe.class.getName())
           && !tbl.getSerializationLib().equals(ColumnarSerDe.class.getName())
-          && !tbl.getSerializationLib().equals(DynamicSerDe.class.getName())) {
+          && !tbl.getSerializationLib().equals(DynamicSerDe.class.getName()) 
+          && !tbl.getSerializationLib().equals(ParquetHiveSerDe.class.getName())) {
         throw new HiveException(ErrorMsg.CANNOT_REPLACE_COLUMNS, alterTbl.getOldName());
       }
       tbl.getTTable().getSd().setCols(alterTbl.getNewCols());
@@ -4029,6 +4067,9 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     database.setOwnerName(SessionState.getUserFromAuthenticator());
     database.setOwnerType(PrincipalType.USER);
     try {
+      if (!Utilities.isDefaultNameNode(conf)) {
+        makeLocationQualified(database);
+      }
       db.createDatabase(database, crtDb.getIfNotExists());
     }
     catch (AlreadyExistsException ex) {
@@ -4206,6 +4247,11 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     tbl.getTTable().getSd().setOutputFormat(
         tbl.getOutputFormatClass().getName());
 
+    if (!Utilities.isDefaultNameNode(conf)) {
+      // If location is specified - ensure that it is a full qualified name
+      makeLocationQualified(tbl.getDbName(), tbl.getTTable().getSd(), tbl.getTableName());
+    }
+
     if (crtTbl.isExternal()) {
       tbl.setProperty("EXTERNAL", "TRUE");
       tbl.setTableType(TableType.EXTERNAL_TABLE);
@@ -4344,6 +4390,11 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       } else {
         tbl.getParameters().remove("EXTERNAL");
       }
+    }
+
+    if (!Utilities.isDefaultNameNode(conf)) {
+      // If location is specified - ensure that it is a full qualified name
+      makeLocationQualified(tbl.getDbName(), tbl.getTTable().getSd(), tbl.getTableName());
     }
 
     // create the table
@@ -4495,5 +4546,92 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
   @Override
   public String getName() {
     return "DDL";
+  }
+
+   /**
+   * Make location in specified sd qualified.
+   *
+   * @param conf
+   *          Hive configuration.
+   * @param databaseName
+   *          Database name.
+   * @param sd
+   *          Storage descriptor.
+   * @param name
+   *          Object name.
+   */
+  private void makeLocationQualified(String databaseName, StorageDescriptor sd, String name)
+      throws HiveException {
+    Path path = null;
+    if (!sd.isSetLocation())
+    {
+      // Location is not set, leave it as-is if this is not a default DB
+      if (databaseName.equalsIgnoreCase(MetaStoreUtils.DEFAULT_DATABASE_NAME))
+      {
+        // Default database name path is always ignored, use METASTOREWAREHOUSE and object name
+        // instead
+        path = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE), name.toLowerCase());
+      }
+    }
+    else
+    {
+      path = new Path(sd.getLocation());
+    }
+
+    if (path != null)
+    {
+      sd.setLocation(Utilities.getQualifiedPath(conf, path));
+    }
+  }
+
+   /**
+   * Make qualified location for an index .
+   *
+   * @param conf
+   *          Hive configuration.
+   * @param crtIndex
+   *          Create index descriptor.
+   * @param name
+   *          Object name.
+   */
+  private void makeLocationQualified(CreateIndexDesc crtIndex, String name) throws HiveException
+  {
+    Path path = null;
+    if (crtIndex.getLocation() == null) {
+      // Location is not set, leave it as-is if index doesn't belong to default DB
+      // Currently all indexes are created in current DB only
+      if (db.getDatabaseCurrent().getName().equalsIgnoreCase(MetaStoreUtils.DEFAULT_DATABASE_NAME)) {
+        // Default database name path is always ignored, use METASTOREWAREHOUSE and object name
+        // instead
+        path = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE), name.toLowerCase());
+      }
+    }
+    else {
+      path = new Path(crtIndex.getLocation());
+    }
+
+    if (path != null) {
+      crtIndex.setLocation(Utilities.getQualifiedPath(conf, path));
+    }
+  }
+
+   /**
+   * Make qualified location for a database .
+   *
+   * @param conf
+   *          Hive configuration.
+   * @param database
+   *          Database.
+   */
+  private void makeLocationQualified(Database database) throws HiveException {
+    if (database.isSetLocationUri()) {
+      database.setLocationUri(Utilities.getQualifiedPath(conf, new Path(database.getLocationUri())));
+    }
+    else {
+      // Location is not set we utilize METASTOREWAREHOUSE together with database name
+      database.setLocationUri(
+          Utilities.getQualifiedPath(conf, new Path(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE),
+              database.getName().toLowerCase() + ".db")));
+    }
   }
 }

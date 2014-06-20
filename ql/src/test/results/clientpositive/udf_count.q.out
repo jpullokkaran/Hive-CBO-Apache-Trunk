@@ -18,7 +18,7 @@ POSTHOOK: query: EXPLAIN SELECT count(key) FROM src
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -61,6 +61,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT count(key) FROM src
 PREHOOK: type: QUERY
@@ -77,7 +79,7 @@ POSTHOOK: query: EXPLAIN SELECT count(DISTINCT key) FROM src
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -121,6 +123,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT count(DISTINCT key) FROM src
 PREHOOK: type: QUERY
@@ -137,7 +141,7 @@ POSTHOOK: query: EXPLAIN SELECT count(DISTINCT key, value) FROM src
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -181,6 +185,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT count(DISTINCT key, value) FROM src
 PREHOOK: type: QUERY
@@ -197,7 +203,7 @@ POSTHOOK: query: EXPLAIN SELECT count(*) FROM src
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -238,6 +244,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT count(*) FROM src
 PREHOOK: type: QUERY
@@ -254,7 +262,7 @@ POSTHOOK: query: EXPLAIN SELECT count(1) FROM src
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -295,6 +303,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT count(1) FROM src
 PREHOOK: type: QUERY

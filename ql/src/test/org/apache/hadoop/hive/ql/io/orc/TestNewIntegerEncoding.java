@@ -21,12 +21,16 @@ import static junit.framework.Assert.assertEquals;
 
 import java.io.File;
 import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.ql.io.orc.OrcFile.EncodingStrategy;
+import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.io.IntWritable;
@@ -35,11 +39,28 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
 
+@RunWith(value = Parameterized.class)
 public class TestNewIntegerEncoding {
+
+  private EncodingStrategy encodingStrategy;
+
+  public TestNewIntegerEncoding(EncodingStrategy es) {
+    this.encodingStrategy = es;
+  }
+
+  @Parameters
+  public static Collection<Object[]> data() {
+    Object[][] data = new Object[][] { { EncodingStrategy.COMPRESSION },
+        { EncodingStrategy.SPEED } };
+    return Arrays.asList(data);
+  }
 
   public static class TSRow {
     Timestamp ts;
@@ -91,7 +112,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     writer.addRow(new Row(111, 1111L));
     writer.addRow(new Row(111, 1111L));
     writer.addRow(new Row(111, 1111L));
@@ -126,7 +148,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .compress(CompressionKind.NONE)
                                          .version(OrcFile.Version.V_0_11)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -162,7 +185,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -194,7 +218,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -226,7 +251,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -258,7 +284,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -290,7 +317,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -321,7 +349,8 @@ public class TestNewIntegerEncoding {
                                          OrcFile.writerOptions(conf)
                                          .inspector(inspector)
                                          .stripeSize(100000)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -353,7 +382,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -385,7 +415,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -417,7 +448,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -452,7 +484,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -487,7 +520,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -530,7 +564,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -573,7 +608,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -616,7 +652,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -650,7 +687,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -686,7 +724,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -722,7 +761,8 @@ public class TestNewIntegerEncoding {
                                          .inspector(inspector)
                                          .stripeSize(100000)
                                          .compress(CompressionKind.NONE)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -757,7 +797,8 @@ public class TestNewIntegerEncoding {
                                          OrcFile.writerOptions(conf)
                                          .inspector(inspector)
                                          .stripeSize(100000)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -792,7 +833,8 @@ public class TestNewIntegerEncoding {
                                          OrcFile.writerOptions(conf)
                                          .inspector(inspector)
                                          .stripeSize(100000)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -827,7 +869,8 @@ public class TestNewIntegerEncoding {
                                          OrcFile.writerOptions(conf)
                                          .inspector(inspector)
                                          .stripeSize(100000)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -862,7 +905,8 @@ public class TestNewIntegerEncoding {
                                          OrcFile.writerOptions(conf)
                                          .inspector(inspector)
                                          .stripeSize(100000)
-                                         .bufferSize(10000));
+                                         .bufferSize(10000)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }
@@ -894,7 +938,11 @@ public class TestNewIntegerEncoding {
     input.set(511, Long.MAX_VALUE);
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
     for (Long l : input) {
       writer.addRow(l);
     }
@@ -928,7 +976,11 @@ public class TestNewIntegerEncoding {
     input.set(511, Long.MAX_VALUE);
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
     for (Long l : input) {
       writer.addRow(l);
     }
@@ -975,7 +1027,11 @@ public class TestNewIntegerEncoding {
     input.add(33333L);
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
     for (Long l : input) {
       writer.addRow(l);
     }
@@ -1025,7 +1081,11 @@ public class TestNewIntegerEncoding {
     input.add(Long.MAX_VALUE);
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
     for (Long l : input) {
       writer.addRow(l);
     }
@@ -1050,7 +1110,11 @@ public class TestNewIntegerEncoding {
     }
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
 
     List<Timestamp> tslist = Lists.newArrayList();
     tslist.add(Timestamp.valueOf("9999-01-01 00:00:00"));
@@ -1100,7 +1164,7 @@ public class TestNewIntegerEncoding {
     while (rows.hasNext()) {
       Object row = rows.next(null);
       assertEquals(tslist.get(idx++).getNanos(),
-          ((Timestamp) ((OrcStruct) row).getFieldValue(0)).getNanos());
+          ((TimestampWritable) ((OrcStruct) row).getFieldValue(0)).getNanos());
     }
   }
 
@@ -1113,7 +1177,11 @@ public class TestNewIntegerEncoding {
     }
 
     Writer writer = OrcFile.createWriter(testFilePath,
-        OrcFile.writerOptions(conf).inspector(inspector).stripeSize(100000).bufferSize(10000));
+        OrcFile.writerOptions(conf)
+        .inspector(inspector)
+        .stripeSize(100000)
+        .bufferSize(10000)
+        .encodingStrategy(encodingStrategy));
 
     writer.addRow(-7486502418706614742L);
     writer.addRow(0L);
@@ -1156,7 +1224,8 @@ public class TestNewIntegerEncoding {
                                          .compress(CompressionKind.NONE)
                                          .stripeSize(100000)
                                          .bufferSize(10000)
-                                         .version(OrcFile.Version.V_0_11));
+                                         .version(OrcFile.Version.V_0_11)
+                                         .encodingStrategy(encodingStrategy));
     for(Long l : input) {
       writer.addRow(l);
     }

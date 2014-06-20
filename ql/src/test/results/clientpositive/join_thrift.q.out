@@ -24,7 +24,7 @@ ON s1.aint = s2.aint
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -47,14 +47,13 @@ STAGE PLANS:
               sort order: +
               Map-reduce partition columns: aint (type: int)
               Statistics: Num rows: 401 Data size: 1606 Basic stats: COMPLETE Column stats: NONE
-              value expressions: aint (type: int)
       Reduce Operator Tree:
         Join Operator
           condition map:
                Inner Join 0 to 1
           condition expressions:
-            0 {VALUE._col0}
-            1 {VALUE._col4}
+            0 {KEY.reducesinkkey0}
+            1 {VALUE._col3}
           outputColumnNames: _col0, _col12
           Statistics: Num rows: 441 Data size: 1766 Basic stats: COMPLETE Column stats: NONE
           Select Operator
@@ -72,6 +71,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT s1.aint, s2.lintstring
 FROM src_thrift s1

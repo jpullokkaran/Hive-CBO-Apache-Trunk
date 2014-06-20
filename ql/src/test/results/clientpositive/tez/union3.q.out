@@ -36,7 +36,7 @@ FROM (
 POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-1 is a root stage
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-1
@@ -104,7 +104,7 @@ STAGE PLANS:
                         Statistics: Num rows: 0 Data size: 5812 Basic stats: PARTIAL Column stats: COMPLETE
         Reducer 10 
             Reduce Operator Tree:
-              Extract
+              Select Operator
                 Statistics: Num rows: 0 Data size: 5812 Basic stats: PARTIAL Column stats: COMPLETE
                 Limit
                   Number of rows: 1
@@ -118,10 +118,11 @@ STAGE PLANS:
                       sort order: +
                       Map-reduce partition columns: _col0 (type: int)
                       Statistics: Num rows: 0 Data size: 5812 Basic stats: PARTIAL Column stats: COMPLETE
-                      value expressions: _col0 (type: int)
         Reducer 11 
             Reduce Operator Tree:
-              Extract
+              Select Operator
+                expressions: KEY.reducesinkkey0 (type: int)
+                outputColumnNames: _col0
                 Select Operator
                   expressions: _col0 (type: int)
                   outputColumnNames: _col0
@@ -133,7 +134,7 @@ STAGE PLANS:
                         serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
         Reducer 2 
             Reduce Operator Tree:
-              Extract
+              Select Operator
                 Limit
                   Number of rows: 1
                   Select Operator
@@ -150,7 +151,7 @@ STAGE PLANS:
                             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
         Reducer 5 
             Reduce Operator Tree:
-              Extract
+              Select Operator
                 Limit
                   Number of rows: 1
                   Select Operator
@@ -167,7 +168,7 @@ STAGE PLANS:
                             serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
         Reducer 7 
             Reduce Operator Tree:
-              Extract
+              Select Operator
                 Statistics: Num rows: 0 Data size: 5812 Basic stats: PARTIAL Column stats: COMPLETE
                 Limit
                   Number of rows: 1
@@ -181,10 +182,11 @@ STAGE PLANS:
                       sort order: +
                       Map-reduce partition columns: _col0 (type: int)
                       Statistics: Num rows: 0 Data size: 5812 Basic stats: PARTIAL Column stats: COMPLETE
-                      value expressions: _col0 (type: int)
         Reducer 8 
             Reduce Operator Tree:
-              Extract
+              Select Operator
+                expressions: KEY.reducesinkkey0 (type: int)
+                outputColumnNames: _col0
                 Select Operator
                   expressions: _col0 (type: int)
                   outputColumnNames: _col0
@@ -200,6 +202,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: CREATE TABLE union_out (id int)
 PREHOOK: type: CREATETABLE
@@ -257,7 +261,6 @@ POSTHOOK: query: select * from union_out cluster by id
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@union_out
 #### A masked pattern was here ####
-POSTHOOK: Lineage: union_out.id EXPRESSION []
 1
 2
 3

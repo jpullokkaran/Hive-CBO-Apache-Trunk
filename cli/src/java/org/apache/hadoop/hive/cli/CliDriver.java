@@ -23,8 +23,8 @@ import static org.apache.hadoop.util.StringUtils.stringifyException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.sql.SQLException;
@@ -46,10 +46,13 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.HiveInterruptUtils;
 import org.apache.hadoop.hive.common.LogUtils;
 import org.apache.hadoop.hive.common.LogUtils.LogInitializationException;
 import org.apache.hadoop.hive.common.io.CachingPrintStream;
+import org.apache.hadoop.hive.common.io.FetchConverter;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
@@ -145,6 +148,11 @@ public class CliDriver {
         errPrinter.start();
 
         ret = executor.waitFor();
+
+        // wait for stream threads to finish
+        outPrinter.join();
+        errPrinter.join();
+
         if (ret != 0) {
           console.printError("Command failed with exit code = " + ret);
         }
@@ -283,6 +291,9 @@ public class CliDriver {
             // print the results
             int counter = 0;
             try {
+              if (out instanceof FetchConverter) {
+                ((FetchConverter)out).fetchStarted();
+              }
               while (qp.getResults(res)) {
                 for (String r : res) {
                   out.println(r);
@@ -303,6 +314,10 @@ public class CliDriver {
             int cret = qp.close();
             if (ret == 0) {
               ret = cret;
+            }
+
+            if (out instanceof FetchConverter) {
+              ((FetchConverter)out).fetchFinished();
             }
 
             console.printInfo("Time taken: " + timeTaken + " seconds" +
@@ -458,15 +473,19 @@ public class CliDriver {
   }
 
   public int processFile(String fileName) throws IOException {
-    FileReader fileReader = null;
+    Path path = new Path(fileName);
+    FileSystem fs;
+    if (!path.toUri().isAbsolute()) {
+      fs = FileSystem.getLocal(conf);
+      path = fs.makeQualified(path);
+    } else {
+      fs = FileSystem.get(path.toUri(), conf);
+    }
     BufferedReader bufferReader = null;
     int rc = 0;
     try {
-      fileReader = new FileReader(fileName);
-      bufferReader = new BufferedReader(fileReader);
+      bufferReader = new BufferedReader(new InputStreamReader(fs.open(path)));
       rc = processReader(bufferReader);
-      bufferReader.close();
-      bufferReader = null;
     } finally {
       IOUtils.closeStream(bufferReader);
     }

@@ -49,6 +49,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.util.hash.MurmurHash;
 
 /**
  * Reduce Sink Operator sends output to the reduce stage.
@@ -57,7 +58,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
     implements Serializable, TopNHash.BinaryCollector {
 
   static {
-    PTFUtils.makeTransient(ReduceSinkOperator.class, "inputAliases");
+    PTFUtils.makeTransient(ReduceSinkOperator.class, "inputAliases", "valueIndex");
   }
 
   private static final long serialVersionUID = 1L;
@@ -94,6 +95,12 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   transient protected int numDistributionKeys;
   transient protected int numDistinctExprs;
   transient String[] inputAliases;  // input aliases of this RS for join (used for PPD)
+  private boolean skipTag = false;
+  protected transient boolean autoParallel = false;
+  
+  protected static final MurmurHash hash = (MurmurHash)MurmurHash.getInstance();
+
+  private transient int[] valueIndex; // index for value(+ from keys, - from values)
 
   public void setInputAliases(String[] inputAliases) {
     this.inputAliases = inputAliases;
@@ -151,6 +158,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
 
       tag = conf.getTag();
       tagByte[0] = (byte) tag;
+      skipTag = conf.getSkipTag();
       LOG.info("Using tag = " + tag);
 
       TableDesc keyTableDesc = conf.getKeySerializeInfo();
@@ -169,6 +177,8 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
       if (limit >= 0 && memUsage > 0) {
         reducerHash.initialize(limit, memUsage, conf.isMapGroupBy(), this);
       }
+
+      autoParallel = conf.isAutoParallel();
 
       firstRow = true;
       initializeChildren(hconf);
@@ -293,24 +303,30 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         firstKey = toHiveKey(cachedKeys[0], tag, distKeyLength);
       }
 
+      final int hashCode;
+      
+      if(autoParallel && partitionEval.length > 0) {
+        // distKeyLength doesn't include tag, but includes buckNum in cachedKeys[0]
+        hashCode = hash.hash(firstKey.getBytes(), distKeyLength, 0);  
+      } else if(bucketEval != null && bucketEval.length > 0) {
+        hashCode = computeHashCode(row, buckNum);
+      } else {
+        hashCode = computeHashCode(row);
+      }
+      
+      firstKey.setHashCode(hashCode);
+
       // Try to store the first key. If it's not excluded, we will proceed.
       int firstIndex = reducerHash.tryStoreKey(firstKey);
       if (firstIndex == TopNHash.EXCLUDE) return; // Nothing to do.
       // Compute value and hashcode - we'd either store or forward them.
       BytesWritable value = makeValueWritable(row);
-      int hashCode = 0;
-      if (bucketEval == null) {
-        hashCode = computeHashCode(row);
-      } else {
-        hashCode = computeHashCode(row, buckNum);
-      }
 
       if (firstIndex == TopNHash.FORWARD) {
-        firstKey.setHashCode(hashCode);
         collect(firstKey, value);
       } else {
         assert firstIndex >= 0;
-        reducerHash.storeValue(firstIndex, value, hashCode, false);
+        reducerHash.storeValue(firstIndex, value, false);
       }
 
       // All other distinct keys will just be forwarded. This could be optimized...
@@ -400,7 +416,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   protected HiveKey toHiveKey(Object obj, int tag, Integer distLength) throws SerDeException {
     BinaryComparable key = (BinaryComparable)keySerializer.serialize(obj, keyObjectInspector);
     int keyLength = key.getLength();
-    if (tag == -1) {
+    if (tag == -1 || skipTag) {
       keyWritable.set(key.getBytes(), 0, keyLength);
     } else {
       keyWritable.setSize(keyLength + 1);
@@ -463,5 +479,17 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   @Override
   public boolean opAllowedBeforeMapJoin() {
     return false;
+  }
+
+  public void setSkipTag(boolean value) {
+    this.skipTag = value;
+  }
+
+  public void setValueIndex(int[] valueIndex) {
+    this.valueIndex = valueIndex;
+  }
+
+  public int[] getValueIndex() {
+    return valueIndex;
   }
 }

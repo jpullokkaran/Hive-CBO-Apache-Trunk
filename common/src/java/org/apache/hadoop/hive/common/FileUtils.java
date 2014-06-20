@@ -39,6 +39,9 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.shims.HadoopShims;
+import org.apache.hadoop.hive.shims.HadoopShims.HdfsFileStatus;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Shell;
 
@@ -48,6 +51,19 @@ import org.apache.hadoop.util.Shell;
  */
 public final class FileUtils {
   private static final Log LOG = LogFactory.getLog(FileUtils.class.getName());
+
+  /**
+   * Accept all paths.
+   */
+  private static class AcceptAllPathFilter implements PathFilter {
+    @Override
+    public boolean accept(Path path) {
+      return true;
+    }
+  }
+
+  private static final PathFilter allPathFilter = new AcceptAllPathFilter();
+
   /**
    * Variant of Path.makeQualified that qualifies the input path against the default file system
    * indicated by the configuration
@@ -451,10 +467,11 @@ public final class FileUtils {
    * @param fs FileSystem to use
    * @param f path to create.
    * @param inheritPerms whether directory inherits the permission of the last-existing parent path
+   * @param conf Hive configuration
    * @return true if directory created successfully.  False otherwise, including if it exists.
    * @throws IOException exception in creating the directory
    */
-  public static boolean mkdir(FileSystem fs, Path f, boolean inheritPerms) throws IOException {
+  public static boolean mkdir(FileSystem fs, Path f, boolean inheritPerms, Configuration conf) throws IOException {
     LOG.info("Creating directory if it doesn't exist: " + f);
     if (!inheritPerms) {
       //just create the directory
@@ -467,25 +484,23 @@ public final class FileUtils {
       } catch (FileNotFoundException ignore) {
       }
       //inherit perms: need to find last existing parent path, and apply its permission on entire subtree.
-      Path path = f;
-      List<Path> pathsToSet = new ArrayList<Path>();
-      while (!fs.exists(path)) {
-        pathsToSet.add(path);
-        path = path.getParent();
+      Path lastExistingParent = f;
+      Path firstNonExistentParent = null;
+      while (!fs.exists(lastExistingParent)) {
+        firstNonExistentParent = lastExistingParent;
+        lastExistingParent = lastExistingParent.getParent();
       }
-      //at the end of this loop, path is the last-existing parent path.
       boolean success = fs.mkdirs(f);
       if (!success) {
         return false;
       } else {
-        FsPermission parentPerm = fs.getFileStatus(path).getPermission();
-        String parentGroup = fs.getFileStatus(path).getGroup();
-        for (Path pathToSet : pathsToSet) {
-          String currOwner = fs.getFileStatus(pathToSet).getOwner();
-          LOG.info("Setting permission and group of parent directory: " + path.toString() +
-            " on new directory: " + pathToSet.toString());
-          fs.setPermission(pathToSet, parentPerm);
-          fs.setOwner(pathToSet, currOwner, parentGroup);
+        HadoopShims shim = ShimLoader.getHadoopShims();
+        HdfsFileStatus fullFileStatus = shim.getFullFileStatus(conf, fs, lastExistingParent);
+        try {
+          //set on the entire subtree
+          shim.setFullFileStatus(conf, fullFileStatus, fs, firstNonExistentParent);
+        } catch (Exception e) {
+          LOG.warn("Error setting permissions of " + firstNonExistentParent, e);
         }
         return true;
       }
@@ -503,20 +518,87 @@ public final class FileUtils {
     boolean copied = FileUtil.copy(srcFS, src, dstFS, dst, deleteSource, overwrite, conf);
     boolean inheritPerms = conf.getBoolVar(HiveConf.ConfVars.HIVE_WAREHOUSE_SUBDIR_INHERIT_PERMS);
     if (copied && inheritPerms) {
-      FileStatus destFileStatus = dstFS.getFileStatus(dst);
-      FsPermission perm = destFileStatus.getPermission();
-      String permString = Integer.toString(perm.toShort(), 8);
-      String group = destFileStatus.getGroup();
-      //use FsShell to change group and permissions recursively
+      HadoopShims shims = ShimLoader.getHadoopShims();
+      HdfsFileStatus fullFileStatus = shims.getFullFileStatus(conf, dstFS, dst);
       try {
-        FsShell fshell = new FsShell();
-        fshell.setConf(conf);
-        fshell.run(new String[]{"-chgrp", "-R", group, dst.toString()});
-        fshell.run(new String[]{"-chmod", "-R", permString, dst.toString()});
+        shims.setFullFileStatus(conf, fullFileStatus, dstFS, dst);
       } catch (Exception e) {
-        throw new IOException("Unable to set permissions of " + dst, e);
+        LOG.warn("Error setting permissions or group of " + dst, e);
       }
     }
     return copied;
+  }
+
+  /**
+   * Deletes all files under a directory, sending them to the trash.  Leaves the directory as is.
+   * @param fs FileSystem to use
+   * @param f path of directory
+   * @param conf hive configuration
+   * @return true if deletion successful
+   * @throws FileNotFoundException
+   * @throws IOException
+   */
+  public static boolean trashFilesUnderDir(FileSystem fs, Path f, Configuration conf) throws FileNotFoundException, IOException {
+    FileStatus[] statuses = fs.listStatus(f, allPathFilter);
+    boolean result = true;
+    for (FileStatus status : statuses) {
+      result = result & moveToTrash(fs, status.getPath(), conf);
+    }
+    return result;
+  }
+
+  /**
+   * Move a particular file or directory to the trash.
+   * @param fs FileSystem to use
+   * @param f path of file or directory to move to trash.
+   * @param conf
+   * @return true if move successful
+   * @throws IOException
+   */
+  public static boolean moveToTrash(FileSystem fs, Path f, Configuration conf) throws IOException {
+    LOG.info("deleting  " + f);
+    HadoopShims hadoopShim = ShimLoader.getHadoopShims();
+
+    boolean skipTrash = HiveConf.getBoolVar(conf,
+        HiveConf.ConfVars.HIVE_WAREHOUSE_DATA_SKIPTRASH);
+
+    if (skipTrash) {
+      LOG.info("Not moving "+ f +" to trash due to configuration " +
+        HiveConf.ConfVars.HIVE_WAREHOUSE_DATA_SKIPTRASH + " is set to true.");
+    } else if (hadoopShim.moveToAppropriateTrash(fs, f, conf)) {
+      LOG.info("Moved to trash: " + f);
+      return true;
+    }
+
+    boolean result = fs.delete(f, true);
+    if (!result) {
+      LOG.error("Failed to delete " + f);
+    }
+    return result;
+  }
+
+  public static boolean renameWithPerms(FileSystem fs, Path sourcePath,
+                               Path destPath, boolean inheritPerms,
+                               Configuration conf) throws IOException {
+    LOG.info("Renaming " + sourcePath + " to " + destPath);
+    if (!inheritPerms) {
+      //just rename the directory
+      return fs.rename(sourcePath, destPath);
+    } else {
+      //rename the directory
+      if (fs.rename(sourcePath, destPath)) {
+        HadoopShims shims = ShimLoader.getHadoopShims();
+        HdfsFileStatus fullFileStatus = shims.getFullFileStatus(conf, fs, destPath.getParent());
+        try {
+          shims.setFullFileStatus(conf, fullFileStatus, fs, destPath);
+        } catch (Exception e) {
+          LOG.warn("Error setting permissions or group of " + destPath, e);
+        }
+
+        return true;
+      }
+
+      return false;
+    }
   }
 }

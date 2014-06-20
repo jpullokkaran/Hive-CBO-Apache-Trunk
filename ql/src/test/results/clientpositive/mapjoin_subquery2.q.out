@@ -82,7 +82,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-7 is a root stage
   Stage-5 depends on stages: Stage-7
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-5
 
 STAGE PLANS:
   Stage: Stage-7
@@ -101,7 +101,7 @@ STAGE PLANS:
             Statistics: Num rows: 0 Data size: 6 Basic stats: PARTIAL Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {id} {name}
+                0 {name}
                 1 {name} {id}
               keys:
                 0 id (type: int)
@@ -113,7 +113,7 @@ STAGE PLANS:
             HashTable Sink Operator
               condition expressions:
                 0 {_col0} {_col1} {_col2} {_col3}
-                1 {id} {name}
+                1 {name}
               keys:
                 0 _col0 (type: int)
                 1 id (type: int)
@@ -167,6 +167,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: -1
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT subq.key1, subq.value1, subq.key2, subq.value2, z.id, z.name
 FROM

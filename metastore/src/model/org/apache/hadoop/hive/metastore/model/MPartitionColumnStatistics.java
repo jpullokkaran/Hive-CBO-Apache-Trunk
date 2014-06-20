@@ -40,10 +40,10 @@ public class MPartitionColumnStatistics {
   private String colName;
   private String colType;
 
-  private long longLowValue;
-  private long longHighValue;
-  private double doubleLowValue;
-  private double doubleHighValue;
+  private Long longLowValue;
+  private Long longHighValue;
+  private Double doubleLowValue;
+  private Double doubleHighValue;
   private String decimalLowValue;
   private String decimalHighValue;
   private long numNulls;
@@ -166,14 +166,14 @@ public class MPartitionColumnStatistics {
     this.numNulls = numNulls;
   }
 
-  public void setLongStats(long numNulls, long numNDVs, long lowValue, long highValue) {
+  public void setLongStats(long numNulls, long numNDVs, Long lowValue, Long highValue) {
     this.numNulls = numNulls;
     this.numDVs = numNDVs;
     this.longLowValue = lowValue;
     this.longHighValue = highValue;
   }
 
-  public void setDoubleStats(long numNulls, long numNDVs, double lowValue, double highValue) {
+  public void setDoubleStats(long numNulls, long numNDVs, Double lowValue, Double highValue) {
     this.numNulls = numNulls;
     this.numDVs = numNDVs;
     this.doubleLowValue = lowValue;
@@ -200,35 +200,35 @@ public class MPartitionColumnStatistics {
     this.maxColLen = maxColLen;
     this.avgColLen = avgColLen;
   }
-  public long getLongLowValue() {
+  public Long getLongLowValue() {
     return longLowValue;
   }
 
-  public void setLongLowValue(long longLowValue) {
+  public void setLongLowValue(Long longLowValue) {
     this.longLowValue = longLowValue;
   }
 
-  public long getLongHighValue() {
+  public Long getLongHighValue() {
     return longHighValue;
   }
 
-  public void setLongHighValue(long longHighValue) {
+  public void setLongHighValue(Long longHighValue) {
     this.longHighValue = longHighValue;
   }
 
-  public double getDoubleLowValue() {
+  public Double getDoubleLowValue() {
     return doubleLowValue;
   }
 
-  public void setDoubleLowValue(double doubleLowValue) {
+  public void setDoubleLowValue(Double doubleLowValue) {
     this.doubleLowValue = doubleLowValue;
   }
 
-  public double getDoubleHighValue() {
+  public Double getDoubleHighValue() {
     return doubleHighValue;
   }
 
-  public void setDoubleHighValue(double doubleHighValue) {
+  public void setDoubleHighValue(Double doubleHighValue) {
     this.doubleHighValue = doubleHighValue;
   }
 

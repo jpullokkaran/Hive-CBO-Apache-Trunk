@@ -312,6 +312,7 @@ public final class ColumnPrunerProcFactory {
           cols);
       List<Integer> neededColumnIds = new ArrayList<Integer>();
       List<String> neededColumnNames = new ArrayList<String>();
+      List<String> referencedColumnNames = new ArrayList<String>();
       RowResolver inputRR = cppCtx.getOpToParseCtxMap().get(scanOp).getRowResolver();
       TableScanDesc desc = scanOp.getConf();
       List<VirtualColumn> virtualCols = desc.getVirtualCols();
@@ -322,11 +323,12 @@ public final class ColumnPrunerProcFactory {
         cols.add(VirtualColumn.RAWDATASIZE.getName());
       }
 
-      for (int i = 0; i < cols.size(); i++) {
-        String[] tabCol = inputRR.reverseLookup(cols.get(i));
-        if(tabCol == null) {
+      for (String column : cols) {
+        String[] tabCol = inputRR.reverseLookup(column);
+        if (tabCol == null) {
           continue;
         }
+        referencedColumnNames.add(column);
         ColumnInfo colInfo = inputRR.get(tabCol[0], tabCol[1]);
         if (colInfo.getIsVirtualCol()) {
           // part is also a virtual column, but part col should not in this
@@ -340,17 +342,18 @@ public final class ColumnPrunerProcFactory {
           //no need to pass virtual columns to reader.
           continue;
         }
-        int position = inputRR.getPosition(cols.get(i));
+        int position = inputRR.getPosition(column);
         if (position >= 0) {
           // get the needed columns by id and name
           neededColumnIds.add(position);
-          neededColumnNames.add(cols.get(i));
+          neededColumnNames.add(column);
         }
       }
 
       desc.setVirtualCols(newVirtualCols);
       scanOp.setNeededColumnIDs(neededColumnIds);
       scanOp.setNeededColumns(neededColumnNames);
+      scanOp.setReferencedColumns(referencedColumnNames);
       return null;
     }
   }
@@ -372,6 +375,7 @@ public final class ColumnPrunerProcFactory {
         Object... nodeOutputs) throws SemanticException {
       ReduceSinkOperator op = (ReduceSinkOperator) nd;
       ColumnPrunerProcCtx cppCtx = (ColumnPrunerProcCtx) ctx;
+      RowResolver resolver = cppCtx.getOpToParseCtxMap().get(op).getRowResolver();
       ReduceSinkDesc conf = op.getConf();
 
       List<String> colLists = new ArrayList<String>();
@@ -392,35 +396,20 @@ public final class ColumnPrunerProcFactory {
         childCols = cppCtx.getPrunedColList(child);
 
       }
+      List<ExprNodeDesc> valCols = conf.getValueCols();
+      List<String> valColNames = conf.getOutputValueColumnNames();
+
       if (childCols != null) {
-        /*
-         * in the case of count(or sum) distinct if we are not able to map
-         * a parameter column references back to the ReduceSink value columns
-         * we give up and assume all columns are needed.
-         */
-        boolean hasUnresolvedReference = false;
-        boolean[] flags = new boolean[conf.getValueCols().size()];
+        boolean[] flags = new boolean[valCols.size()];
         Map<String, ExprNodeDesc> exprMap = op.getColumnExprMap();
+
         for (String childCol : childCols) {
-          ExprNodeDesc desc = exprMap.get(childCol);
-          int index = conf.getValueCols().indexOf(desc);
+          int index = valColNames.indexOf(Utilities.removeValueTag(childCol));
           if (index < 0) {
-            hasUnresolvedReference = desc == null || ExprNodeDescUtils.indexOf(desc, conf.getKeyCols()) < 0;
-            if ( hasUnresolvedReference ) {
-              break;
-            }
             continue;
           }
           flags[index] = true;
-          colLists = Utilities.mergeUniqElems(colLists, desc.getCols());
-        }
-        
-        if ( hasUnresolvedReference ) {
-          for (ExprNodeDesc val : conf.getValueCols()) {
-            colLists = Utilities.mergeUniqElems(colLists, val.getCols());
-          }
-          cppCtx.getPrunedColLists().put(op, colLists);
-          return null;
+          colLists = Utilities.mergeUniqElems(colLists, valCols.get(index).getCols());
         }
         
         Collections.sort(colLists);
@@ -431,8 +420,7 @@ public final class ColumnPrunerProcFactory {
       
       // Reduce Sink contains the columns needed - no need to aggregate from
       // children
-      ArrayList<ExprNodeDesc> vals = conf.getValueCols();
-      for (ExprNodeDesc val : vals) {
+      for (ExprNodeDesc val : valCols) {
         colLists = Utilities.mergeUniqElems(colLists, val.getCols());
       }
 
@@ -594,10 +582,6 @@ public final class ColumnPrunerProcFactory {
 
       // do we need to prune the select operator?
       List<ExprNodeDesc> originalColList = op.getConf().getColList();
-      List<String> columns = new ArrayList<String>();
-      for (ExprNodeDesc expr : originalColList) {
-        Utilities.mergeUniqElems(columns, expr.getCols());
-      }
       // by now, 'prunedCols' are columns used by child operators, and 'columns'
       // are columns used by this select operator.
       List<String> originalOutputColumnNames = conf.getOutputColumnNames();

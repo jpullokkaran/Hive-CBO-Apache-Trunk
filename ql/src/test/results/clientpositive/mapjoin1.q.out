@@ -32,7 +32,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -48,7 +48,7 @@ STAGE PLANS:
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {key} {value}
+                0 {value}
                 1 {key} {value}
               filter predicates:
                 0 
@@ -97,6 +97,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN src b on a.key=b.key AND true limit 10
 PREHOOK: type: QUERY
@@ -127,7 +129,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -143,7 +145,7 @@ STAGE PLANS:
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {key} {value}
+                0 {value}
                 1 {key} {value}
               filter predicates:
                 0 
@@ -192,6 +194,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN src b on a.key=b.key AND b.key * 10 < '1000' limit 10
 PREHOOK: type: QUERY
@@ -224,7 +228,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -240,7 +244,7 @@ STAGE PLANS:
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {key} {value}
+                0 {value}
                 1 {_col0} {_col1}
               filter predicates:
                 0 
@@ -293,6 +297,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN
     (select key, named_struct('key', key, 'value', value) as kv from src) b on a.key=b.key AND b.kv.key > 200 limit 10
@@ -323,7 +329,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -342,7 +348,7 @@ STAGE PLANS:
               Statistics: Num rows: 0 Data size: 0 Basic stats: NONE Column stats: NONE
               HashTable Sink Operator
                 condition expressions:
-                  0 {key} {value}
+                  0 {value}
                   1 {key} {value}
                 keys:
                   0 key (type: string)
@@ -388,6 +394,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN src b on a.key=b.key AND true limit 10
 PREHOOK: type: QUERY
@@ -416,7 +424,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -435,7 +443,7 @@ STAGE PLANS:
               Statistics: Num rows: 9 Data size: 1803 Basic stats: COMPLETE Column stats: NONE
               HashTable Sink Operator
                 condition expressions:
-                  0 {key} {value}
+                  0 {value}
                   1 {key} {value}
                 keys:
                   0 key (type: string)
@@ -481,6 +489,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN src b on a.key=b.key AND b.key * 10 < '1000' limit 10
 PREHOOK: type: QUERY
@@ -511,7 +521,7 @@ POSTHOOK: type: QUERY
 STAGE DEPENDENCIES:
   Stage-3 is a root stage
   Stage-1 depends on stages: Stage-3
-  Stage-0 is a root stage
+  Stage-0 depends on stages: Stage-1
 
 STAGE PLANS:
   Stage: Stage-3
@@ -527,7 +537,7 @@ STAGE PLANS:
             Statistics: Num rows: 29 Data size: 5812 Basic stats: COMPLETE Column stats: NONE
             HashTable Sink Operator
               condition expressions:
-                0 {key} {value}
+                0 {value}
                 1 {_col0} {_col1}
               keys:
                 0 key (type: string)
@@ -577,6 +587,8 @@ STAGE PLANS:
   Stage: Stage-0
     Fetch Operator
       limit: 10
+      Processor Tree:
+        ListSink
 
 PREHOOK: query: SELECT /*+ MAPJOIN(a) */ * FROM src a RIGHT OUTER JOIN
     (select key, named_struct('key', key, 'value', value) as kv from src) b on a.key=b.key AND b.kv.key > 200 limit 10
