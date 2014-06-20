@@ -11711,7 +11711,6 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       cluster.setMetadataProvider(new CachingRelMetadataProvider(
           chainedProvider, planner));
 
-      planner.clearRules();
       planner.addRule(HiveSwapJoinRule.INSTANCE);
       planner.addRule(HivePushJoinThroughJoinRule.LEFT);
       planner.addRule(HivePushJoinThroughJoinRule.RIGHT);

@@ -117,7 +117,6 @@ public class CostBasedOptimizer implements Frameworks.PlannerAction<RelNode> {
     RelNode opTreeInOptiq = RelNodeConverter.convert(m_sinkOp, cluster, relOptSchema,
         m_semanticAnalyzer, m_ParseContext);
 
-    planner.clearRules();
     planner.addRule(HiveSwapJoinRule.INSTANCE);
     planner.addRule(HivePushJoinThroughJoinRule.LEFT);
     planner.addRule(HivePushJoinThroughJoinRule.RIGHT);
