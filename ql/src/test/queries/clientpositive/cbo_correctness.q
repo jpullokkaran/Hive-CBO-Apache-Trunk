@@ -147,3 +147,16 @@ select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.
 
 select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c;
 
+-- 7. Test Select + TS + Join + Fil + GB + GB Having + Limit
+select * from t1 group by c_int limit 1;
+select key, (c_int+1)+2 as x, sum(c_int) from t1 group by c_float, t1.c_int, key order by x limit 1;
+select * from (select key, (c_int+c_float+1+2) as x, sum(c_int) as y from t1 group by c_float, t1.c_int, key) R group by y, x order by x,y limit 1;
+select key from(select key from (select key from t1 limit 5)t2  limit 5)t3  limit 5;
+select key, c_int from(select key, c_int from (select key, c_int from t1 order by c_int limit 5)t1  order by c_int limit 5)t2  order by c_int limit 5;
+
+select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0) group by c_float, t1.c_int, key order by a limit 5) t1 join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key order by q/10 desc, r asc limit 5) t2 on t1.a=p join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c order by t3.c_int+c desc, c limit 5;
+
+select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by a+b desc, c asc limit 5) t1 left semi join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by q+r/10 desc, p limit 5) t2 on t1.a=p left semi join t3 on t1.a=key where (b + 1  >= 0) and (b > 0 or a >= 0) group by a, c  having a > 0 and (a >=1 or c >= 1) and (a + c) >= 0 order by c, a;
+
+select * from (select key as a, c_int+1 as b, sum(c_int) as c from t1 where (t1.c_int + 1 >= 0) and (t1.c_int > 0 or t1.c_float >= 0)  group by c_float, t1.c_int, key having t1.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 order by b % c asc, b desc limit 5) t1 left outer join (select key as p, c_int+1 as q, sum(c_int) as r from t2 where (t2.c_int + 1 >= 0) and (t2.c_int > 0 or t2.c_float >= 0)  group by c_float, t2.c_int, key  having t2.c_float > 0 and (c_int >=1 or c_float >= 1) and (c_int + c_float) >= 0 limit 5) t2 on t1.a=p left outer join t3 on t1.a=key where (b + t2.q >= 0) and (b > 0 or c_int >= 0) group by t3.c_int, c  having t3.c_int > 0 and (c_int >=1 or c >= 1) and (c_int + c) >= 0  order by t3.c_int % c asc, t3.c_int desc limit 5;
+

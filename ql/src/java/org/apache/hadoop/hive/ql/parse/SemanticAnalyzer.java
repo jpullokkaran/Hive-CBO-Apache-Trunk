@@ -22,6 +22,7 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.HIVESTATSDBCLASS;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -12404,9 +12405,31 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
       return relToRet;
     }
 
-    private RelNode genLimitLogicalPlan(QB qb, RelNode srcRel) {
-      // TODO Auto-generated method stub
-      return null;
+    private RelNode genLimitLogicalPlan(QB qb, RelNode srcRel)
+        throws SemanticException {
+      HiveRel sortRel = null;
+      QBParseInfo qbp = getQBParseInfo(qb);
+      Integer limit = qbp.getDestToLimit().get(
+          qbp.getClauseNames().iterator().next());
+
+      if (limit != null) {
+        RexNode fetch = m_cluster.getRexBuilder().makeExactLiteral(
+            BigDecimal.valueOf(limit));
+        RelTraitSet traitSet = m_cluster.traitSetOf(HiveRel.CONVENTION);
+        RelCollation canonizedCollation = traitSet
+            .canonize(RelCollationImpl.EMPTY);
+        sortRel = new HiveSortRel(m_cluster, traitSet, srcRel,
+            canonizedCollation, null, fetch);
+
+        RowResolver outputRR = new RowResolver();
+        RowResolver.add(outputRR, m_relToHiveRR.get(srcRel), 0);
+        ImmutableMap<String, Integer> hiveColNameOptiqPosMap = buildHiveToOptiqColumnMap(
+            outputRR, sortRel);
+        m_relToHiveRR.put(sortRel, outputRR);
+        m_relToHiveColNameOptiqPosMap.put(sortRel, hiveColNameOptiqPosMap);
+      }
+
+      return sortRel;
     }
 
     /**
